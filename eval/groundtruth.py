@@ -54,8 +54,9 @@ def generate_tsdr_ground_truth() -> dict[str, Any]:
 TSDR_GROUND_TRUTH: dict[str, Any] = generate_tsdr_ground_truth()
 
 
-def check_tsdr_ground_truth_by_route(metrics: list[str], chaos_type: str, chaos_comp: str
-                                     ) -> tuple[bool, list[str]]:
+def check_tsdr_ground_truth_by_route(
+    metrics: list[str], chaos_type: str, chaos_comp: str
+) -> tuple[bool, list[str]]:
     gt_metrics_routes: list[list[str]] = TSDR_GROUND_TRUTH[chaos_type][chaos_comp]
     routes_ok: list[tuple[bool, list[str]]] = []
     for gt_route in gt_metrics_routes:
@@ -90,8 +91,7 @@ def check_route(metrics: list[str], gt_route: list[str]) -> tuple[bool, list[str
     return True, match_metrics
 
 
-def check_cause_metrics(nodes: mn.MetricNodes, chaos_type: str, chaos_comp: str
-                        ) -> tuple[bool, mn.MetricNodes]:
+def check_cause_metrics(nodes: mn.MetricNodes, chaos_type: str, chaos_comp: str) -> tuple[bool, mn.MetricNodes]:
     metric_patterns = CHAOS_TO_CAUSE_METRIC_PATTERNS[chaos_type]
     cause_metrics: list[mn.MetricNode] = []
     for node in nodes:

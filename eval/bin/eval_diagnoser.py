@@ -17,14 +17,12 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 from bokeh.embed import file_html
-from bokeh.models import HoverTool
 from bokeh.resources import CDN
 from diagnoser import diag
 from eval import groundtruth
 from meltria.loader import DatasetRecord
 from neptune.new.integrations.python_logger import NeptuneHandler
 from omegaconf import DictConfig, OmegaConf
-from psutil import cpu_percent
 from tsdr import tsdr
 
 hv.extension('bokeh')

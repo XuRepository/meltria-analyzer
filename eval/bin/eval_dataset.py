@@ -8,11 +8,10 @@ import hydra
 import meltria.loader
 import neptune.new as neptune
 import pandas as pd
-from eval import groundtruth, priorknowledge
+from eval import priorknowledge
 from meltria.loader import DatasetRecord
 from neptune.new.integrations.python_logger import NeptuneHandler
 from omegaconf import DictConfig, OmegaConf
-from tsdr import tsdr
 from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
 
 # see https://docs.neptune.ai/api-reference/integrations/python-logger

@@ -1,117 +1,120 @@
 from collections import defaultdict
 
+import eval.priorknowledge.sock_shop as sock_shop
+import eval.priorknowledge.sock_shop as train_ticket
 import networkx as nx
 
-ROOT_METRIC_LABELS: tuple[str, str, str] = ("s-front-end_latency", "s-front-end_throughput", "s-front-end_errors")
 
-SERVICE_CALL_DIGRAPH: nx.DiGraph = nx.DiGraph([
-    ('front-end', 'orders'),
-    ('front-end', 'catalogue'),
-    ('front-end', 'user'),
-    ('front-end', 'carts'),
-    ('orders', 'shipping'),
-    ('orders', 'payment'),
-    ('orders', 'user'),
-    ('orders', 'carts'),
-])
+class PriorKnowledge:
+    def __init__(self, target_app: str) -> None:
+        self.target_app = target_app
 
-CONTAINER_CALL_DIGRAPH: nx.DiGraph = nx.DiGraph([
-    ('front-end', 'orders'),
-    ('front-end', 'carts'),
-    ('front-end', 'user'),
-    ('front-end', 'catalogue'),
-    ('front-end', 'session-db'),
-    ('orders', 'shipping'),
-    ('orders', 'payment'),
-    ('orders', 'user'),
-    ('orders', 'carts'),
-    ('orders', 'orders-db'),
-    ('catalogue', 'catalogue-db'),
-    ('user', 'user-db'),
-    ('carts', 'carts-db'),
-    ('shipping', 'rabbitmq'),
-    ('rabbitmq', 'queue-master'),
-])
+    def get_containers(self, skip: bool = False) -> list[str]:
+        ctnrs: list[str]
+        match self.target_app:
+            case sock_shop.TARGET_APP_NAME:
+                ctnrs = list(sock_shop.CONTAINER_CALL_GRAPH.keys())
+            case train_ticket.TARGET_APP_NAME:
+                ctnrs = list(train_ticket.CONTAINER_CALL_GRAPH.keys())
+            case _:
+                raise ValueError(f'{self.target_app} is invalid')
+        if skip:
+            return [ctnr for ctnr in ctnrs if ctnr not in self.get_skip_containers()]
+        return ctnrs
 
-CONTAINER_CALL_GRAPH: dict[str, list[str]] = {
-    "front-end": ["orders", "carts", "user", "catalogue"],
-    "catalogue": ["front-end", "catalogue-db"],
-    "catalogue-db": ["catalogue"],
-    "orders": ["front-end", "orders-db", "carts", "user", "payement", "shipping"],
-    "orders-db": ["orders"],
-    "user": ["front-end", "user-db", "orders"],
-    "user-db": ["user"],
-    "payment": ["orders"],
-    "shipping": ["orders", "rabbitmq"],
-    "queue-master": ["rabbitmq"],
-    "rabbitmq": ["shipping", "queue-master"],
-    "carts": ["front-end", "carts-db", "orders"],
-    "carts-db": ["carts"],
-    "session-db": ["front-end"]
-}
+    def get_root_metrics(self) -> tuple[str, ...]:
+        match self.target_app:
+            case sock_shop.TARGET_APP_NAME:
+                return sock_shop.ROOT_METRIC_LABELS
+            case train_ticket.TARGET_APP_NAME:
+                return train_ticket.ROOT_METRIC_LABELS
+            case _:
+                raise ValueError(f'{self.target_app} is invalid')
 
-# Use list of tuple because of supporting multiple routes
-SERVICE_TO_SERVICES: dict[str, list[str]] = {
-    'orders': ['front-end'],
-    'carts': ['orders', 'front-end'],
-    'user': ['orders', 'front-end'],
-    'catalogue': ['front-end'],
-    'payment': ['orders'],
-    'shipping': ['orders'],
-    'front-end': [],
-}
+    def get_service_call_digraph(self) -> nx.DiGraph:
+        match self.target_app:
+            case sock_shop.TARGET_APP_NAME:
+                return sock_shop.SERVICE_CALL_DIGRAPH
+            case train_ticket.TARGET_APP_NAME:
+                return train_ticket.SERVICE_CALL_DIGRAPH
+            case _:
+                raise ValueError(f'{self.target_app} is invalid')
 
-SERVICE_TO_SERVICE_ROUTES: dict[str, list[tuple[str, ...]]] = {
-    'orders': [('front-end',)],
-    'carts': [('orders', 'front-end'), ('front-end',)],
-    'user': [('orders', 'front-end'), ('front-end',)],
-    'catalogue': [('front-end',)],
-    'payment': [('orders',)],
-    'shipping': [('orders',)],
-    'front-end': [()],
-}
+    def get_container_call_digraph(self) -> nx.DiGraph:
+        match self.target_app:
+            case sock_shop.TARGET_APP_NAME:
+                return sock_shop.CONTAINER_CALL_DIGRAPH
+            case train_ticket.TARGET_APP_NAME:
+                return train_ticket.CONTAINER_CALL_DIGRAPH
+            case _:
+                raise ValueError(f'{self.target_app} is invalid')
 
-SERVICE_CONTAINERS: dict[str, list[str]] = {
-    "carts": ["carts", "carts-db"],
-    "payment": ["payment"],
-    "shipping": ["shipping"],
-    "front-end": ["front-end"],
-    "user": ["user", "user-db"],
-    "catalogue": ["catalogue", "catalogue-db"],
-    "orders": ["orders", "orders-db"],
-}
+    def get_container_call_graph(self, ctnr: str) -> list[str]:
+        match self.target_app:
+            case sock_shop.TARGET_APP_NAME:
+                return sock_shop.CONTAINER_CALL_GRAPH[ctnr]
+            case train_ticket.TARGET_APP_NAME:
+                return train_ticket.CONTAINER_CALL_GRAPH[ctnr]
+            case _:
+                raise ValueError(f'{self.target_app} is invalid')
 
-CONTAINER_TO_SERVICE: dict[str, str] = {c: s for s, ctnrs in SERVICE_CONTAINERS.items() for c in ctnrs}
+    def get_service_to_service_routes(self, service: str) -> list[tuple[str, ...]]:
+        match self.target_app:
+            case sock_shop.TARGET_APP_NAME:
+                return sock_shop.SERVICE_TO_SERVICE_ROUTES[service]
+            case train_ticket.TARGET_APP_NAME:
+                return train_ticket.SERVICE_TO_SERVICE_ROUTES[service]
+            case _:
+                raise ValueError(f'{self.target_app} is invalid')
 
-SKIP_CONTAINERS = ["queue-master", "rabbitmq", "session-db"]
+    def get_service_containers(self, service: str) -> list[str]:
+        match self.target_app:
+            case sock_shop.TARGET_APP_NAME:
+                return sock_shop.SERVICE_CONTAINERS[service]
+            case train_ticket.TARGET_APP_NAME:
+                return train_ticket.SERVICE_CONTAINERS[service]
+            case _:
+                raise ValueError(f'{self.target_app} is invalid')
 
-DIAGNOSER_TARGET_DATA: dict[str, list[str]] = {
-    "containers": [],  # all
-    "services": ["throughput", "latency", "errors"],
-    "nodes": [
-        "node_cpu_seconds_total",
-        "node_disk_io_now",
-        "node_filesystem_avail_bytes",
-        "node_memory_MemAvailable_bytes",
-        "node_network_receive_bytes_total",
-        "node_network_transmit_bytes_total"
-    ],
-    # "middlewares": "all"}
-}
+    def get_container_to_service(self, ctnr: str) -> str:
+        match self.target_app:
+            case sock_shop.TARGET_APP_NAME:
+                return sock_shop.CONTAINER_TO_SERVICE[ctnr]
+            case train_ticket.TARGET_APP_NAME:
+                return train_ticket.CONTAINER_TO_SERVICE[ctnr]
+            case _:
+                raise ValueError(f'{self.target_app} is invalid')
 
+    def get_skip_containers(self) -> list[str]:
+        match self.target_app:
+            case sock_shop.TARGET_APP_NAME:
+                return sock_shop.SKIP_CONTAINERS
+            case train_ticket.TARGET_APP_NAME:
+                return train_ticket.SKIP_CONTAINERS
+            case _:
+                raise ValueError(f'{self.target_app} is invalid')
 
-def group_metrics_by_service(metrics: list[str]) -> dict[str, list[str]]:
-    groups: dict[str, list[str]] = defaultdict(lambda: list())
-    for metric in metrics:
-        # TODO: resolve duplicated code of MetricNode class.
-        comp, base_name = metric.split('-', maxsplit=1)[1].split('_', maxsplit=1)
-        if metric.startswith('c-'):
-            service = CONTAINER_TO_SERVICE[comp]
-        elif metric.startswith('s-'):
-            service = comp
-        elif metric.startswith('m-'):
-            service = CONTAINER_TO_SERVICE[comp]
-        else:
-            raise ValueError(f'{metric} is invalid')
-        groups[service].append(metric)
-    return groups
+    def get_diagnoser_target_data(self) -> dict[str, list[str]]:
+        match self.target_app:
+            case sock_shop.TARGET_APP_NAME:
+                return sock_shop.DIAGNOSER_TARGET_DATA
+            case train_ticket.TARGET_APP_NAME:
+                return train_ticket.DIAGNOSER_TARGET_DATA
+            case _:
+                raise ValueError(f'{self.target_app} is invalid')
+
+    def group_metrics_by_service(self, metrics: list[str]) -> dict[str, list[str]]:
+        groups: dict[str, list[str]] = defaultdict(lambda: list())
+        for metric in metrics:
+            # TODO: resolve duplicated code of MetricNode class.
+            comp, base_name = metric.split('-', maxsplit=1)[1].split('_', maxsplit=1)
+            if metric.startswith('c-'):
+                service = self.get_container_to_service(comp)
+            elif metric.startswith('s-'):
+                service = comp
+            elif metric.startswith('m-'):
+                service = self.get_container_to_service(comp)
+            else:
+                raise ValueError(f'{metric} is invalid')
+            groups[service].append(metric)
+        return groups

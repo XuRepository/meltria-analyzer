@@ -174,11 +174,11 @@ def eval_diagnoser(run: neptune.Run, cfg: DictConfig) -> None:
 
     tests_records: list[dict[str, Any]] = []
 
-    for (chaos_type, chaos_comp), sub_df in dataset.groupby(level=[0, 1]):
+    for (target_app, chaos_type, chaos_comp), sub_df in dataset.groupby(level=[0, 1, 2]):
         graph_building_elapsed_secs: list[float] = []
 
-        for (metrics_file, grafana_dashboard_url), data_df in sub_df.groupby(level=[2, 3]):
-            record = DatasetRecord(chaos_type, chaos_comp, metrics_file, data_df)
+        for (metrics_file, grafana_dashboard_url), data_df in sub_df.groupby(level=[3, 4]):
+            record = DatasetRecord(target_app, chaos_type, chaos_comp, metrics_file, data_df)
 
             logger.info(f">> Running tsdr {record.chaos_case_file()} ...")
 

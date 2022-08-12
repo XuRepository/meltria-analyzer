@@ -38,9 +38,9 @@ def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
     logger.info("Dataset loading complete")
 
     sli_anomalies: list[dict[str, Any]] = []
-    for (chaos_type, chaos_comp), sub_df in dataset.groupby(level=[0, 1]):
-        for (metrics_file, grafana_dashboard_url), data_df in sub_df.groupby(level=[2, 3]):
-            record = DatasetRecord(chaos_type, chaos_comp, metrics_file, data_df)
+    for (target_app, chaos_type, chaos_comp), sub_df in dataset.groupby(level=[0, 1, 2]):
+        for (metrics_file, grafana_dashboard_url), data_df in sub_df.groupby(level=[3, 4]):
+            record = DatasetRecord(target_app, chaos_type, chaos_comp, metrics_file, data_df)
 
             # evaluate the positions of anomalies in SLI metrics
             slis = data_df.loc[:, data_df.columns.intersection(set(priorknowledge.ROOT_METRIC_LABELS))]

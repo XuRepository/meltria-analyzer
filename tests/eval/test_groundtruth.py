@@ -3,6 +3,9 @@ import pytest
 from diagnoser import metric_node as mn
 
 from eval import groundtruth
+from eval.priorknowledge.priorknowledge import PriorKnowledge
+
+prior_knowledge = PriorKnowledge(target_app='sock-shop')
 
 
 def test_check_tsdr_ground_truth_by_route():
@@ -15,7 +18,8 @@ def test_check_tsdr_ground_truth_by_route():
         's-orders_latency',
         's-front-end_latency',
     ]
-    ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(metrics, 'pod-cpu-hog', 'user-db')
+    ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
+        prior_knowledge, metrics, 'pod-cpu-hog', 'user-db')
     assert ok is True
     expected = [
         'c-user-db_cpu_usage_seconds_total',
@@ -34,7 +38,8 @@ def test_check_tsdr_ground_truth_by_route():
         's-user_latency',
         's-front-end_latency',
     ]
-    ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(metrics, 'pod-cpu-hog', 'user-db')
+    ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
+        prior_knowledge, metrics, 'pod-cpu-hog', 'user-db')
     assert ok is True
     expected = [
         'c-user-db_cpu_usage_seconds_total',
@@ -51,7 +56,8 @@ def test_check_tsdr_ground_truth_by_route():
         'c-user-db_network_receive_bytes',
         's-user_latency',
     ]
-    ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(metrics, 'pod-cpu-hog', 'user-db')
+    ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
+        prior_knowledge, metrics, 'pod-cpu-hog', 'user-db')
     assert ok is False
     expected = [
         'c-user-db_cpu_usage_seconds_total',
@@ -67,7 +73,8 @@ def test_check_tsdr_ground_truth_by_route():
         'c-user-db_network_receive_bytes',
         's-front-end_latency',
     ]
-    ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(metrics, 'pod-cpu-hog', 'front-end')
+    ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
+        prior_knowledge, metrics, 'pod-cpu-hog', 'front-end')
     assert ok is True
     expected = [
         'c-front-end_cpu_usage_seconds_total',
@@ -145,6 +152,6 @@ def test_check_causal_graph(desc, chaos_type, chaos_comp, input, expected):
     edges = [(mn.MetricNode(u), mn.MetricNode(v)) for (u, v) in input]
     expected_edges = [[mn.MetricNode(n) for n in path] for path in expected]
     G = nx.DiGraph(edges)
-    ok, routes = groundtruth.check_causal_graph(G, chaos_type, chaos_comp)
+    ok, routes = groundtruth.check_causal_graph(prior_knowledge, G, chaos_type, chaos_comp)
     assert ok
     assert sorted([r.nodes for r in routes]) == sorted(expected_edges)

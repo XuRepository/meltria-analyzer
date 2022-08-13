@@ -70,7 +70,6 @@ def load_dataset(
             future_to_metrics_file[f] = os.path.basename(metrics_file)
         for future in futures.as_completed(future_to_metrics_file):
             data_df, mappings = future.result()
-            print(data_df)
             if data_df is not None:
                 df_list.append(data_df)
                 metrics_file = future_to_metrics_file[future]

@@ -68,11 +68,17 @@ def load_dataset(
             future_to_metrics_file[f] = os.path.basename(metrics_file)
         for future in futures.as_completed(future_to_metrics_file):
             data_df, mappings = future.result()
+            print(data_df)
             if data_df is not None:
                 df_list.append(data_df)
                 metrics_file = future_to_metrics_file[future]
                 mappings_by_metrics_file[metrics_file] = mappings
-    dataset: pd.DataFrame = pd.concat(df_list)
+    if len(df_list) < 1:
+        raise ValueError("No metrics data loaded")
+    elif len(df_list) == 1:
+        dataset: pd.DataFrame = df_list[0]
+    else:
+        dataset: pd.DataFrame = pd.concat(df_list)
     return dataset.set_index(['target_app', 'chaos_type', 'chaos_comp', 'metrics_file', 'grafana_dashboard_url']), \
         mappings_by_metrics_file
 

@@ -212,7 +212,8 @@ def eval_diagnoser(run: neptune.Run, cfg: DictConfig) -> None:
             )
 
             logger.info(f">> Checking causal graph including chaos-injected metrics of {record.chaos_case_file()}")
-            graph_ok, routes = groundtruth.check_causal_graph(causal_graph, chaos_type, chaos_comp)
+            graph_ok, routes = groundtruth.check_causal_graph(
+                prior_knowledge, causal_graph, chaos_type, chaos_comp)
             if not graph_ok:
                 logger.info(f"wrong causal graph in {record.chaos_case_file()}")
             graph_building_elapsed_secs.append(stats['building_graph_elapsed_sec'])
@@ -234,7 +235,7 @@ def eval_diagnoser(run: neptune.Run, cfg: DictConfig) -> None:
                 'grafana_dashboard_url': grafana_dashboard_url,
             })
             logger.info(f">> Logging causal graph including chaos-injected metrics of {record.chaos_case_file()}")
-            log_causal_graph(run, causal_subgraphs, record, routes, reduced_df)
+            log_causal_graph(run, causal_subgraphs, record, routes, reduced_df, prior_knowledge)
 
     tests_df = pd.DataFrame(tests_records).set_index(
         ['chaos_type', 'chaos_comp', 'metrics_file', 'grafana_dashboard_url'])

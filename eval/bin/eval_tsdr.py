@@ -48,13 +48,13 @@ class TimeSeriesPlotter:
         self.enable_upload_plots = enable_upload_plots
         self.logger = logger
 
-    def log_plots_as_html(self, record: DatasetRecord) -> None:
+    def log_plots_as_html(self, record: DatasetRecord, pk: PriorKnowledge) -> None:
         """ Upload found_metrics plot images to neptune.ai.
         """
         if not self.enable_upload_plots:
             return
         self.logger.info(f">> Uploading plot figures of {record.chaos_case_file()} ...")
-        if (gtdf := record.ground_truth_metrics_frame()) is None:
+        if (gtdf := record.ground_truth_metrics_frame(pk)) is None:
             return
         html = self.generate_html_time_series(
             record, gtdf, title=f'Chart of time series metrics {record.chaos_case_full()}')
@@ -269,7 +269,7 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
         for (metrics_file, grafana_dashboard_url), data_df in sub_df.groupby(level=[3, 4]):
             record = DatasetRecord(target_app, chaos_type, chaos_comp, metrics_file, data_df)
 
-            ts_plotter.log_plots_as_html(record)
+            ts_plotter.log_plots_as_html(record, prior_knowledge)
 
             logger.info(f">> Running tsdr {record.chaos_case_file()} ...")
 

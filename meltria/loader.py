@@ -6,6 +6,7 @@ from typing import Any
 
 import pandas as pd
 from eval import groundtruth
+from eval.priorknowledge.priorknowledge import PriorKnowledge
 from tsdr import tsdr
 
 
@@ -42,8 +43,9 @@ class DatasetRecord:
     def basename_of_metrics_file(self) -> str:
         return os.path.basename(self.metrics_file)
 
-    def ground_truth_metrics_frame(self) -> pd.DataFrame | None:
+    def ground_truth_metrics_frame(self, pk: PriorKnowledge) -> pd.DataFrame | None:
         _, ground_truth_metrics = groundtruth.check_tsdr_ground_truth_by_route(
+            pk=pk,
             metrics=self.metrics_names(),  # pre-reduced data frame
             chaos_type=self.chaos_type,
             chaos_comp=self.chaos_comp,

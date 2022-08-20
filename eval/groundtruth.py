@@ -24,22 +24,23 @@ CHAOS_TO_CAUSE_METRIC_PATTERNS: dict[str, list[str]] = {
 
 @cache
 def generate_tsdr_ground_truth(pk: PriorKnowledge) -> dict[str, Any]:
+    """Generate ground truth for testing extracted metrics with tsdr based on call graph."""
     all_gt_routes: dict[str, dict[str, list[list[str]]]] = defaultdict(lambda: defaultdict(list))
     for chaos, metric_patterns in CHAOS_TO_CAUSE_METRIC_PATTERNS.items():
         for ctnr in pk.get_containers(skip=True):
             routes: list[list[str]] = all_gt_routes[chaos][ctnr]
-            cause_service: str = pk.get_container_to_service(ctnr)
-            stos_routes: list[tuple[str, ...]] = pk.get_service_to_service_routes(cause_service)
+            cause_service: str = pk.get_service_by_container(ctnr)
+            stos_routes: list[tuple[str, ...]] = pk.get_service_routes(cause_service)
 
             # allow to match any of multiple routes
             for stos_route in stos_routes:
-                metrics_patterns: list[str] = []
+                metrics_pattern_list: list[str] = []
                 # add cause metrics pattern
-                metrics_patterns.append(f"^c-{ctnr}_({'|'.join(metric_patterns)})$")
-                metrics_patterns.append(f"^s-{cause_service}_.+$")
+                metrics_pattern_list.append(f"^c-{ctnr}_({'|'.join(metric_patterns)})$")
+                metrics_pattern_list.append(f"^s-{cause_service}_.+$")
                 if stos_route != ():
-                    metrics_patterns.append(f"^s-({'|'.join(stos_route)})_.+")
-                routes.append(metrics_patterns)
+                    metrics_pattern_list.append(f"^s-({'|'.join(stos_route)})_.+")
+                routes.append(metrics_pattern_list)
     return all_gt_routes
 
 

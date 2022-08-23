@@ -1,7 +1,8 @@
 import networkx as nx
 
-TARGET_APP_NAME = 'sock-shop'
+TARGET_APP_NAME: str = 'sock-shop'
 
+ROOT_SERVICE: str = 'front-end'
 ROOT_METRIC_LABELS: tuple[str, str, str] = ("s-front-end_latency", "s-front-end_throughput", "s-front-end_errors")
 
 SERVICE_CALL_DIGRAPH: nx.DiGraph = nx.DiGraph([

@@ -172,21 +172,6 @@ SERVICE_CALL_DIGRAPH: nx.DiGraph = nx.DiGraph([
 ])
 
 
-def generate_service_to_service_routes() -> dict[str, list[tuple[str, ...]]]:
-    """Generate adjacency list of service to service routes."""
-    nodes = [n for n in SERVICE_CALL_DIGRAPH.nodes if n not in ROOT_SERVICE]
-    stos_routes: dict[str, list[tuple[str, ...]]] = defaultdict(list)
-    paths = nx.all_simple_paths(SERVICE_CALL_DIGRAPH, source=ROOT_SERVICE, target=nodes)
-    for path in paths:
-        path.reverse()
-        source_service = path[0]
-        stos_routes[source_service].append(tuple(path[1:]))
-    return stos_routes
-
-
-# Use list of tuple because of supporting multiple routes
-SERVICE_TO_SERVICE_ROUTES: dict[str, list[tuple[str, ...]]] = generate_service_to_service_routes()
-
 SERVICE_CONTAINERS: dict[str, list[str]] = {
     "rabbitmq": ["rabbitmq"],
     "ts-admin-basic-info": ["ts-admin-basic-info-service"],

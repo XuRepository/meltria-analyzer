@@ -1,4 +1,5 @@
 from collections import defaultdict
+from functools import cache
 
 import networkx as nx
 from eval.priorknowledge import sock_shop, train_ticket
@@ -69,9 +70,13 @@ class PriorKnowledge:
     def get_service_routes(self, service: str) -> list[tuple[str, ...]]:
         match self.target_app:
             case sock_shop.TARGET_APP_NAME:
-                return sock_shop.SERVICE_TO_SERVICE_ROUTES[service]
+                routes = self._generate_service_to_service_routes(
+                    sock_shop.SERVICE_CALL_DIGRAPH, sock_shop.ROOT_SERVICE)
+                return routes[service]
             case train_ticket.TARGET_APP_NAME:
-                return train_ticket.SERVICE_TO_SERVICE_ROUTES[service]
+                routes = self._generate_service_to_service_routes(
+                    train_ticket.SERVICE_CALL_DIGRAPH, train_ticket.ROOT_SERVICE)
+                return routes[service]
             case _:
                 raise ValueError(f'{self.target_app} is invalid')
 
@@ -126,3 +131,19 @@ class PriorKnowledge:
                 raise ValueError(f'{metric} is invalid')
             groups[service].append(metric)
         return groups
+
+    @staticmethod
+    @cache
+    def _generate_service_to_service_routes(
+        service_call_g: nx.DiGraph, root_service: str,
+    ) -> dict[str, list[tuple[str, ...]]]:
+        """Generate adjacency list of service to service routes."""
+        stos_routes: dict[str, list[tuple[str, ...]]] = defaultdict(list)
+        nodes = [n for n in service_call_g.nodes if n not in root_service]
+        paths = nx.all_simple_paths(service_call_g, source=root_service, target=nodes)
+        for path in paths:
+            path.reverse()
+            source_service = path[0]
+            stos_routes[source_service].append(tuple(path[1:]))
+        stos_routes[root_service] = [tuple([root_service])]
+        return stos_routes

@@ -3,9 +3,9 @@ import pytest
 
 import diagnoser.metric_node as mn
 from diagnoser import diag
-from meltria.priorknowledge.priorknowledge import PriorKnowledge
+from meltria.priorknowledge.priorknowledge import new_knowledge
 
-prior_knowledge = PriorKnowledge(target_app='sock-shop')
+prior_knowledge = new_knowledge('sock-shop')
 
 
 def test_build_subgraph_of_removal_edges():

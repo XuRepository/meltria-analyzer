@@ -4,7 +4,7 @@ import argparse
 import json
 
 from eval.groundtruth import check_cause_metrics
-from meltria.priorknowledge.priorknowledge import PriorKnowledge
+from meltria.priorknowledge.priorknowledge import new_knowledge
 
 
 def main():
@@ -21,7 +21,7 @@ def main():
         metrics: list[str] = raw_json['reduced_metrics']
         method = raw_json['tsdr_method']
         meta = raw_json['metrics_meta']
-        pk = PriorKnowledge(target_app=meta['target_app'])
+        pk = new_knowledge(meta['target_app'])
         chaos_type: str = meta['injected_chaos_type']
         chaos_comp: str = meta['chaos_injected_component']
         root_metrics: list[str] = []

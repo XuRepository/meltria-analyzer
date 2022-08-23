@@ -3,9 +3,9 @@ import pytest
 
 from diagnoser import metric_node as mn
 from eval import groundtruth
-from meltria.priorknowledge.priorknowledge import PriorKnowledge
+from meltria.priorknowledge.priorknowledge import new_knowledge
 
-prior_knowledge = PriorKnowledge(target_app='sock-shop')
+prior_knowledge = new_knowledge('sock-shop')
 
 
 def test_check_tsdr_ground_truth_by_route():
@@ -85,7 +85,7 @@ def test_check_tsdr_ground_truth_by_route():
 
 
 def test_check_tsdr_ground_truth_by_route_train_ticket():
-    pk = PriorKnowledge(target_app='train-ticket')
+    pk = new_knowledge('train-ticket')
     metrics = [
         'c-ts-food-mongo_cpu_usage_seconds_total',
         'c-ts-food-mongo_cpu_user_seconds_total',

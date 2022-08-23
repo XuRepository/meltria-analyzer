@@ -12,7 +12,7 @@ from omegaconf import DictConfig, OmegaConf
 
 import meltria.loader
 from meltria.loader import DatasetRecord
-from meltria.priorknowledge.priorknowledge import PriorKnowledge
+from meltria.priorknowledge.priorknowledge import PriorKnowledge, new_knowledge
 from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
 
 # see https://docs.neptune.ai/api-reference/integrations/python-logger
@@ -44,7 +44,7 @@ def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
             record = DatasetRecord(target_app, chaos_type, chaos_comp, metrics_file, data_df)
 
             # evaluate the positions of anomalies in SLI metrics
-            prior_knowledge = PriorKnowledge(target_app)
+            prior_knowledge: PriorKnowledge = new_knowledge(target_app)
             slis = data_df.loc[:, data_df.columns.intersection(set(prior_knowledge.get_root_metrics()))]
             res = validate_anomalie_range_in_sli(slis, fi_time=cfg.time.fault_inject_time_index)
             sli_anomalies.append(dict({

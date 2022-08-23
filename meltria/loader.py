@@ -5,8 +5,9 @@ from multiprocessing import cpu_count
 from typing import Any
 
 import pandas as pd
+
 from eval import groundtruth
-from eval.priorknowledge.priorknowledge import PriorKnowledge
+from meltria.priorknowledge.priorknowledge import PriorKnowledge
 from tsdr import tsdr
 
 

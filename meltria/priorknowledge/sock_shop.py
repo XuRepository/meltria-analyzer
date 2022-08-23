@@ -87,7 +87,7 @@ CONTAINER_TO_SERVICE: dict[str, str] = {c: s for s, ctnrs in SERVICE_CONTAINERS.
 
 SKIP_CONTAINERS = ["queue-master", "rabbitmq", "session-db"]
 
-DIAGNOSER_TARGET_DATA: dict[str, list[str]] = {
+sock_shop: dict[str, list[str]] = {
     "containers": [],  # all
     "services": ["throughput", "latency", "errors"],
     "nodes": [

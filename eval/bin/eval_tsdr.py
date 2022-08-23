@@ -10,7 +10,6 @@ from typing import Any
 
 import holoviews as hv
 import hydra
-import meltria.loader as meltria_loader
 import neptune.new as neptune
 import numpy as np
 import pandas as pd
@@ -18,11 +17,13 @@ import scipy
 import scipy.stats
 from bokeh.embed import file_html
 from bokeh.resources import CDN
-from eval import groundtruth
-from eval.priorknowledge.priorknowledge import PriorKnowledge
-from meltria.loader import DatasetRecord
 from neptune.new.integrations.python_logger import NeptuneHandler
 from omegaconf import DictConfig, OmegaConf
+
+import meltria.loader as meltria_loader
+from eval import groundtruth
+from meltria.loader import DatasetRecord
+from meltria.priorknowledge.priorknowledge import PriorKnowledge, new_knowledge
 from tsdr import tsdr
 
 hv.extension('bokeh')
@@ -265,7 +266,7 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
     tests_records: list[dict[str, Any]] = []
 
     for (target_app, chaos_type, chaos_comp), sub_df in dataset.groupby(level=[0, 1, 2]):
-        prior_knowledge: PriorKnowledge = PriorKnowledge(target_app)
+        prior_knowledge: PriorKnowledge = new_knowledge(target_app)
         for (metrics_file, grafana_dashboard_url), data_df in sub_df.groupby(level=[3, 4]):
             record = DatasetRecord(target_app, chaos_type, chaos_comp, metrics_file, data_df)
 

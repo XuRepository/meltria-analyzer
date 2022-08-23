@@ -8,22 +8,23 @@ from multiprocessing import cpu_count
 from operator import add
 from typing import Any
 
-import diagnoser.metric_node as mn
 import holoviews as hv
 import hydra
-import meltria.loader as meltria_loader
 import neptune.new as neptune
 import networkx as nx
 import numpy as np
 import pandas as pd
 from bokeh.embed import file_html
 from bokeh.resources import CDN
-from diagnoser import diag
-from eval import groundtruth
-from eval.priorknowledge.priorknowledge import PriorKnowledge
-from meltria.loader import DatasetRecord
 from neptune.new.integrations.python_logger import NeptuneHandler
 from omegaconf import DictConfig, OmegaConf
+
+import diagnoser.metric_node as mn
+import meltria.loader as meltria_loader
+from diagnoser import diag
+from eval import groundtruth
+from meltria.loader import DatasetRecord
+from meltria.priorknowledge.priorknowledge import PriorKnowledge, new_knowledge
 from tsdr import tsdr
 
 hv.extension('bokeh')
@@ -178,7 +179,7 @@ def eval_diagnoser(run: neptune.Run, cfg: DictConfig) -> None:
 
     for (target_app, chaos_type, chaos_comp), sub_df in dataset.groupby(level=[0, 1, 2]):
         graph_building_elapsed_secs: list[float] = []
-        prior_knowledge = PriorKnowledge(target_app)
+        prior_knowledge: PriorKnowledge = new_knowledge(target_app)
         for (metrics_file, grafana_dashboard_url), data_df in sub_df.groupby(level=[3, 4]):
             record = DatasetRecord(target_app, chaos_type, chaos_comp, metrics_file, data_df)
 

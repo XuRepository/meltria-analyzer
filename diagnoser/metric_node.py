@@ -1,7 +1,6 @@
 from enum import Enum
 from functools import total_ordering
 
-import eval.priorknowledge as pk
 import networkx as nx
 import pandas as pd
 
@@ -65,6 +64,7 @@ class MetricNode:
 
     def is_middleware(self) -> bool:
         return self.comp_type == MetricType.MIDDLEWARE
+
 
 class MetricNodes(object):
     def __init__(self, num_to_node: dict[int, MetricNode]) -> None:

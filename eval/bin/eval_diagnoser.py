@@ -20,6 +20,7 @@ from bokeh.embed import file_html
 from bokeh.resources import CDN
 from diagnoser import diag
 from eval import groundtruth
+from eval.priorknowledge.priorknowledge import PriorKnowledge
 from meltria.loader import DatasetRecord
 from neptune.new.integrations.python_logger import NeptuneHandler
 from omegaconf import DictConfig, OmegaConf
@@ -32,13 +33,13 @@ logger = logging.getLogger(__file__)
 logger.setLevel(logging.INFO)
 
 
-def set_visual_style_to_graph(G: nx.DiGraph, gt_routes: list[mn.MetricNodes]) -> None:
+def set_visual_style_to_graph(G: nx.DiGraph, gt_routes: list[mn.MetricNodes], pk: PriorKnowledge) -> None:
     """Set graph style followed by The valid properties
     https://pyvis.readthedocs.io/en/latest/tutorial.html#adding-list-of-nodes-with-properties
     >>> ['size', 'value', 'title', 'x', 'y', 'label', 'color']
     """
     for node in G.nodes:
-        if node.is_root():
+        if node.label in pk.get_root_metrics():  # is_root
             color = "orange"
             size = 20
         elif node.is_service():
@@ -130,6 +131,7 @@ def log_causal_graph(
     record: DatasetRecord,
     gt_routes: list[mn.MetricNodes],
     data_df: pd.DataFrame,
+    pk: PriorKnowledge,
 ) -> None:
     items: list[tuple[list[nx.DiGraph], str, tuple[int, int]]] = [
         (causal_subgraphs[0], "with-root", (1000, 800)),
@@ -145,7 +147,7 @@ def log_causal_graph(
                 unmerged_graphs.append(nx.compose_all(merged_graphs))
             layouts = []
             for graph in unmerged_graphs:
-                set_visual_style_to_graph(graph, gt_routes)
+                set_visual_style_to_graph(graph, gt_routes, pk)
                 nw_graph = create_figure_of_causal_graph(graph, record, (width, height))
                 ts_graph = create_figure_of_time_series_lines(data_df, graph, record, (width, height))
                 layout = hv.Layout([nw_graph, ts_graph]).opts(
@@ -174,11 +176,11 @@ def eval_diagnoser(run: neptune.Run, cfg: DictConfig) -> None:
 
     tests_records: list[dict[str, Any]] = []
 
-    for (chaos_type, chaos_comp), sub_df in dataset.groupby(level=[0, 1]):
+    for (target_app, chaos_type, chaos_comp), sub_df in dataset.groupby(level=[0, 1, 2]):
         graph_building_elapsed_secs: list[float] = []
-
-        for (metrics_file, grafana_dashboard_url), data_df in sub_df.groupby(level=[2, 3]):
-            record = DatasetRecord(chaos_type, chaos_comp, metrics_file, data_df)
+        prior_knowledge = PriorKnowledge(target_app)
+        for (metrics_file, grafana_dashboard_url), data_df in sub_df.groupby(level=[3, 4]):
+            record = DatasetRecord(target_app, chaos_type, chaos_comp, metrics_file, data_df)
 
             logger.info(f">> Running tsdr {record.chaos_case_file()} ...")
 
@@ -192,7 +194,7 @@ def eval_diagnoser(run: neptune.Run, cfg: DictConfig) -> None:
 
             try:
                 causal_graph, causal_subgraphs, stats = diag.run(
-                    reduced_df, mappings_by_metrics_file[record.metrics_file], **{
+                    reduced_df, mappings_by_metrics_file[record.metrics_file], prior_knowledge, **{
                         'pc_library': cfg.params.pc_library,
                         'pc_citest': cfg.params.pc_citest,
                         'pc_citest_alpha': cfg.params.pc_citest_alpha,
@@ -210,7 +212,8 @@ def eval_diagnoser(run: neptune.Run, cfg: DictConfig) -> None:
             )
 
             logger.info(f">> Checking causal graph including chaos-injected metrics of {record.chaos_case_file()}")
-            graph_ok, routes = groundtruth.check_causal_graph(causal_graph, chaos_type, chaos_comp)
+            graph_ok, routes = groundtruth.check_causal_graph(
+                prior_knowledge, causal_graph, chaos_type, chaos_comp)
             if not graph_ok:
                 logger.info(f"wrong causal graph in {record.chaos_case_file()}")
             graph_building_elapsed_secs.append(stats['building_graph_elapsed_sec'])
@@ -232,7 +235,7 @@ def eval_diagnoser(run: neptune.Run, cfg: DictConfig) -> None:
                 'grafana_dashboard_url': grafana_dashboard_url,
             })
             logger.info(f">> Logging causal graph including chaos-injected metrics of {record.chaos_case_file()}")
-            log_causal_graph(run, causal_subgraphs, record, routes, reduced_df)
+            log_causal_graph(run, causal_subgraphs, record, routes, reduced_df, prior_knowledge)
 
     tests_df = pd.DataFrame(tests_records).set_index(
         ['chaos_type', 'chaos_comp', 'metrics_file', 'grafana_dashboard_url'])

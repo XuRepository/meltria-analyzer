@@ -6,6 +6,7 @@ from typing import Any
 
 import pandas as pd
 from eval import groundtruth
+from eval.priorknowledge.priorknowledge import PriorKnowledge
 from tsdr import tsdr
 
 
@@ -16,7 +17,8 @@ class DatasetRecord:
     metrics_file: str   # path of metrics file
     data_df: pd.DataFrame
 
-    def __init__(self, chaos_type: str, chaos_comp: str, metrics_file: str, data_df: pd.DataFrame):
+    def __init__(self, target_app: str, chaos_type: str, chaos_comp: str, metrics_file: str, data_df: pd.DataFrame):
+        self.target_app = target_app
         self.chaos_comp = chaos_comp
         self.chaos_type = chaos_type
         self.metrics_file = metrics_file
@@ -41,8 +43,9 @@ class DatasetRecord:
     def basename_of_metrics_file(self) -> str:
         return os.path.basename(self.metrics_file)
 
-    def ground_truth_metrics_frame(self) -> pd.DataFrame | None:
+    def ground_truth_metrics_frame(self, pk: PriorKnowledge) -> pd.DataFrame | None:
         _, ground_truth_metrics = groundtruth.check_tsdr_ground_truth_by_route(
+            pk=pk,
             metrics=self.metrics_names(),  # pre-reduced data frame
             chaos_type=self.chaos_type,
             chaos_comp=self.chaos_comp,
@@ -71,8 +74,13 @@ def load_dataset(
                 df_list.append(data_df)
                 metrics_file = future_to_metrics_file[future]
                 mappings_by_metrics_file[metrics_file] = mappings
-    dataset: pd.DataFrame = pd.concat(df_list)
-    return dataset.set_index(['chaos_type', 'chaos_comp', 'metrics_file', 'grafana_dashboard_url']), \
+    if len(df_list) < 1:
+        raise ValueError("No metrics data loaded")
+    elif len(df_list) == 1:
+        dataset: pd.DataFrame = df_list[0]
+    else:
+        dataset: pd.DataFrame = pd.concat(df_list)
+    return dataset.set_index(['target_app', 'chaos_type', 'chaos_comp', 'metrics_file', 'grafana_dashboard_url']), \
         mappings_by_metrics_file
 
 
@@ -89,10 +97,9 @@ def read_metrics_file(
     except ValueError as e:
         logger.warning(f">> Skip {metrics_file} because of {e}")
         return None, None
-    chaos_type: str = metrics_meta['injected_chaos_type']
-    chaos_comp: str = metrics_meta['chaos_injected_component']
-    data_df['chaos_type'] = chaos_type
-    data_df['chaos_comp'] = chaos_comp
+    data_df['target_app'] = metrics_meta['target_app']
+    data_df['chaos_type'] = metrics_meta['injected_chaos_type']
+    data_df['chaos_comp'] = metrics_meta['chaos_injected_component']
     data_df['metrics_file'] = os.path.basename(metrics_file)
     data_df['grafana_dashboard_url'] = metrics_meta['grafana_dashboard_url']
     return data_df, mappings

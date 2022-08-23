@@ -1,12 +1,14 @@
 import re
 from collections import defaultdict
+from functools import cache
 from typing import Any
 
 import diagnoser.metric_node as mn
 import networkx as nx
 
-import eval.priorknowledge as pk
+from eval.priorknowledge.priorknowledge import PriorKnowledge
 
+# TODO: define this by each target app.
 CHAOS_TO_CAUSE_METRIC_PATTERNS: dict[str, list[str]] = {
     'pod-cpu-hog': [
         'cpu_.+', 'threads', 'sockets', 'file_descriptors', 'processes', 'memory_cache', 'memory_mapped_file',
@@ -20,44 +22,39 @@ CHAOS_TO_CAUSE_METRIC_PATTERNS: dict[str, list[str]] = {
 }
 
 
-def generate_containers_to_service() -> dict[str, str]:
-    ctos: dict[str, str] = {}
-    for service, ctnrs in pk.SERVICE_CONTAINERS.items():
-        for ctnr in ctnrs:
-            ctos[ctnr] = service
-    return ctos
-
-
-def generate_tsdr_ground_truth() -> dict[str, Any]:
+@cache
+def generate_tsdr_ground_truth(pk: PriorKnowledge) -> dict[str, Any]:
+    """Generate ground truth for testing extracted metrics with tsdr based on call graph."""
     all_gt_routes: dict[str, dict[str, list[list[str]]]] = defaultdict(lambda: defaultdict(list))
-    ctos: dict[str, str] = generate_containers_to_service()
     for chaos, metric_patterns in CHAOS_TO_CAUSE_METRIC_PATTERNS.items():
-        for ctnr in pk.CONTAINER_CALL_GRAPH.keys():
-            if ctnr in pk.SKIP_CONTAINERS:
-                continue
+        for ctnr in pk.get_containers(skip=True):
             routes: list[list[str]] = all_gt_routes[chaos][ctnr]
-            cause_service: str = ctos[ctnr]
-            stos_routes: list[tuple[str, ...]] = pk.SERVICE_TO_SERVICE_ROUTES[cause_service]
+            cause_service: str = pk.get_service_by_container(ctnr)
+            stos_routes: list[tuple[str, ...]] = pk.get_service_routes(cause_service)
 
             # allow to match any of multiple routes
             for stos_route in stos_routes:
-                metrics_patterns: list[str] = []
+                metrics_pattern_list: list[str] = []
                 # add cause metrics pattern
-                metrics_patterns.append(f"^c-{ctnr}_({'|'.join(metric_patterns)})$")
-                metrics_patterns.append(f"^s-{cause_service}_.+$")
+                metrics_pattern_list.append(f"^c-{ctnr}_({'|'.join(metric_patterns)})$")
+                # NOTE: duplicate service metrics are not allowed in a route
+                service_metrics_pattern: str = f"^s-{cause_service}_.+$"
+                if service_metrics_pattern not in metrics_pattern_list:
+                    metrics_pattern_list.append(f"^s-{cause_service}_.+$")
                 if stos_route != ():
-                    metrics_patterns.append(f"^s-({'|'.join(stos_route)})_.+")
-                routes.append(metrics_patterns)
+                    metrics_pattern_list.append(f"^s-({'|'.join(stos_route)})_.+")
+                routes.append(metrics_pattern_list)
     return all_gt_routes
 
 
-TSDR_GROUND_TRUTH: dict[str, Any] = generate_tsdr_ground_truth()
+def get_tsdr_ground_truth(pk: PriorKnowledge, chaos_type: str, chaos_comp: str) -> list[list[str]]:
+    return generate_tsdr_ground_truth(pk)[chaos_type][chaos_comp]
 
 
 def check_tsdr_ground_truth_by_route(
-    metrics: list[str], chaos_type: str, chaos_comp: str
+    pk: PriorKnowledge, metrics: list[str], chaos_type: str, chaos_comp: str
 ) -> tuple[bool, list[str]]:
-    gt_metrics_routes: list[list[str]] = TSDR_GROUND_TRUTH[chaos_type][chaos_comp]
+    gt_metrics_routes: list[list[str]] = get_tsdr_ground_truth(pk, chaos_type, chaos_comp)
     routes_ok: list[tuple[bool, list[str]]] = []
     for gt_route in gt_metrics_routes:
         ok, match_metrics = check_route(metrics, gt_route)
@@ -105,17 +102,16 @@ def check_cause_metrics(nodes: mn.MetricNodes, chaos_type: str, chaos_comp: str)
 
 
 def check_causal_graph(
-    G: nx.DiGraph, chaos_type: str, chaos_comp: str,
+    pk: PriorKnowledge, G: nx.DiGraph, chaos_type: str, chaos_comp: str,
 ) -> tuple[bool, list[mn.MetricNodes]]:
-    """Check that the causal graph (G) has the accurate route.
-    """
+    """Check that the causal graph (G) has the accurate route. """
     call_graph: nx.DiGraph = G.reverse()  # for traverse starting from root node
     cause_metric_exps: list[str] = CHAOS_TO_CAUSE_METRIC_PATTERNS[chaos_type]
     cause_metric_pattern: re.Pattern = re.compile(f"^c-{chaos_comp}_({'|'.join(cause_metric_exps)})$")
 
     match_routes: list[mn.MetricNodes] = []
-    leaves = [n for n in call_graph.nodes if n.label not in pk.ROOT_METRIC_LABELS]
-    roots = [mn.MetricNode(r) for r in pk.ROOT_METRIC_LABELS if call_graph.has_node(mn.MetricNode(r))]
+    leaves = [n for n in call_graph.nodes if n.label not in pk.get_root_metrics()]
+    roots = [mn.MetricNode(r) for r in pk.get_root_metrics() if call_graph.has_node(mn.MetricNode(r))]
     for root in roots:
         for path in nx.all_simple_paths(call_graph, source=root, target=leaves):
             if len(path) <= 1:
@@ -125,18 +121,24 @@ def check_causal_graph(
                 prev_node: mn.MetricNode = path[i-1]
                 if node.is_service():
                     if prev_node.is_container():
-                        prev_service = pk.CONTAINER_TO_SERVICE[prev_node.comp]
+                        prev_service = pk.get_service_by_container(prev_node.comp)
                     else:
                         prev_service = prev_node.comp
-                    if not pk.SERVICE_CALL_DIGRAPH.has_edge(prev_service, node.comp):
+                    if not pk.get_service_call_digraph().has_edge(prev_service, node.comp):
                         break
                 elif node.is_container():
                     if prev_node.is_service():
-                        cur_service = pk.CONTAINER_TO_SERVICE[node.comp]
-                        if not (prev_node.comp == cur_service or pk.SERVICE_CALL_DIGRAPH.has_edge(prev_node.comp, cur_service)):
+                        cur_service = pk.get_service_by_container(node.comp)
+                        if not (
+                            prev_node.comp == cur_service
+                            or pk.get_service_call_digraph().has_edge(prev_node.comp, cur_service),
+                        ):
                             break
                     elif prev_node.is_container():
-                        if not (prev_node.comp == node.comp or pk.CONTAINER_CALL_DIGRAPH.has_edge(prev_node.comp, node.comp)):
+                        if not (
+                            prev_node.comp == node.comp
+                            or pk.get_container_call_digraph().has_edge(prev_node.comp, node.comp),
+                        ):
                             break
                     if i == (len(path) - 1):  # is leaf?
                         if cause_metric_pattern.match(node.label):

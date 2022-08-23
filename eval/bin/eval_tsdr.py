@@ -8,7 +8,6 @@ from multiprocessing import cpu_count
 from operator import add
 from typing import Any
 
-import eval.priorknowledge as pk
 import holoviews as hv
 import hydra
 import meltria.loader as meltria_loader
@@ -20,6 +19,7 @@ import scipy.stats
 from bokeh.embed import file_html
 from bokeh.resources import CDN
 from eval import groundtruth
+from eval.priorknowledge.priorknowledge import PriorKnowledge
 from meltria.loader import DatasetRecord
 from neptune.new.integrations.python_logger import NeptuneHandler
 from omegaconf import DictConfig, OmegaConf
@@ -48,13 +48,13 @@ class TimeSeriesPlotter:
         self.enable_upload_plots = enable_upload_plots
         self.logger = logger
 
-    def log_plots_as_html(self, record: DatasetRecord) -> None:
+    def log_plots_as_html(self, record: DatasetRecord, pk: PriorKnowledge) -> None:
         """ Upload found_metrics plot images to neptune.ai.
         """
         if not self.enable_upload_plots:
             return
         self.logger.info(f">> Uploading plot figures of {record.chaos_case_file()} ...")
-        if (gtdf := record.ground_truth_metrics_frame()) is None:
+        if (gtdf := record.ground_truth_metrics_frame(pk)) is None:
             return
         html = self.generate_html_time_series(
             record, gtdf, title=f'Chart of time series metrics {record.chaos_case_full()}')
@@ -264,11 +264,12 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
     non_clustered_records: list[dict[str, Any]] = []
     tests_records: list[dict[str, Any]] = []
 
-    for (chaos_type, chaos_comp), sub_df in dataset.groupby(level=[0, 1]):
-        for (metrics_file, grafana_dashboard_url), data_df in sub_df.groupby(level=[2, 3]):
-            record = DatasetRecord(chaos_type, chaos_comp, metrics_file, data_df)
+    for (target_app, chaos_type, chaos_comp), sub_df in dataset.groupby(level=[0, 1, 2]):
+        prior_knowledge: PriorKnowledge = PriorKnowledge(target_app)
+        for (metrics_file, grafana_dashboard_url), data_df in sub_df.groupby(level=[3, 4]):
+            record = DatasetRecord(target_app, chaos_type, chaos_comp, metrics_file, data_df)
 
-            ts_plotter.log_plots_as_html(record)
+            ts_plotter.log_plots_as_html(record, prior_knowledge)
 
             logger.info(f">> Running tsdr {record.chaos_case_file()} ...")
 
@@ -283,6 +284,7 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
             # skip the first item of tsdr_stat because it
             for i, (reduced_df, stat_df, elapsed_time) in enumerate(tsdr_stat[1:], start=1):
                 ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
+                    pk=prior_knowledge,
                     metrics=list(reduced_df.columns),
                     chaos_type=chaos_type,
                     chaos_comp=chaos_comp,

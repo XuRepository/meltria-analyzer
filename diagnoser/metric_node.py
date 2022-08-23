@@ -66,10 +66,6 @@ class MetricNode:
     def is_middleware(self) -> bool:
         return self.comp_type == MetricType.MIDDLEWARE
 
-    def is_root(self) -> bool:
-        return any([self.label == rl for rl in pk.ROOT_METRIC_LABELS])
-
-
 class MetricNodes(object):
     def __init__(self, num_to_node: dict[int, MetricNode]) -> None:
         self.nodes: list[MetricNode] = []

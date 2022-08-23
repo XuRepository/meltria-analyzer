@@ -1,6 +1,6 @@
-from collections import defaultdict
-
 import networkx as nx
+
+TARGET_APP_NAME = 'sock-shop'
 
 ROOT_METRIC_LABELS: tuple[str, str, str] = ("s-front-end_latency", "s-front-end_throughput", "s-front-end_errors")
 
@@ -61,6 +61,7 @@ SERVICE_TO_SERVICES: dict[str, list[str]] = {
     'front-end': [],
 }
 
+# TODO: wrong call graph?
 SERVICE_TO_SERVICE_ROUTES: dict[str, list[tuple[str, ...]]] = {
     'orders': [('front-end',)],
     'carts': [('orders', 'front-end'), ('front-end',)],
@@ -98,20 +99,3 @@ DIAGNOSER_TARGET_DATA: dict[str, list[str]] = {
     ],
     # "middlewares": "all"}
 }
-
-
-def group_metrics_by_service(metrics: list[str]) -> dict[str, list[str]]:
-    groups: dict[str, list[str]] = defaultdict(lambda: list())
-    for metric in metrics:
-        # TODO: resolve duplicated code of MetricNode class.
-        comp, base_name = metric.split('-', maxsplit=1)[1].split('_', maxsplit=1)
-        if metric.startswith('c-'):
-            service = CONTAINER_TO_SERVICE[comp]
-        elif metric.startswith('s-'):
-            service = comp
-        elif metric.startswith('m-'):
-            service = CONTAINER_TO_SERVICE[comp]
-        else:
-            raise ValueError(f'{metric} is invalid')
-        groups[service].append(metric)
-    return groups

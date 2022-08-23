@@ -84,6 +84,30 @@ def test_check_tsdr_ground_truth_by_route():
     assert found_metrics == expected
 
 
+def test_check_tsdr_ground_truth_by_route_train_ticket():
+    pk = PriorKnowledge(target_app='train-ticket')
+    metrics = [
+        'c-ts-food-mongo_cpu_usage_seconds_total',
+        'c-ts-food-mongo_cpu_user_seconds_total',
+        'c-ts-food_mongo_network_receive_bytes',
+        's-ts-food_request_duration_seconds',
+        'c-ts-preserve_cpu_usage_seconds_total',
+        's-ts-preserve_request_duration_seconds',
+        's-ts-ui-dashboard_request_duration_seconds',
+    ]
+    ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
+        pk, metrics, 'pod-cpu-hog', 'ts-food-mongo')
+    assert ok is True
+    expected = [
+        'c-ts-food-mongo_cpu_usage_seconds_total',
+        'c-ts-food-mongo_cpu_user_seconds_total',
+        's-ts-food_request_duration_seconds',
+        's-ts-preserve_request_duration_seconds',
+        's-ts-ui-dashboard_request_duration_seconds',
+    ]
+    assert found_metrics == expected
+
+
 @pytest.mark.parametrize(
     "desc,chaos_type,chaos_comp,input,expected",
     [

@@ -37,7 +37,10 @@ def generate_tsdr_ground_truth(pk: PriorKnowledge) -> dict[str, Any]:
                 metrics_pattern_list: list[str] = []
                 # add cause metrics pattern
                 metrics_pattern_list.append(f"^c-{ctnr}_({'|'.join(metric_patterns)})$")
-                metrics_pattern_list.append(f"^s-{cause_service}_.+$")
+                # NOTE: duplicate service metrics are not allowed in a route
+                service_metrics_pattern: str = f"^s-{cause_service}_.+$"
+                if service_metrics_pattern not in metrics_pattern_list:
+                    metrics_pattern_list.append(f"^s-{cause_service}_.+$")
                 if stos_route != ():
                     metrics_pattern_list.append(f"^s-({'|'.join(stos_route)})_.+")
                 routes.append(metrics_pattern_list)
@@ -101,8 +104,7 @@ def check_cause_metrics(nodes: mn.MetricNodes, chaos_type: str, chaos_comp: str)
 def check_causal_graph(
     pk: PriorKnowledge, G: nx.DiGraph, chaos_type: str, chaos_comp: str,
 ) -> tuple[bool, list[mn.MetricNodes]]:
-    """Check that the causal graph (G) has the accurate route.
-    """
+    """Check that the causal graph (G) has the accurate route. """
     call_graph: nx.DiGraph = G.reverse()  # for traverse starting from root node
     cause_metric_exps: list[str] = CHAOS_TO_CAUSE_METRIC_PATTERNS[chaos_type]
     cause_metric_pattern: re.Pattern = re.compile(f"^c-{chaos_comp}_({'|'.join(cause_metric_exps)})$")
@@ -119,14 +121,14 @@ def check_causal_graph(
                 prev_node: mn.MetricNode = path[i-1]
                 if node.is_service():
                     if prev_node.is_container():
-                        prev_service = pk.get_container_to_service(prev_node.comp)
+                        prev_service = pk.get_service_by_container(prev_node.comp)
                     else:
                         prev_service = prev_node.comp
                     if not pk.get_service_call_digraph().has_edge(prev_service, node.comp):
                         break
                 elif node.is_container():
                     if prev_node.is_service():
-                        cur_service = pk.get_container_to_service(node.comp)
+                        cur_service = pk.get_service_by_container(node.comp)
                         if not (
                             prev_node.comp == cur_service
                             or pk.get_service_call_digraph().has_edge(prev_node.comp, cur_service),

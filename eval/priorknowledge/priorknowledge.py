@@ -1,8 +1,7 @@
 from collections import defaultdict
 
-import eval.priorknowledge.sock_shop as sock_shop
-import eval.priorknowledge.sock_shop as train_ticket
 import networkx as nx
+from eval.priorknowledge import sock_shop, train_ticket
 
 
 class PriorKnowledge:
@@ -58,7 +57,7 @@ class PriorKnowledge:
             case _:
                 raise ValueError(f'{self.target_app} is invalid')
 
-    def get_service_to_service_routes(self, service: str) -> list[tuple[str, ...]]:
+    def get_service_routes(self, service: str) -> list[tuple[str, ...]]:
         match self.target_app:
             case sock_shop.TARGET_APP_NAME:
                 return sock_shop.SERVICE_TO_SERVICE_ROUTES[service]
@@ -76,7 +75,7 @@ class PriorKnowledge:
             case _:
                 raise ValueError(f'{self.target_app} is invalid')
 
-    def get_container_to_service(self, ctnr: str) -> str:
+    def get_service_by_container(self, ctnr: str) -> str:
         match self.target_app:
             case sock_shop.TARGET_APP_NAME:
                 return sock_shop.CONTAINER_TO_SERVICE[ctnr]
@@ -109,11 +108,11 @@ class PriorKnowledge:
             # TODO: resolve duplicated code of MetricNode class.
             comp, base_name = metric.split('-', maxsplit=1)[1].split('_', maxsplit=1)
             if metric.startswith('c-'):
-                service = self.get_container_to_service(comp)
+                service = self.get_service_by_container(comp)
             elif metric.startswith('s-'):
                 service = comp
             elif metric.startswith('m-'):
-                service = self.get_container_to_service(comp)
+                service = self.get_service_by_container(comp)
             else:
                 raise ValueError(f'{metric} is invalid')
             groups[service].append(metric)

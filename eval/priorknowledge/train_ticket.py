@@ -1,2 +1,265 @@
+from collections import defaultdict
 
-TARGET_APP_NAME = 'train-ticket'
+import networkx as nx
+
+TARGET_APP_NAME: str = 'train-ticket'
+
+ROOT_SERVICE: str = 'ts-ui-dashboard'
+ROOT_METRIC_LABELS: tuple[str, str, str] = (
+    "s-ts-ui-dashboard_request_duration_seconds",
+    "s-ts-ui-dashboard_requests_count",
+    "s-ts-ui-dashboard_requests_errors_counterrors",
+)
+
+SERVICE_CALL_DIGRAPH: nx.DiGraph = nx.DiGraph([
+    ('ts-ui-dashboard', 'ts-travel'),
+    ('ts-ui-dashboard', 'ts-travel2'),
+    ('ts-ui-dashboard', 'ts-user'),
+    ('ts-ui-dashboard', 'ts-auth'),
+    ('ts-ui-dashboard', 'ts-verification-code'),
+    ('ts-ui-dashboard', 'ts-station'),
+    ('ts-ui-dashboard', 'ts-train'),
+    ('ts-ui-dashboard', 'ts-config'),
+    ('ts-ui-dashboard', 'ts-security'),
+    ('ts-ui-dashboard', 'ts-execute'),
+    ('ts-ui-dashboard', 'ts-contacts'),
+    ('ts-ui-dashboard', 'ts-order'),
+    ('ts-ui-dashboard', 'ts-order-other'),
+    ('ts-ui-dashboard', 'ts-preserve'),
+    ('ts-ui-dashboard', 'ts-preserve-other'),
+    ('ts-ui-dashboard', 'ts-price'),
+    ('ts-ui-dashboard', 'ts-basic'),
+    ('ts-ui-dashboard', 'ts-ticketinfo'),
+    ('ts-ui-dashboard', 'ts-notification'),
+    ('ts-ui-dashboard', 'ts-inside-payment'),
+    ('ts-ui-dashboard', 'ts-rebook'),
+    ('ts-ui-dashboard', 'ts-cancel'),
+    ('ts-ui-dashboard', 'ts-route'),
+    ('ts-ui-dashboard', 'ts-assurance'),
+    ('ts-ui-dashboard', 'ts-ticket-office'),
+    ('ts-ui-dashboard', 'ts-travel-plan'),
+    ('ts-ui-dashboard', 'ts-consign'),
+    ('ts-ui-dashboard', 'ts-voucher'),
+    ('ts-ui-dashboard', 'ts-route-plan'),
+    ('ts-ui-dashboard', 'ts-food'),
+    ('ts-ui-dashboard', 'ts-news'),
+    ('ts-ui-dashboard', 'ts-admin-basic-info'),
+    ('ts-ui-dashboard', 'ts-admin-order'),
+    ('ts-ui-dashboard', 'ts-admin-route'),
+    ('ts-ui-dashboard', 'ts-admin-travel'),
+    ('ts-ui-dashboard', 'ts-admin-user'),
+    ('ts-ui-dashboard', 'ts-avatar'),
+
+    ('ts-admin-basic-info', 'ts-station'),
+    ('ts-admin-basic-info', 'ts-train'),
+    ('ts-admin-basic-info', 'ts-config'),
+    ('ts-admin-basic-info', 'ts-price'),
+    ('ts-admin-basic-info', 'ts-contacts'),
+
+    ('ts-admin-order', 'ts-order'),
+    ('ts-admin-order', 'ts-order-other'),
+
+    ('ts-admin-route', 'ts-route'),
+    ('ts-admin-travel', 'ts-travel'),
+    ('ts-admin-travel', 'ts-travel2'),
+    ('ts-admin-user', 'ts-user'),
+
+    ('ts-auth', 'ts-verification-code'),
+
+    ('ts-basic', 'ts-station'),
+    ('ts-basic', 'ts-train'),
+    ('ts-basic', 'ts-route'),
+    ('ts-basic', 'ts-price'),
+
+    ('ts-cancel', 'ts-notification'),
+    ('ts-cancel', 'ts-order'),
+    ('ts-cancel', 'ts-order-other'),
+    ('ts-cancel', 'ts-inside-payment'),
+    ('ts-cancel', 'ts-user'),
+    ('ts-cancel', 'ts-order'),
+    ('ts-cancel', 'ts-order-other'),
+
+    ('ts-consign', 'ts-consign-price'),
+
+    ('ts-execute', 'ts-order'),
+    ('ts-execute', 'ts-order-other'),
+    ('ts-execute', 'ts-order-other'),
+
+    ('ts-food', 'ts-food-map'),
+    ('ts-food', 'ts-travel'),
+    ('ts-food', 'ts-station'),
+
+    ('ts-inside-payment', 'ts-order'),
+    ('ts-inside-payment', 'ts-order-other'),
+    ('ts-inside-payment', 'ts-payment'),
+
+    ('ts-order', 'ts-station'),
+    ('ts-order-other', 'ts-station'),
+
+    ('ts-preserve', 'ts-ticketinfo'),
+    ('ts-preserve', 'ts-seat'),
+    ('ts-preserve', 'ts-user'),
+    ('ts-preserve', 'ts-assurance'),
+    ('ts-preserve', 'ts-station'),
+    ('ts-preserve', 'ts-security'),
+    ('ts-preserve', 'ts-travel'),
+    ('ts-preserve', 'ts-security'),
+    ('ts-preserve', 'ts-contacts'),
+    ('ts-preserve', 'ts-order'),
+    ('ts-preserve', 'ts-food'),
+    ('ts-preserve', 'ts-consign'),
+
+    ('ts-preserve-other', 'ts-ticketinfo'),
+    ('ts-preserve-other', 'ts-seat'),
+    ('ts-preserve-other', 'ts-user'),
+    ('ts-preserve-other', 'ts-assurance'),
+    ('ts-preserve-other', 'ts-station'),
+    ('ts-preserve-other', 'ts-security'),
+    ('ts-preserve-other', 'ts-travel2'),
+    ('ts-preserve-other', 'ts-security'),
+    ('ts-preserve-other', 'ts-contacts'),
+    ('ts-preserve-other', 'ts-order-other'),
+    ('ts-preserve-other', 'ts-food'),
+    ('ts-preserve-other', 'ts-consign'),
+
+    ('ts-rebook', 'ts-seat'),
+    ('ts-rebook', 'ts-travel'),
+    ('ts-rebook', 'ts-travel2'),
+    ('ts-rebook', 'ts-order'),
+    ('ts-rebook', 'ts-order-other'),
+    ('ts-rebook', 'ts-station'),
+    ('ts-rebook', 'ts-inside-payment'),
+
+    ('ts-route-plan', 'ts-route'),
+    ('ts-route-plan', 'ts-travel'),
+    ('ts-route-plan', 'ts-travel2'),
+    ('ts-route-plan', 'ts-station'),
+
+    ('ts-seat', 'ts-travel'),
+    ('ts-seat', 'ts-travel2'),
+    ('ts-seat', 'ts-order'),
+    ('ts-seat', 'ts-order-other'),
+    ('ts-seat', 'ts-config'),
+
+    ('ts-security', 'ts-order'),
+    ('ts-security', 'ts-order-other'),
+
+    ('ts-ticketinfo', 'ts-basic'),
+
+    ('ts-travel-plan', 'ts-seat'),
+    ('ts-travel-plan', 'ts-route-plan'),
+    ('ts-travel-plan', 'ts-travel'),
+    ('ts-travel-plan', 'ts-travel2'),
+    ('ts-travel-plan', 'ts-ticketinfo'),
+    ('ts-travel-plan', 'ts-station'),
+
+    ('ts-travel', 'ts-ticketinfo'),
+    ('ts-travel', 'ts-order'),
+    ('ts-travel', 'ts-train'),
+    ('ts-travel', 'ts-route'),
+    ('ts-travel', 'ts-seat'),
+
+    ('ts-travel2', 'ts-ticketinfo'),
+    ('ts-travel2', 'ts-order'),
+    ('ts-travel2', 'ts-train'),
+    ('ts-travel2', 'ts-route'),
+    ('ts-travel2', 'ts-seat'),
+
+    ('ts-user', 'ts-auth'),
+
+    ('ts-voucher', 'ts-order'),
+    ('ts-voucher', 'ts-order-other'),
+])
+
+
+def generate_service_to_service_routes() -> dict[str, list[tuple[str, ...]]]:
+    """Generate adjacency list of service to service routes."""
+    nodes = [n for n in SERVICE_CALL_DIGRAPH.nodes if n not in ROOT_SERVICE]
+    stos_routes: dict[str, list[tuple[str, ...]]] = defaultdict(list)
+    paths = nx.all_simple_paths(SERVICE_CALL_DIGRAPH, source=ROOT_SERVICE, target=nodes)
+    for path in paths:
+        path.reverse()
+        source_service = path[0]
+        stos_routes[source_service].append(tuple(path[1:]))
+    return stos_routes
+
+
+# Use list of tuple because of supporting multiple routes
+SERVICE_TO_SERVICE_ROUTES: dict[str, list[tuple[str, ...]]] = generate_service_to_service_routes()
+
+SERVICE_CONTAINERS: dict[str, list[str]] = {
+    "rabbitmq": ["rabbitmq"],
+    "ts-admin-basic-info": ["ts-admin-basic-info-service"],
+    "ts-admin-order": ["ts-admin-order-service"],
+    "ts-admin-route": ["ts-admin-route-service"],
+    "ts-admin-travel": ["ts-admin-travel-service"],
+    "ts-admin-user": ["ts-admin-user"],
+    "ts-assurance": ["ts-assurance-service", "ts-assurance-mongo"],
+    "ts-auth": ["ts-auth-service", "ts-auth-mongo"],
+    "ts-avatar": ["ts-avatar-service"],
+    "ts-basic": ["ts-basic-service"],
+    "ts-cancel": ["ts-cancel-service"],
+    "ts-config": ["ts-config-service", "ts-config-mongo"],
+    "ts-consign": ["ts-consign-service", "ts-consign-mongo"],
+    "ts-consign-price": ["ts-consign-price-service", "ts-consign-price-mongo"],
+    "ts-contacts": ["ts-contacts-service", "ts-contacts-mongo"],
+    "ts-delivery": ["ts-delivery-service", "ts-delivery-mongo"],
+    "ts-execute": ["ts-execute-service"],
+    "ts-food-map": ["ts-food-map-service", "ts-food-map-mongo"],
+    "ts-food": ["ts-food-service", "ts-food-mongo"],
+    "ts-inside-payment": ["ts-inside-payment-service", "ts-inside-payment-mongo"],
+    "ts-news": ["ts-news-service"],
+    "ts-notification": ["ts-notification-service", "ts-notification-mongo"],
+    "ts-order": ["ts-order-service", "ts-order-mongo"],
+    "ts-order-other": ["ts-order-other-service", "ts-order-other-mongo"],
+    "ts-payment": ["ts-payment-service", "ts-payment-mongo"],
+    "ts-preserve": ["ts-preserve-service"],
+    "ts-preserve-other": ["ts-preserve-other-service"],
+    "ts-price": ["ts-price-service", "ts-price-mongo"],
+    "ts-rebook": ["ts-rebook-service"],
+    "ts-route-plan": ["ts-route-plan-service"],
+    "ts-route": ["ts-route-service", "ts-route-mongo"],
+    "ts-seat": ["ts-seat-service"],
+    "ts-security": ["ts-security-service", "ts-security-mongo"],
+    "ts-station": ["ts-station-service", "ts-station-mongo"],
+    "ts-ticket-office": ["ts-ticket-office-service", "ts-ticket-office-mongo"],
+    "ts-ticketinfo": ["ts-ticketinfo-service"],
+    "ts-train": ["ts-train-service", "ts-train-mongo"],
+    "ts-travel": ["ts-travel-service", "ts-travel-mongo"],
+    "ts-travel-plan": ["ts-travel-plan-service"],
+    "ts-travel2": ["ts-travel2-service", "ts-travel2-mongo"],
+    "ts-ui-dashboard": ["ts-ui-dashboard"],
+    "ts-user": ["ts-user-service", "ts-user-mongo"],
+    "ts-verification-code": ["ts-verification-code-service"],
+    "ts-voucher": ["ts-voucher-service", "ts-voucher-mysql"],
+}
+
+CONTAINER_TO_SERVICE: dict[str, str] = {c: s for s, ctnrs in SERVICE_CONTAINERS.items() for c in ctnrs}
+
+
+def generate_container_call_graph() -> nx.DiGraph:
+    ctnr_g = nx.DiGraph()
+    # build call graph of ctnr-to-ctnr in a service
+    for ctnrs in SERVICE_CONTAINERS.values():
+        if len(ctnrs) >= 2:
+            ctnr_g.add_edges_from(nx.utils.pairwise(ctnrs))
+    # build call graph of service-to-service
+    for edge in nx.edges(SERVICE_CALL_DIGRAPH):
+        src_service, dst_service = edge[0], edge[1]
+        ctnr_g.add_edge(SERVICE_CONTAINERS[src_service][0], SERVICE_CONTAINERS[dst_service][0])
+    return ctnr_g
+
+
+CONTAINER_CALL_DIGRAPH: nx.DiGraph = generate_container_call_graph()
+
+CONTAINER_CALL_GRAPH: dict[str, list[str]] = {n: list(nbr.keys()) for n, nbr in CONTAINER_CALL_DIGRAPH.adjacency()}
+
+
+SKIP_CONTAINERS: list[str] = []
+
+DIAGNOSER_TARGET_DATA: dict[str, list[str]] = {
+    "containers": [],  # all
+    "services": ["request_duration_seconds", "requests_count", "requests_errors_counterrors"],
+    "nodes": [],  # all
+    # "middlewares": "all"}
+}

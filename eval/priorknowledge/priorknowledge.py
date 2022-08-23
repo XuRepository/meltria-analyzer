@@ -8,6 +8,15 @@ class PriorKnowledge:
     def __init__(self, target_app: str) -> None:
         self.target_app = target_app
 
+    def get_root_service(self):
+        match self.target_app:
+            case sock_shop.TARGET_APP_NAME:
+                return sock_shop.ROOT_SERVICE
+            case train_ticket.TARGET_APP_NAME:
+                return train_ticket.ROOT_SERVICE
+            case _:
+                raise ValueError(f'{self.target_app} is invalid')
+
     def get_containers(self, skip: bool = False) -> list[str]:
         ctnrs: list[str]
         match self.target_app:

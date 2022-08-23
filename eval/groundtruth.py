@@ -40,8 +40,8 @@ def generate_tsdr_ground_truth(pk: PriorKnowledge) -> dict[str, Any]:
                 # NOTE: duplicate service metrics are not allowed in a route
                 service_metrics_pattern: str = f"^s-{cause_service}_.+$"
                 if service_metrics_pattern not in metrics_pattern_list:
-                    metrics_pattern_list.append(f"^s-{cause_service}_.+$")
-                if stos_route != ():
+                    metrics_pattern_list.append(service_metrics_pattern)
+                if cause_service != pk.get_root_service():
                     metrics_pattern_list.append(f"^s-({'|'.join(stos_route)})_.+")
                 routes.append(metrics_pattern_list)
     return all_gt_routes

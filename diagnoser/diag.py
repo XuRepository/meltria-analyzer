@@ -60,11 +60,11 @@ def build_subgraph_of_removal_edges(nodes: mn.MetricNodes, mappings: dict[str, A
             if u.comp == v.comp or ctnr_graph.has_edge(u.comp, v.comp):
                 continue
         elif u.is_container() and v.is_service():
-            u_service: str = pk.get_container_to_service(u.comp)
+            u_service: str = pk.get_service_by_container(u.comp)
             if u_service == v.comp or service_graph.has_edge(u_service, v.comp):
                 continue
         elif u.is_service() and v.is_container():
-            v_service: str = pk.get_container_to_service(v.comp)
+            v_service: str = pk.get_service_by_container(v.comp)
             if u.comp == v_service or service_graph.has_edge(u.comp, v_service):
                 continue
         elif u.is_service() and v.is_service():
@@ -119,7 +119,7 @@ def fix_edge_direction_based_hieralchy(G: nx.DiGraph, u: mn.MetricNode, v: mn.Me
     # Force direction from (container -> service) to (service -> container) in same service
     if u.is_service() and v.is_container():
         # check whether u and v in the same service
-        v_service = pk.get_container_to_service(v.comp)
+        v_service = pk.get_service_by_container(v.comp)
         if u.comp == v_service:
             nx_util.reverse_edge_direction(G, u, v)
 
@@ -150,7 +150,7 @@ def fix_edge_direction_based_network_call(
 
     # From service to container
     if u.is_service() and v.is_container():
-        v_service = pk.get_container_to_service(v.comp)
+        v_service = pk.get_service_by_container(v.comp)
         if (v_service not in service_dep_graph[u.comp]) and \
            (u.comp in service_dep_graph[v_service]):
             nx_util.reverse_edge_direction(G, u, v)
@@ -159,7 +159,7 @@ def fix_edge_direction_based_network_call(
     if u.is_container() and v.is_service():
         # u_ctnr = u.split('-', maxsplit=1)[1].split('_')[0]
         # v_service = v.split('-', maxsplit=1)[1].split('_')[0]
-        u_service = pk.get_container_to_service(u.comp)
+        u_service = pk.get_service_by_container(u.comp)
         if (v.comp not in service_dep_graph[u_service]) and \
            (u_service in service_dep_graph[v.comp]):
             nx_util.reverse_edge_direction(G, u, v)

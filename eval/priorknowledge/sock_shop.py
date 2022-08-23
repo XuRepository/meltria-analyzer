@@ -61,6 +61,7 @@ SERVICE_TO_SERVICES: dict[str, list[str]] = {
     'front-end': [],
 }
 
+# TODO: wrong call graph?
 SERVICE_TO_SERVICE_ROUTES: dict[str, list[tuple[str, ...]]] = {
     'orders': [('front-end',)],
     'carts': [('orders', 'front-end'), ('front-end',)],

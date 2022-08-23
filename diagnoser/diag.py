@@ -1,19 +1,16 @@
-import json
-import os
 import time
 from itertools import combinations
-from queue import PriorityQueue
 from typing import Any
 
 import networkx as nx
 import numpy as np
 import pandas as pd
 import pcalg
-from eval.priorknowledge.priorknowledge import PriorKnowledge
 from pgmpy import estimators
 
 import diagnoser.metric_node as mn
 from diagnoser import nx_util
+from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
 from .citest.fisher_z import ci_test_fisher_z
 from .citest.fisher_z_pgmpy import fisher_z

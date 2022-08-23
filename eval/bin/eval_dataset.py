@@ -5,13 +5,14 @@ import os
 from typing import Any
 
 import hydra
-import meltria.loader
 import neptune.new as neptune
 import pandas as pd
-from eval.priorknowledge.priorknowledge import PriorKnowledge
-from meltria.loader import DatasetRecord
 from neptune.new.integrations.python_logger import NeptuneHandler
 from omegaconf import DictConfig, OmegaConf
+
+import meltria.loader
+from meltria.loader import DatasetRecord
+from meltria.priorknowledge.priorknowledge import PriorKnowledge
 from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
 
 # see https://docs.neptune.ai/api-reference/integrations/python-logger

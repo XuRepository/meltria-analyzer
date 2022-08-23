@@ -1,4 +1,4 @@
-from eval.priorknowledge.priorknowledge import PriorKnowledge
+from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
 
 def test_generate_service_to_service_routes():

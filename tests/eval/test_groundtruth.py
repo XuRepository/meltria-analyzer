@@ -1,9 +1,9 @@
 import networkx as nx
 import pytest
-from diagnoser import metric_node as mn
 
+from diagnoser import metric_node as mn
 from eval import groundtruth
-from eval.priorknowledge.priorknowledge import PriorKnowledge
+from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
 prior_knowledge = PriorKnowledge(target_app='sock-shop')
 

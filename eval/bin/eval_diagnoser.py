@@ -8,22 +8,23 @@ from multiprocessing import cpu_count
 from operator import add
 from typing import Any
 
-import diagnoser.metric_node as mn
 import holoviews as hv
 import hydra
-import meltria.loader as meltria_loader
 import neptune.new as neptune
 import networkx as nx
 import numpy as np
 import pandas as pd
 from bokeh.embed import file_html
 from bokeh.resources import CDN
-from diagnoser import diag
-from eval import groundtruth
-from eval.priorknowledge.priorknowledge import PriorKnowledge
-from meltria.loader import DatasetRecord
 from neptune.new.integrations.python_logger import NeptuneHandler
 from omegaconf import DictConfig, OmegaConf
+
+import diagnoser.metric_node as mn
+import meltria.loader as meltria_loader
+from diagnoser import diag
+from eval import groundtruth
+from meltria.loader import DatasetRecord
+from meltria.priorknowledge.priorknowledge import PriorKnowledge
 from tsdr import tsdr
 
 hv.extension('bokeh')

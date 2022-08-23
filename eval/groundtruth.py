@@ -3,10 +3,10 @@ from collections import defaultdict
 from functools import cache
 from typing import Any
 
-import diagnoser.metric_node as mn
 import networkx as nx
 
-from eval.priorknowledge.priorknowledge import PriorKnowledge
+import diagnoser.metric_node as mn
+from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
 # TODO: define this by each target app.
 CHAOS_TO_CAUSE_METRIC_PATTERNS: dict[str, list[str]] = {

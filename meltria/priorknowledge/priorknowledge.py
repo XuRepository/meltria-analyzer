@@ -2,7 +2,8 @@ from collections import defaultdict
 from functools import cache
 
 import networkx as nx
-from eval.priorknowledge import sock_shop, train_ticket
+
+from meltria.priorknowledge import sock_shop, train_ticket
 
 
 class PriorKnowledge:

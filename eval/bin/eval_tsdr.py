@@ -10,7 +10,6 @@ from typing import Any
 
 import holoviews as hv
 import hydra
-import meltria.loader as meltria_loader
 import neptune.new as neptune
 import numpy as np
 import pandas as pd
@@ -18,11 +17,13 @@ import scipy
 import scipy.stats
 from bokeh.embed import file_html
 from bokeh.resources import CDN
-from eval import groundtruth
-from eval.priorknowledge.priorknowledge import PriorKnowledge
-from meltria.loader import DatasetRecord
 from neptune.new.integrations.python_logger import NeptuneHandler
 from omegaconf import DictConfig, OmegaConf
+
+import meltria.loader as meltria_loader
+from eval import groundtruth
+from meltria.loader import DatasetRecord
+from meltria.priorknowledge.priorknowledge import PriorKnowledge
 from tsdr import tsdr
 
 hv.extension('bokeh')

@@ -14,6 +14,7 @@ from scipy.cluster.hierarchy import fcluster, linkage
 from scipy.spatial.distance import hamming, pdist, squareform
 
 import tsdr.unireducer as unireducer
+from meltria.priorknowledge.priorknowledge import PriorKnowledge
 from tsdr.clustering import dbscan
 from tsdr.clustering.kshape import kshape
 from tsdr.clustering.metricsnamecluster import cluster_words
@@ -33,9 +34,11 @@ TARGET_DATA = {
 class Tsdr:
     def __init__(
         self,
+        prior_knowledge: PriorKnowledge,
         univariate_series_func_or_name: Callable[[np.ndarray, Any], UnivariateSeriesReductionResult] | str,
         **kwargs
     ) -> None:
+        self.prior_knowledge = prior_knowledge
         self.params = kwargs
         if callable(univariate_series_func_or_name):
             setattr(self, 'univariate_series_func', univariate_series_func_or_name)
@@ -73,7 +76,9 @@ class Tsdr:
     ) -> pd.DataFrame:
         """ reduce series by failure detection time
         """
-        sli = series['s-front-end_latency'].to_numpy()
+        # TODO: choose SLI metrics formally
+        sli_name = self.prior_knowledge.get_root_metrics()[0]
+        sli = series[sli_name].to_numpy()
         outliers = detect_with_n_sigma_rule(
             x=sli,
             test_start_time=self.params['time_fault_inject_time_index'],

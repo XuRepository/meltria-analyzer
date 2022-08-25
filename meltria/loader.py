@@ -127,7 +127,8 @@ def read_metrics_json(
             continue
         for t in raw_data[metric_type].dropna():
             for metric in t:
-                metric_name = metric["metric_name"].replace("container_", "").replace("node_", "")
+                # remove prefix of label name that Prometheus gives
+                metric_name = metric["metric_name"].removeprefix("container_").removeprefix("node_")
                 target_name = metric["{}_name".format(metric_type[:-1]) if metric_type != "middlewares" else "container_name"]
                 if target_name in ["queue-master", "rabbitmq", "session-db"]:  # FIXME: use priorknoeledge skip_containers
                     continue

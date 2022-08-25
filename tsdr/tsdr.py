@@ -476,7 +476,7 @@ def prepare_services_list(data_df: pd.DataFrame) -> list[str]:
     for col in data_df.columns:
         if not col.startswith('s-'):
             continue
-        service_name = col.split("_")[0].replace("s-", "")
+        service_name = col.split("_")[0].removeprefix("s-")
         if service_name not in services_list:
             services_list.append(service_name)
     return services_list
@@ -498,13 +498,11 @@ def get_container_names_of_service(data_df: pd.DataFrame) -> dict[str, set[str]]
     components: dict[str, set[str]] = {}
     services: set[str] = set([])
     for service_col in service_cols:
-        service_name = service_col.split('_')[0].replace('s-', '')
+        service_name = service_col.split('_')[0].removeprefix('s-')
         components[service_name] = set([])
         services.add(service_name)
-    print(services)
     for container_col in container_cols:
-        container_name = container_col.split('_')[0].replace('c-', '')
-        print(container_name)
+        container_name = container_col.split('_')[0].removeprefix('c-')
         service_name = [s for s in services if container_name.startswith(s)][0]
         # container should be unique
         components[service_name].add(container_name)
@@ -518,7 +516,7 @@ def count_metrics(df: pd.DataFrame) -> pd.DataFrame:
     for col in df.columns:
         for prefix, comp_type in map_type:
             if col.startswith(prefix):
-                comp_name = col.split('_')[0].replace(prefix, '')
+                comp_name = col.split('_')[0].removeprefix(prefix)
                 counter[comp_type][comp_name] += 1
     clist = [{'comp_type': t, 'comp_name': n, 'count': cnt} for t, v in counter.items() for n, cnt in v.items()]
     return pd.DataFrame(clist).set_index(['comp_type', 'comp_name'])

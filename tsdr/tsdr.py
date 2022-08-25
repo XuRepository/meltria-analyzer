@@ -40,7 +40,12 @@ class Tsdr:
         return unireducer.ar_based_ad_model(series, **kwargs)
 
     def filter_out_no_change_metrics(self, series: pd.DataFrame) -> pd.DataFrame:
-        return series.loc[:, series.apply(lambda x: x.sum() != 0. and not np.isnan(x.sum()) and not np.all(x == x[0]))]
+        def filter(x) -> bool:
+            if np.all(np.isnan(x)):
+                return False
+            diff_x = np.diff(x)
+            return not (np.all(x == x[0]) or np.all(diff_x == diff_x[0]))
+        return series.loc[:, series.apply(filter)]
 
     def detect_failure_start_point(self, sli: np.ndarray, sigma_threshold=3) -> tuple[int, float]:
         """ Detect failure start point in SLO metrics.

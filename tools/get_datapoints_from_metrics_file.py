@@ -3,7 +3,7 @@
 import argparse
 from pprint import pprint
 
-from tsdr import tsdr
+from meltria import loader
 
 
 def main():
@@ -14,7 +14,7 @@ def main():
                         help='the list of series')
     args = parser.parse_args()
 
-    metrics, _, _ = tsdr.read_metrics_json(args.metrics_file)
+    metrics, _, _ = loader.read_metrics_json(args.metrics_file)
     series_by_name = {}
     for name in args.series_names.split(","):
         series_by_name[name] = metrics[name].to_list()

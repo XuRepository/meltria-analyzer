@@ -11,9 +11,10 @@ from enum import Enum
 import numpy as np
 import pandas as pd
 import ruptures as rpt
-from eval import metrics
 from statsmodels.tsa import stattools
-from tsdr import tsdr
+
+from eval import groundtruth
+from meltria import loader
 
 TIME_INTERVAL_SEC = 15
 
@@ -104,7 +105,7 @@ def main():
 
     results = defaultdict(lambda: list())
     for metrics_file in args.metricsfiles:
-        data_df, _, metrics_meta = tsdr.read_metrics_json(metrics_file, interporate=False)
+        data_df, _, metrics_meta = loader.read_metrics_json(metrics_file, interporate=False)
         chaos_type: str = metrics_meta['injected_chaos_type']
         chaos_comp: str = metrics_meta['chaos_injected_component']
         dashboard_url: str = metrics_meta['grafana_dashboard_url']
@@ -115,7 +116,7 @@ def main():
         sli = 's-front-end_latency'
         sli_status = detect_anomaly(args.ad_method, data_df[sli])
 
-        _, cause_metrics = metrics.check_cause_metrics(list(data_df.columns), chaos_type, chaos_comp)
+        _, cause_metrics = groundtruth.check_cause_metrics(list(data_df.columns), chaos_type, chaos_comp)
         cause_metrics_series = data_df[cause_metrics]
         cause_metrics_status = {}
         for feature, samples in cause_metrics_series.items():

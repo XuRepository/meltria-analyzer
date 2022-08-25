@@ -1,7 +1,5 @@
-import json
 import random
 import time
-import warnings
 from collections import defaultdict
 from concurrent import futures
 from typing import Any, Callable
@@ -21,14 +19,6 @@ from tsdr.clustering.metricsnamecluster import cluster_words
 from tsdr.clustering.sbd import sbd, silhouette_score
 from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
 from tsdr.unireducer import UnivariateSeriesReductionResult, has_variation
-
-PLOTS_NUM = 120
-TARGET_DATA = {
-    "containers": "all",
-    "services": "all",
-    "nodes": "all",
-    "middlewares": "all",
-}
 
 
 class Tsdr:
@@ -479,45 +469,6 @@ def sieve_clustering(reduced_df, services_list, max_workers):
     return reduced_df, clustering_info
 
 
-def read_metrics_json(
-    data_file: str,
-    interporate: bool = True,
-    exclude_middlewares: bool = False,
-) -> tuple[pd.DataFrame, dict[str, Any], dict[str, Any]]:
-    """ Read metrics data file
-    """
-    with open(data_file) as f:
-        raw_json = json.load(f)
-    raw_data = pd.read_json(data_file)
-    data_df = pd.DataFrame()
-    metrics_name_to_values: dict[str, np.ndarray] = {}
-    for target in TARGET_DATA:
-        for t in raw_data[target].dropna():
-            for metric in t:
-                if metric["metric_name"] not in TARGET_DATA[target] and TARGET_DATA[target] != "all":
-                    continue
-                if target == 'middlewares' and exclude_middlewares:
-                    continue
-                metric_name = metric["metric_name"].replace(
-                    "container_", "").replace("node_", "")
-                target_name = metric["{}_name".format(target[:-1]) if target != "middlewares" else "container_name"]
-                if target_name in ["queue-master", "rabbitmq", "session-db"]:
-                    continue
-                metric_name = "{}-{}_{}".format(target[0], target_name, metric_name)
-                metrics_name_to_values[metric_name] = np.array(
-                    metric["values"], dtype=np.float64,
-                )[:, 1][-PLOTS_NUM:]
-    data_df = pd.DataFrame(metrics_name_to_values).round(4)
-    if interporate:
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore')
-                data_df = data_df.interpolate(method="spline", order=3, limit_direction="both")
-        except:  # To cacth `dfitpack.error: (m>k) failed for hidden m: fpcurf0:m=3`
-            raise ValueError("calculating spline error") from None
-    return data_df, raw_json['mappings'], raw_json['meta']
-
-
 def prepare_services_list(data_df: pd.DataFrame) -> list[str]:
     """ prepare list of services
     """
@@ -550,8 +501,10 @@ def get_container_names_of_service(data_df: pd.DataFrame) -> dict[str, set[str]]
         service_name = service_col.split('_')[0].replace('s-', '')
         components[service_name] = set([])
         services.add(service_name)
+    print(services)
     for container_col in container_cols:
         container_name = container_col.split('_')[0].replace('c-', '')
+        print(container_name)
         service_name = [s for s in services if container_name.startswith(s)][0]
         # container should be unique
         components[service_name].add(container_name)

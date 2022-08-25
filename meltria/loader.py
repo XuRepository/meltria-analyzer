@@ -1,14 +1,24 @@
+import json
 import logging
 import os
+import warnings
 from concurrent import futures
 from multiprocessing import cpu_count
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from eval import groundtruth
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
-from tsdr import tsdr
+
+PLOTS_NUM = 120
+TARGET_DATA = {
+    "containers": "all",
+    "services": "all",
+    "nodes": "all",
+    "middlewares": "all",
+}
 
 
 class DatasetRecord:
@@ -91,7 +101,7 @@ def read_metrics_file(
     logger: logging.Logger = logging.getLogger(),
 ) -> tuple[pd.DataFrame | None, dict[str, Any] | None]:
     try:
-        data_df, mappings, metrics_meta = tsdr.read_metrics_json(
+        data_df, mappings, metrics_meta = read_metrics_json(
             metrics_file,
             exclude_middlewares=exclude_middleware_metrics,
         )
@@ -104,3 +114,42 @@ def read_metrics_file(
     data_df['metrics_file'] = os.path.basename(metrics_file)
     data_df['grafana_dashboard_url'] = metrics_meta['grafana_dashboard_url']
     return data_df, mappings
+
+
+def read_metrics_json(
+    data_file: str,
+    interporate: bool = True,
+    exclude_middlewares: bool = False,
+) -> tuple[pd.DataFrame, dict[str, Any], dict[str, Any]]:
+    """ Read metrics data file """
+    # FIXME: loading json twice should be avoided
+    with open(data_file) as f:
+        raw_json = json.load(f)
+    raw_data = pd.read_json(data_file)
+    data_df = pd.DataFrame()
+    metrics_name_to_values: dict[str, np.ndarray] = {}
+    for target in TARGET_DATA:
+        for t in raw_data[target].dropna():
+            for metric in t:
+                if metric["metric_name"] not in TARGET_DATA[target] and TARGET_DATA[target] != "all":
+                    continue
+                if target == 'middlewares' and exclude_middlewares:
+                    continue
+                metric_name = metric["metric_name"].replace(
+                    "container_", "").replace("node_", "")
+                target_name = metric["{}_name".format(target[:-1]) if target != "middlewares" else "container_name"]
+                if target_name in ["queue-master", "rabbitmq", "session-db"]:
+                    continue
+                metric_name = "{}-{}_{}".format(target[0], target_name, metric_name)
+                metrics_name_to_values[metric_name] = np.array(
+                    metric["values"], dtype=np.float64,
+                )[:, 1][-PLOTS_NUM:]
+    data_df = pd.DataFrame(metrics_name_to_values).round(4)
+    if interporate:
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                data_df = data_df.interpolate(method="spline", order=3, limit_direction="both")
+        except:  # To cacth `dfitpack.error: (m>k) failed for hidden m: fpcurf0:m=3`
+            raise ValueError("calculating spline error") from None
+    return data_df, raw_json['mappings'], raw_json['meta']

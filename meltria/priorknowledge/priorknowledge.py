@@ -68,7 +68,6 @@ class PriorKnowledge(ABC):
             groups[service].append(metric)
         return groups
 
-
     @staticmethod
     @cache
     def _generate_service_to_service_routes(

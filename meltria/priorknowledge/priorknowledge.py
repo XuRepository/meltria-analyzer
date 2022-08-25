@@ -37,6 +37,10 @@ class PriorKnowledge(ABC):
         pass
 
     @abstractmethod
+    def get_containers_of_service(self) -> dict[str, list[str]]:
+        pass
+
+    @abstractmethod
     def get_service_containers(self, service: str) -> list[str]:
         pass
 
@@ -114,6 +118,9 @@ class SockShopKnowledge(PriorKnowledge):
         routes = self._generate_service_to_service_routes(sock_shop.SERVICE_CALL_DIGRAPH, sock_shop.ROOT_SERVICE)
         return routes[service]
 
+    def get_containers_of_service(self) -> dict[str, list[str]]:
+        return sock_shop.SERVICE_CONTAINERS
+
     def get_service_containers(self, service: str) -> list[str]:
         return sock_shop.SERVICE_CONTAINERS[service]
 
@@ -155,6 +162,9 @@ class TrainTicketKnowledge(PriorKnowledge):
     def get_service_routes(self, service: str) -> list[tuple[str, ...]]:
         routes = self._generate_service_to_service_routes(train_ticket.SERVICE_CALL_DIGRAPH, train_ticket.ROOT_SERVICE)
         return routes[service]
+
+    def get_containers_of_service(self) -> dict[str, list[str]]:
+        return train_ticket.SERVICE_CONTAINERS
 
     def get_service_containers(self, service: str) -> list[str]:
         return train_ticket.SERVICE_CONTAINERS[service]

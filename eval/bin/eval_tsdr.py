@@ -277,9 +277,10 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
             tsdr_param = {'time_fault_inject_time_index': cfg.time.fault_inject_time_index}
             tsdr_param.update({f'step1_{k}': v for k, v in OmegaConf.to_container(cfg.step1, resolve=True).items()})
             tsdr_param.update({f'step2_{k}': v for k, v in OmegaConf.to_container(cfg.step2, resolve=True).items()})
-            reducer = tsdr.Tsdr(prior_knowledge, cfg.step1.model_name, **tsdr_param)
+            reducer = tsdr.Tsdr(cfg.step1.model_name, **tsdr_param)
             tsdr_stat, clustering_info, anomaly_points = reducer.run(
                 X=data_df,
+                pk=prior_knowledge,
                 max_workers=cpu_count(),
             )
             # skip the first item of tsdr_stat because it

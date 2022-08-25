@@ -24,11 +24,9 @@ from tsdr.unireducer import UnivariateSeriesReductionResult, has_variation
 class Tsdr:
     def __init__(
         self,
-        prior_knowledge: PriorKnowledge,
         univariate_series_func_or_name: Callable[[np.ndarray, Any], UnivariateSeriesReductionResult] | str,
         **kwargs
     ) -> None:
-        self.prior_knowledge = prior_knowledge
         self.params = kwargs
         if callable(univariate_series_func_or_name):
             setattr(self, 'univariate_series_func', univariate_series_func_or_name)
@@ -63,11 +61,12 @@ class Tsdr:
         self,
         series: pd.DataFrame,
         results: dict[str, UnivariateSeriesReductionResult],
+        pk: PriorKnowledge,
     ) -> pd.DataFrame:
         """ reduce series by failure detection time
         """
         # TODO: choose SLI metrics formally
-        sli_name = self.prior_knowledge.get_root_metrics()[0]
+        sli_name = pk.get_root_metrics()[0]
         sli = series[sli_name].to_numpy()
         outliers = detect_with_n_sigma_rule(
             x=sli,
@@ -86,7 +85,7 @@ class Tsdr:
         return series[kept_series_labels]
 
     def run(
-        self, X: pd.DataFrame, max_workers: int,
+        self, X: pd.DataFrame, pk: PriorKnowledge, max_workers: int,
     ) -> tuple[list[tuple[pd.DataFrame, pd.DataFrame, float]], dict[str, Any], dict[str, np.ndarray]]:
         stat: list[tuple[pd.DataFrame, pd.DataFrame, float]] = []
         stat.append((X, count_metrics(X), 0.0))
@@ -110,7 +109,7 @@ class Tsdr:
         # step1.5
         start = time.time()
 
-        reduced_series15 = self.reduce_by_failure_detection_time(reduced_series1, step1_results)
+        reduced_series15 = self.reduce_by_failure_detection_time(reduced_series1, step1_results, pk)
 
         elapsed_time = round(time.time() - start, 2)
 
@@ -132,12 +131,10 @@ class Tsdr:
 
         stat.append((df_before_clustering, count_metrics(df_before_clustering), elapsed_time))
 
-        containers_of_service: dict[str, set[str]] = get_container_names_of_service(series)
-
         start = time.time()
 
         reduced_series2, clustering_info = self.reduce_multivariate_series(
-            df_before_clustering.copy(), containers_of_service, max_workers,
+            df_before_clustering.copy(), pk, max_workers,
         )
 
         elapsed_time = round(time.time() - start, 2)
@@ -170,7 +167,7 @@ class Tsdr:
     def reduce_multivariate_series(
         self,
         series: pd.DataFrame,
-        containers_of_service: dict[str, set[str]],
+        pk: PriorKnowledge,
         n_workers: int,
     ) -> tuple[pd.DataFrame, dict[str, Any]]:
         def make_clusters(
@@ -215,7 +212,7 @@ class Tsdr:
         with futures.ProcessPoolExecutor(max_workers=n_workers) as executor:
             # Clustering metrics by service including services, containers and middlewares metrics
             future_list: list[futures.Future] = []
-            for service, containers in containers_of_service.items():
+            for service, containers in pk.get_containers_of_service().items():
                 service_metrics_df = series.loc[:, series.columns.str.startswith(f"s-{service}_")]
                 if len(service_metrics_df.columns) > 1:
                     future_list.append(
@@ -467,46 +464,6 @@ def sieve_clustering(reduced_df, services_list, max_workers):
             reduced_df = reduced_df.drop(remove_list, axis=1)
 
     return reduced_df, clustering_info
-
-
-def prepare_services_list(data_df: pd.DataFrame) -> list[str]:
-    """ prepare list of services
-    """
-    services_list: list[str] = []
-    for col in data_df.columns:
-        if not col.startswith('s-'):
-            continue
-        service_name = col.split("_")[0].removeprefix("s-")
-        if service_name not in services_list:
-            services_list.append(service_name)
-    return services_list
-
-
-def get_container_names_of_service(data_df: pd.DataFrame) -> dict[str, set[str]]:
-    """ get component (services and containers) names
-
-    Returns:
-        dict[str]: expected to be like libs.SERVICE_CONTAINERS
-    """
-    service_cols, container_cols = [], []
-    for col in data_df.columns:
-        if col.startswith('s-'):
-            service_cols.append(col)
-        if col.startswith('c-'):
-            container_cols.append(col)
-
-    components: dict[str, set[str]] = {}
-    services: set[str] = set([])
-    for service_col in service_cols:
-        service_name = service_col.split('_')[0].removeprefix('s-')
-        components[service_name] = set([])
-        services.add(service_name)
-    for container_col in container_cols:
-        container_name = container_col.split('_')[0].removeprefix('c-')
-        service_name = [s for s in services if container_name.startswith(s)][0]
-        # container should be unique
-        components[service_name].add(container_name)
-    return components
 
 
 def count_metrics(df: pd.DataFrame) -> pd.DataFrame:

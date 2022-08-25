@@ -187,8 +187,8 @@ def eval_diagnoser(run: neptune.Run, cfg: DictConfig) -> None:
 
             tsdr_param = {f'step1_{k}': v for k, v in OmegaConf.to_container(cfg.tsdr.step1, resolve=True).items()}
             tsdr_param.update({f'step2_{k}': v for k, v in OmegaConf.to_container(cfg.tsdr.step2, resolve=True).items()})
-            reducer = tsdr.Tsdr(prior_knowledge, cfg.tsdr.step1.model_name, **tsdr_param)
-            tsdr_stat, _, _ = reducer.run(X=data_df, max_workers=cpu_count())
+            reducer = tsdr.Tsdr(cfg.tsdr.step1.model_name, **tsdr_param)
+            tsdr_stat, _, _ = reducer.run(X=data_df, pk=prior_knowledge, max_workers=cpu_count())
             reduced_df: pd.DataFrame = tsdr_stat[-1][0]
 
             logger.info(f">> Running diagnosis of {record.chaos_case_file()} ...")

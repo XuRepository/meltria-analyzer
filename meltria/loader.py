@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from eval import groundtruth
-from meltria.priorknowledge.priorknowledge import PriorKnowledge
+from meltria.priorknowledge.priorknowledge import PriorKnowledge, new_knowledge
 
 PLOTS_NUM = 120
 
@@ -122,6 +122,7 @@ def read_metrics_json(
     raw_data = pd.read_json(data_file)
     data_df = pd.DataFrame()
     metrics_name_to_values: dict[str, np.ndarray] = {}
+    pk: PriorKnowledge = new_knowledge(raw_json['meta']['target_app'])
     for metric_type, skip_ok in target_metric_types.items():
         if not skip_ok:
             continue
@@ -130,7 +131,7 @@ def read_metrics_json(
                 # remove prefix of label name that Prometheus gives
                 metric_name = metric["metric_name"].removeprefix("container_").removeprefix("node_")
                 target_name = metric["{}_name".format(metric_type[:-1]) if metric_type != "middlewares" else "container_name"]
-                if target_name in ["queue-master", "rabbitmq", "session-db"]:  # FIXME: use priorknoeledge skip_containers
+                if target_name in pk.get_skip_containers():
                     continue
                 metric_name = "{}-{}_{}".format(metric_type[0], target_name, metric_name)
                 metrics_name_to_values[metric_name] = np.array(

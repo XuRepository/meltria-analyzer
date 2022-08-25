@@ -14,12 +14,6 @@ from eval import groundtruth
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
 PLOTS_NUM = 120
-TARGET_DATA = {
-    "containers": "all",
-    "services": "all",
-    "nodes": "all",
-    "middlewares": "all",
-}
 
 
 class DatasetRecord:
@@ -69,7 +63,7 @@ class DatasetRecord:
 
 
 def load_dataset(
-    metrics_files: list[str], exclude_middleware_metrics: bool = False
+    metrics_files: list[str], target_metric_types: dict[str, bool],
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
     """ Load metrics dataset
     """
@@ -78,7 +72,7 @@ def load_dataset(
     with futures.ProcessPoolExecutor(max_workers=cpu_count()) as executor:
         future_to_metrics_file = {}
         for metrics_file in metrics_files:
-            f = executor.submit(read_metrics_file, metrics_file, exclude_middleware_metrics)
+            f = executor.submit(read_metrics_file, metrics_file, target_metric_types)
             future_to_metrics_file[f] = os.path.basename(metrics_file)
         for future in futures.as_completed(future_to_metrics_file):
             data_df, mappings = future.result()
@@ -98,13 +92,12 @@ def load_dataset(
 
 def read_metrics_file(
     metrics_file: str,
-    exclude_middleware_metrics: bool = False,
+    target_metric_types: dict[str, bool],
     logger: logging.Logger = logging.getLogger(),
 ) -> tuple[pd.DataFrame | None, dict[str, Any] | None]:
     try:
         data_df, mappings, metrics_meta = read_metrics_json(
-            metrics_file,
-            exclude_middlewares=exclude_middleware_metrics,
+            metrics_file, target_metric_types,
         )
     except ValueError as e:
         logger.warning(f">> Skip {metrics_file} because of {e}")
@@ -119,8 +112,8 @@ def read_metrics_file(
 
 def read_metrics_json(
     data_file: str,
+    target_metric_types: dict[str, bool],
     interporate: bool = True,
-    exclude_middlewares: bool = False,
 ) -> tuple[pd.DataFrame, dict[str, Any], dict[str, Any]]:
     """ Read metrics data file """
     # FIXME: loading json twice should be avoided
@@ -129,19 +122,16 @@ def read_metrics_json(
     raw_data = pd.read_json(data_file)
     data_df = pd.DataFrame()
     metrics_name_to_values: dict[str, np.ndarray] = {}
-    for target in TARGET_DATA:
-        for t in raw_data[target].dropna():
+    for metric_type, skip_ok in target_metric_types.items():
+        if not skip_ok:
+            continue
+        for t in raw_data[metric_type].dropna():
             for metric in t:
-                if metric["metric_name"] not in TARGET_DATA[target] and TARGET_DATA[target] != "all":
+                metric_name = metric["metric_name"].replace("container_", "").replace("node_", "")
+                target_name = metric["{}_name".format(metric_type[:-1]) if metric_type != "middlewares" else "container_name"]
+                if target_name in ["queue-master", "rabbitmq", "session-db"]:  # FIXME: use priorknoeledge skip_containers
                     continue
-                if target == 'middlewares' and exclude_middlewares:
-                    continue
-                metric_name = metric["metric_name"].replace(
-                    "container_", "").replace("node_", "")
-                target_name = metric["{}_name".format(target[:-1]) if target != "middlewares" else "container_name"]
-                if target_name in ["queue-master", "rabbitmq", "session-db"]:
-                    continue
-                metric_name = "{}-{}_{}".format(target[0], target_name, metric_name)
+                metric_name = "{}-{}_{}".format(metric_type[0], target_name, metric_name)
                 metrics_name_to_values[metric_name] = np.array(
                     metric["values"], dtype=np.float64,
                 )[:, 1][-PLOTS_NUM:]

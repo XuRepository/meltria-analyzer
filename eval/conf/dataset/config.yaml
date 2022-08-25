@@ -1,8 +1,14 @@
 dataset_id: hg68n
 metrics_files: ???
+target_metric_types:
+  containers: True
+  services: True
+  nodes: True
+  middlewares: True
 exclude_middleware_metrics: true
 upload_plots: false  # upload graph image to Neptune
 neptune:
   mode: debug
 time:
+  datapoints: 120
   fault_inject_time_index: 99

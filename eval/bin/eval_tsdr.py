@@ -260,7 +260,7 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
 
     dataset: pd.DataFrame = meltria_loader.load_dataset(
         cfg.metrics_files,
-        cfg.exclude_middleware_metrics,
+        OmegaConf.to_container(cfg.target_metric_types, resolve=True),
     )[0]
     logger.info("Dataset loading complete")
 
@@ -344,7 +344,7 @@ def main(cfg: DictConfig) -> None:
     run['dataset/id'] = cfg.dataset_id
     run['dataset/num_metrics_files'] = len(cfg.metrics_files)
     params = {
-        'exclude_middleware_metrics': cfg.exclude_middleware_metrics,
+        'target_metric_types': cfg.target_metric_types,
     }
 
     # Hydra parameters are passed to the Neptune.ai run object

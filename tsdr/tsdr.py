@@ -1,6 +1,5 @@
 import random
 import time
-from collections import defaultdict
 from concurrent import futures
 from typing import Any, Callable
 
@@ -12,6 +11,7 @@ from scipy.cluster.hierarchy import fcluster, linkage
 from scipy.spatial.distance import hamming, pdist, squareform
 
 import tsdr.unireducer as unireducer
+from meltria.loader import count_metrics
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
 from tsdr.clustering import dbscan
 from tsdr.clustering.kshape import kshape
@@ -464,16 +464,3 @@ def sieve_clustering(reduced_df, services_list, max_workers):
             reduced_df = reduced_df.drop(remove_list, axis=1)
 
     return reduced_df, clustering_info
-
-
-def count_metrics(df: pd.DataFrame) -> pd.DataFrame:
-    map_type: list[tuple[str, str]] = [
-        ('c-', 'containers'), ('s-', 'services'), ('m-', 'middlewares'), ('n-', 'nodes')]
-    counter: dict[str, Any] = defaultdict(lambda: defaultdict(lambda: 0))
-    for col in df.columns:
-        for prefix, comp_type in map_type:
-            if col.startswith(prefix):
-                comp_name = col.split('_')[0].removeprefix(prefix)
-                counter[comp_type][comp_name] += 1
-    clist = [{'comp_type': t, 'comp_name': n, 'count': cnt} for t, v in counter.items() for n, cnt in v.items()]
-    return pd.DataFrame(clist).set_index(['comp_type', 'comp_name'])

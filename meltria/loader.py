@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import warnings
+from collections import defaultdict
 from concurrent import futures
 from multiprocessing import cpu_count
 from typing import Any
@@ -153,3 +154,16 @@ def read_metrics_json(
         except:  # To cacth `dfitpack.error: (m>k) failed for hidden m: fpcurf0:m=3`
             raise ValueError("calculating spline error") from None
     return data_df, raw_json['mappings'], raw_json['meta']
+
+
+def count_metrics(df: pd.DataFrame) -> pd.DataFrame:
+    map_type: list[tuple[str, str]] = [
+        ('c-', 'containers'), ('s-', 'services'), ('m-', 'middlewares'), ('n-', 'nodes')]
+    counter: dict[str, Any] = defaultdict(lambda: defaultdict(lambda: 0))
+    for col in df.columns:
+        for prefix, comp_type in map_type:
+            if col.startswith(prefix):
+                comp_name = col.split('_')[0].removeprefix(prefix)
+                counter[comp_type][comp_name] += 1
+    clist = [{'comp_type': t, 'comp_name': n, 'count': cnt} for t, v in counter.items() for n, cnt in v.items()]
+    return pd.DataFrame(clist).set_index(['comp_type', 'comp_name'])

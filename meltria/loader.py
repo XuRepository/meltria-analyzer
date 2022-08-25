@@ -116,18 +116,15 @@ def read_metrics_json(
     interporate: bool = True,
 ) -> tuple[pd.DataFrame, dict[str, Any], dict[str, Any]]:
     """ Read metrics data file """
-    # FIXME: loading json twice should be avoided
     with open(data_file) as f:
-        raw_json = json.load(f)
-    raw_data = pd.read_json(data_file)
-    data_df = pd.DataFrame()
+        raw_data: dict[str, Any] = json.load(f)
     metrics_name_to_values: dict[str, np.ndarray] = {}
-    pk: PriorKnowledge = new_knowledge(raw_json['meta']['target_app'])
+    pk: PriorKnowledge = new_knowledge(raw_data['meta']['target_app'])
     for metric_type, skip_ok in target_metric_types.items():
         if not skip_ok:
             continue
-        for t in raw_data[metric_type].dropna():
-            for metric in t:
+        for metrics in raw_data[metric_type].values():
+            for metric in metrics:
                 # remove prefix of label name that Prometheus gives
                 metric_name = metric["metric_name"].removeprefix("container_").removeprefix("node_")
                 target_name = metric["{}_name".format(metric_type[:-1]) if metric_type != "middlewares" else "container_name"]
@@ -145,7 +142,7 @@ def read_metrics_json(
                 data_df = data_df.interpolate(method="spline", order=3, limit_direction="both")
         except:  # To cacth `dfitpack.error: (m>k) failed for hidden m: fpcurf0:m=3`
             raise ValueError("calculating spline error") from None
-    return data_df, raw_json['mappings'], raw_json['meta']
+    return data_df, raw_data['mappings'], raw_data['meta']
 
 
 def count_metrics(df: pd.DataFrame) -> pd.DataFrame:

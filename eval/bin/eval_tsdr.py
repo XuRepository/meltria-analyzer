@@ -69,6 +69,7 @@ class TimeSeriesPlotter:
         non_clustered_reduced_df: pd.DataFrame,
         record: DatasetRecord,
         anomaly_points: dict[str, np.ndarray],
+        pk: PriorKnowledge,
     ) -> None:
         """ Upload clustered time series plots to neptune.ai.
         """
@@ -90,6 +91,7 @@ class TimeSeriesPlotter:
                 non_clustered_reduced_df=non_clustered_reduced_df,
                 record=record,
                 anomaly_points=anomaly_points,
+                pk=pk,
             )
             future_list[f] = f"tests/clustering/time_series_plots/{record.chaos_case_full()}.no_clustered"
             for future in futures.as_completed(future_list):
@@ -130,6 +132,7 @@ class TimeSeriesPlotter:
         record: DatasetRecord,
         non_clustered_reduced_df: pd.DataFrame,
         anomaly_points: dict[str, np.ndarray],
+        pk: PriorKnowledge,
     ) -> str:
         """ Upload non-clustered time series plots to neptune.ai.
         """
@@ -320,7 +323,7 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
                 'non_clustered_metrics': ','.join(non_clustered_reduced_df.columns),
             })
 
-            ts_plotter.log_clustering_plots_as_html(clustering_info, non_clustered_reduced_df, record, anomaly_points)
+            ts_plotter.log_clustering_plots_as_html(clustering_info, non_clustered_reduced_df, record, anomaly_points, prior_knowledge)
 
     save_scores(run, tests_records, clustering_records, non_clustered_records)
 

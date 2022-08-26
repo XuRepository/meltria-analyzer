@@ -1476,6 +1476,17 @@ pyyaml = "*"
 six = "*"
 
 [[package]]
+name = "tabulate"
+version = "0.8.10"
+description = "Pretty-print tabular data"
+category = "main"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
+
+[package.extras]
+widechars = ["wcwidth"]
+
+[[package]]
 name = "threadpoolctl"
 version = "3.1.0"
 description = "threadpoolctl"
@@ -1650,7 +1661,7 @@ test = ["websockets"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.10,<3.11"
-content-hash = "59a31ee58af4b6809e6fdac214554329103d610398d42e7f9deecb47a84c299d"
+content-hash = "fbce39597a7ec940ba3c4f04b524ac1ea7ef700ec8f651cef86dafce75280ca4"
 
 [metadata.files]
 antlr4-python3-runtime = []
@@ -1768,6 +1779,7 @@ six = []
 smmap = []
 statsmodels = []
 swagger-spec-validator = []
+tabulate = []
 threadpoolctl = []
 tigramite = []
 toml = []

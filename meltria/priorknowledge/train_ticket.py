@@ -8,7 +8,7 @@ ROOT_SERVICE: str = 'ts-ui-dashboard'
 ROOT_METRIC_LABELS: tuple[str, str, str] = (
     "s-ts-ui-dashboard_request_duration_seconds",
     "s-ts-ui-dashboard_requests_count",
-    "s-ts-ui-dashboard_requests_errors_counterrors",
+    "s-ts-ui-dashboard_requests_errors_count",
 )
 
 SERVICE_CALL_DIGRAPH: nx.DiGraph = nx.DiGraph([

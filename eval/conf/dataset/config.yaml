@@ -10,5 +10,5 @@ upload_plots: false  # upload graph image to Neptune
 neptune:
   mode: debug
 time:
-  datapoints: 120
+  num_datapoints: 120
   fault_inject_time_index: 99

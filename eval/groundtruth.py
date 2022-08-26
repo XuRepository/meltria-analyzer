@@ -51,6 +51,19 @@ def get_tsdr_ground_truth(pk: PriorKnowledge, chaos_type: str, chaos_comp: str) 
     return generate_tsdr_ground_truth(pk)[chaos_type][chaos_comp]
 
 
+def select_ground_truth_metrics_in_routes(
+    pk: PriorKnowledge, metrics: list[str], chaos_type: str, chaos_comp: str,
+) -> list[list[str]]:
+    gt_metrics_routes: list[list[str]] = get_tsdr_ground_truth(pk, chaos_type, chaos_comp)
+    candidates: list[list[str]] = []
+    for gt_route in gt_metrics_routes:
+        _, match_metrics = check_route(metrics, gt_route)
+        # unique insert
+        if all([set(candidate) != set(match_metrics) for candidate in candidates]):
+            candidates.append(match_metrics)
+    return candidates
+
+
 def check_tsdr_ground_truth_by_route(
     pk: PriorKnowledge, metrics: list[str], chaos_type: str, chaos_comp: str
 ) -> tuple[bool, list[str]]:

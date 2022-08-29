@@ -24,7 +24,7 @@ logger.setLevel(logging.INFO)
 
 
 def validate_anomalie_range(metrics: pd.DataFrame, labbeling: dict[str, Any], fi_time: int) -> dict[int, Any]:
-    """ Evaluate the range of anomalies in SLI metrics """
+    """ Evaluate the range of anomalies in KPI metrics """
     result: dict[int, Any] = {}
     for n_sigma in labbeling['n_sigma_rule']['n_sigmas']:
         anomalies_range = metrics.apply(
@@ -42,13 +42,12 @@ def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
     )[0]
     logger.info("Dataset loading complete")
 
-    sli_anomalies: list[dict[str, Any]] = []
+    kpi_anomalies: list[dict[str, Any]] = []
     for (target_app, chaos_type, chaos_comp), sub_df in dataset.groupby(level=[0, 1, 2]):
         prior_knowledge: PriorKnowledge = new_knowledge(target_app)
         for (metrics_file, grafana_dashboard_url), data_df in sub_df.groupby(level=[3, 4]):
             record = DatasetRecord(target_app, chaos_type, chaos_comp, metrics_file, data_df)
 
-            # evaluate the positions of anomalies in SLI metrics
             gt_metrics_routes = select_ground_truth_metrics_in_routes(
                 prior_knowledge, list(data_df.columns), chaos_type, chaos_comp,
             )
@@ -60,7 +59,7 @@ def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
                     fi_time=cfg.time.fault_inject_time_index,
                 )
                 for n, val in res.items():
-                    sli_anomalies.append(dict({
+                    kpi_anomalies.append(dict({
                         'chaos_type': record.chaos_type,
                         'chaos_comp': record.chaos_comp,
                         'metrics_file': record.metrics_file,
@@ -68,10 +67,10 @@ def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
                         'n_sigma': n,
                     }, **val))
 
-        sli_df = pd.DataFrame(sli_anomalies).set_index(['chaos_type', 'chaos_comp', 'metrics_file', 'route_no', 'n_sigma'])
+        kpi_df = pd.DataFrame(kpi_anomalies).set_index(['chaos_type', 'chaos_comp', 'metrics_file', 'route_no', 'n_sigma'])
         # reset_index: see https://stackoverflow.com/questions/70013696/print-multi-index-dataframe-with-tabulate
         print(tabulate(
-            sli_df.reset_index(), headers='keys', tablefmt='github',
+            kpi_df.reset_index(), headers='keys', tablefmt='github',
             numalign='right', stralign='left', showindex='always'))
 
 

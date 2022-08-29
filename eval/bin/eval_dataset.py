@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import logging
+import math
 import os
 from typing import Any
 
@@ -12,7 +13,7 @@ from omegaconf import DictConfig, OmegaConf
 from tabulate import tabulate
 
 import meltria.loader
-from eval.groundtruth import select_ground_truth_metrics_in_routes
+from eval.groundtruth import check_route, select_ground_truth_metrics_in_routes
 from meltria.loader import DatasetRecord
 from meltria.priorknowledge.priorknowledge import PriorKnowledge, new_knowledge
 from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
@@ -50,7 +51,7 @@ def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
             gt_metrics_routes = select_ground_truth_metrics_in_routes(
                 prior_knowledge, list(data_df.columns), chaos_type, chaos_comp,
             )
-            for i, gt_route in enumerate(gt_metrics_routes):
+            for i, (gt_route, gt_route_matcher) in enumerate(gt_metrics_routes):
                 gt_route_metrics = data_df.loc[:, data_df.columns.intersection(set(gt_route))]
                 res = validate_anomalie_range(
                     gt_route_metrics,
@@ -58,12 +59,15 @@ def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
                     fi_time=cfg.time.fault_inject_time_index,
                 )
                 for n, val in res.items():
+                    ok_kpis: list[str] = [kpi for kpi, ok in val.items() if not math.isnan(ok) and ok]
+                    total_ok, _ = check_route(ok_kpis, gt_route_matcher)
                     kpi_anomalies.append(dict({
                         'chaos_type': record.chaos_type,
                         'chaos_comp': record.chaos_comp,
                         'metrics_file': record.metrics_file,
                         'route_no': i,
                         'n_sigma': n,
+                        'ok': total_ok,
                     }, **val))
 
         kpi_df = pd.DataFrame(kpi_anomalies).set_index(['chaos_type', 'chaos_comp', 'metrics_file', 'route_no', 'n_sigma'])

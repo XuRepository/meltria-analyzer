@@ -1590,6 +1590,14 @@ scipy = "*"
 simdkalman = "*"
 
 [[package]]
+name = "types-tabulate"
+version = "0.8.11"
+description = "Typing stubs for tabulate"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "typing-extensions"
 version = "4.3.0"
 description = "Backported and Experimental Type Hints for Python 3.7+"
@@ -1661,7 +1669,7 @@ test = ["websockets"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.10,<3.11"
-content-hash = "fbce39597a7ec940ba3c4f04b524ac1ea7ef700ec8f651cef86dafce75280ca4"
+content-hash = "f9714210832cd3706cbf46d8d9b1cf587edfa5a30fa44b7a4da8bf615702e55f"
 
 [metadata.files]
 antlr4-python3-runtime = []
@@ -1789,6 +1797,7 @@ tornado = []
 tqdm = []
 traitlets = []
 tsmoothie = []
+types-tabulate = []
 typing-extensions = []
 uri-template = []
 urllib3 = []

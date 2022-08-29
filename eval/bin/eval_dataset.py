@@ -23,13 +23,15 @@ logger = logging.getLogger('eval_dataset')
 logger.setLevel(logging.INFO)
 
 
-def validate_anomalie_range(metrics: pd.DataFrame, fi_time: int) -> dict[str, Any]:
-    """ Evaluate the range of anomalies in SLI metrics
-    """
-    anomalies_range = metrics.apply(
-        lambda X: detect_with_n_sigma_rule(X, test_start_time=fi_time).size > 0
-    )
-    return anomalies_range.to_dict()
+def validate_anomalie_range(metrics: pd.DataFrame, labbeling: dict[str, Any], fi_time: int) -> dict[int, Any]:
+    """ Evaluate the range of anomalies in SLI metrics """
+    result: dict[int, Any] = {}
+    for n_sigma in labbeling['n_sigma_rule']['n_sigmas']:
+        anomalies_range = metrics.apply(
+            lambda X: detect_with_n_sigma_rule(X, test_start_time=fi_time, sigma_threshold=n_sigma).size > 0
+        )
+        result[n_sigma] = anomalies_range.to_dict()
+    return result
 
 
 def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
@@ -52,15 +54,21 @@ def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
             )
             for i, gt_route in enumerate(gt_metrics_routes):
                 gt_route_metrics = data_df.loc[:, data_df.columns.intersection(set(gt_route))]
-                res = validate_anomalie_range(gt_route_metrics, fi_time=cfg.time.fault_inject_time_index)
-                sli_anomalies.append(dict({
-                    'chaos_type': record.chaos_type,
-                    'chaos_comp': record.chaos_comp,
-                    'metrics_file': record.metrics_file,
-                    'route_no': i,
-                }, **res))
+                res = validate_anomalie_range(
+                    gt_route_metrics,
+                    OmegaConf.to_container(cfg.labbeling, resolve=True),
+                    fi_time=cfg.time.fault_inject_time_index,
+                )
+                for n, val in res.items():
+                    sli_anomalies.append(dict({
+                        'chaos_type': record.chaos_type,
+                        'chaos_comp': record.chaos_comp,
+                        'metrics_file': record.metrics_file,
+                        'route_no': i,
+                        'n_sigma': n,
+                    }, **val))
 
-        sli_df = pd.DataFrame(sli_anomalies).set_index(['chaos_type', 'chaos_comp', 'metrics_file', 'route_no'])
+        sli_df = pd.DataFrame(sli_anomalies).set_index(['chaos_type', 'chaos_comp', 'metrics_file', 'route_no', 'n_sigma'])
         # reset_index: see https://stackoverflow.com/questions/70013696/print-multi-index-dataframe-with-tabulate
         print(tabulate(
             sli_df.reset_index(), headers='keys', tablefmt='github',

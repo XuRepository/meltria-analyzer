@@ -12,3 +12,6 @@ neptune:
 time:
   num_datapoints: 120
   fault_inject_time_index: 99
+labbeling:
+  n_sigma_rule:
+    n_sigmas: [2, 3]

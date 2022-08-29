@@ -2,6 +2,7 @@
 
 import logging
 import os
+from pprint import pprint
 from typing import Any
 
 import hydra
@@ -9,8 +10,10 @@ import neptune.new as neptune
 import pandas as pd
 from neptune.new.integrations.python_logger import NeptuneHandler
 from omegaconf import DictConfig, OmegaConf
+from tabulate import tabulate
 
 import meltria.loader
+from eval.groundtruth import select_ground_truth_metrics_in_routes
 from meltria.loader import DatasetRecord
 from meltria.priorknowledge.priorknowledge import PriorKnowledge, new_knowledge
 from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
@@ -20,43 +23,48 @@ logger = logging.getLogger('eval_dataset')
 logger.setLevel(logging.INFO)
 
 
-def validate_anomalie_range_in_sli(slis: pd.DataFrame, fi_time: int) -> dict[str, Any]:
+def validate_anomalie_range(metrics: pd.DataFrame, fi_time: int) -> dict[str, Any]:
     """ Evaluate the range of anomalies in SLI metrics
     """
-    slis_anomalies_range = slis.apply(
-        lambda X: detect_with_n_sigma_rule(X, test_start_time=fi_time).size != 0
+    anomalies_range = metrics.apply(
+        lambda X: detect_with_n_sigma_rule(X, test_start_time=fi_time).size > 0
     )
-    return slis_anomalies_range.to_dict()
+    return anomalies_range.to_dict()
 
 
 def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
-    """ Evaluate a dataset
-    """
+    """ Evaluate a dataset """
     dataset: pd.DataFrame = meltria.loader.load_dataset(
         cfg.metrics_files,
-        cfg.exclude_middleware_metrics,
+        OmegaConf.to_container(cfg.target_metric_types, resolve=True),
     )[0]
     logger.info("Dataset loading complete")
 
     sli_anomalies: list[dict[str, Any]] = []
     for (target_app, chaos_type, chaos_comp), sub_df in dataset.groupby(level=[0, 1, 2]):
+        prior_knowledge: PriorKnowledge = new_knowledge(target_app)
         for (metrics_file, grafana_dashboard_url), data_df in sub_df.groupby(level=[3, 4]):
             record = DatasetRecord(target_app, chaos_type, chaos_comp, metrics_file, data_df)
 
             # evaluate the positions of anomalies in SLI metrics
-            prior_knowledge: PriorKnowledge = new_knowledge(target_app)
-            slis = data_df.loc[:, data_df.columns.intersection(set(prior_knowledge.get_root_metrics()))]
-            res = validate_anomalie_range_in_sli(slis, fi_time=cfg.time.fault_inject_time_index)
-            sli_anomalies.append(dict({
-                'chaos_type': record.chaos_type,
-                'chaos_comp': record.chaos_comp,
-                'metrics_file': record.metrics_file,
-            }, **res))
+            gt_metrics_routes = select_ground_truth_metrics_in_routes(
+                prior_knowledge, list(data_df.columns), chaos_type, chaos_comp,
+            )
+            for i, gt_route in enumerate(gt_metrics_routes):
+                gt_route_metrics = data_df.loc[:, data_df.columns.intersection(set(gt_route))]
+                res = validate_anomalie_range(gt_route_metrics, fi_time=cfg.time.fault_inject_time_index)
+                sli_anomalies.append(dict({
+                    'chaos_type': record.chaos_type,
+                    'chaos_comp': record.chaos_comp,
+                    'metrics_file': record.metrics_file,
+                    'route_no': i,
+                }, **res))
 
-    sli_df = pd.DataFrame(sli_anomalies).set_index(['chaos_type', 'chaos_comp', 'metrics_file'])
-
-    with pd.option_context('display.max_rows', None, 'display.max_columns', None):
-        logger.info("\n"+sli_df.to_string())
+        sli_df = pd.DataFrame(sli_anomalies).set_index(['chaos_type', 'chaos_comp', 'metrics_file', 'route_no'])
+        # reset_index: see https://stackoverflow.com/questions/70013696/print-multi-index-dataframe-with-tabulate
+        print(tabulate(
+            sli_df.reset_index(), headers='keys', tablefmt='github',
+            numalign='right', stralign='left', showindex='always'))
 
 
 @hydra.main(config_path='../conf/dataset', config_name='config')
@@ -75,7 +83,7 @@ def main(cfg: DictConfig) -> None:
     run['dataset/id'] = cfg.dataset_id
     run['dataset/num_metrics_files'] = len(cfg.metrics_files)
     params = {
-        'exclude_middleware_metrics': cfg.exclude_middleware_metrics,
+        'target_metric_types': OmegaConf.to_container(cfg.target_metric_types, resolve=True),
     }
 
     # Hydra parameters are passed to the Neptune.ai run object

@@ -8,6 +8,39 @@ from meltria.priorknowledge.priorknowledge import new_knowledge
 prior_knowledge = new_knowledge('sock-shop')
 
 
+def test_select_ground_truth_metrics_in_routes():
+    pk = new_knowledge('train-ticket')
+    metrics = [
+        'c-ts-station-service_cpu_system_seconds_total', 'c-ts-station-service_sockets',
+        's-ts-station_request_duration_seconds',
+        's-ts-order_request_duration_seconds',
+        's-ts-ui-dashboard_requests_count', 's-ts-ui-dashboard_request_errors_count',
+        's-ts-ui-dashboard_request_duration_seconds',
+    ]
+    routes: list[list[str]] = groundtruth.select_ground_truth_metrics_in_routes(
+        pk, metrics, 'pod-cpu-hog', 'ts-station-service')
+    expected: list[list[str]] = [
+        [
+            'c-ts-station-service_cpu_system_seconds_total',
+            'c-ts-station-service_sockets',
+            's-ts-station_request_duration_seconds',
+            's-ts-ui-dashboard_requests_count',
+            's-ts-ui-dashboard_request_errors_count',
+            's-ts-ui-dashboard_request_duration_seconds',
+        ],
+        [
+            'c-ts-station-service_cpu_system_seconds_total',
+            'c-ts-station-service_sockets',
+            's-ts-station_request_duration_seconds',
+            's-ts-order_request_duration_seconds',
+            's-ts-ui-dashboard_requests_count',
+            's-ts-ui-dashboard_request_errors_count',
+            's-ts-ui-dashboard_request_duration_seconds',
+        ]
+    ]
+    assert routes == expected
+
+
 def test_check_tsdr_ground_truth_by_route():
     metrics = [
         'c-user-db_cpu_usage_seconds_total',

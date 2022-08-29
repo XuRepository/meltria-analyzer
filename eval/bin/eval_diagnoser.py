@@ -171,7 +171,7 @@ def log_causal_graph(
 def eval_diagnoser(run: neptune.Run, cfg: DictConfig) -> None:
     dataset, mappings_by_metrics_file = meltria_loader.load_dataset(
         cfg.metrics_files,
-        cfg.exclude_middleware_metrics,
+        OmegaConf.to_container(cfg.target_metric_types, resolve=True),
     )
     logger.info("Dataset loading complete.")
 

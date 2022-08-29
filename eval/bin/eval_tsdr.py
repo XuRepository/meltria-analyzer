@@ -344,7 +344,7 @@ def main(cfg: DictConfig) -> None:
     run['dataset/id'] = cfg.dataset_id
     run['dataset/num_metrics_files'] = len(cfg.metrics_files)
     params = {
-        'target_metric_types': cfg.target_metric_types,
+        'target_metric_types': OmegaConf.to_container(cfg.target_metric_types, resolve=True),
     }
 
     # Hydra parameters are passed to the Neptune.ai run object

@@ -13,12 +13,11 @@ import pandas as pd
 from eval import groundtruth
 from meltria.priorknowledge.priorknowledge import PriorKnowledge, new_knowledge
 
-PLOTS_NUM = 120
-
 METRIC_TYPE_SERVICES = 'services'
 METRIC_TYPE_CONTAINERS = 'containers'
 METRIC_TYPE_NODES = 'nodes'
 METRIC_TYPE_MIDDLEWARES = 'middlewares'
+
 
 class DatasetRecord:
     """A record of dataset"""
@@ -67,7 +66,7 @@ class DatasetRecord:
 
 
 def load_dataset(
-    metrics_files: list[str], target_metric_types: dict[str, bool],
+    metrics_files: list[str], target_metric_types: dict[str, bool], num_datapoints: int,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
     """ Load metrics dataset
     """
@@ -76,7 +75,7 @@ def load_dataset(
     with futures.ProcessPoolExecutor(max_workers=cpu_count()) as executor:
         future_to_metrics_file = {}
         for metrics_file in metrics_files:
-            f = executor.submit(read_metrics_file, metrics_file, target_metric_types)
+            f = executor.submit(read_metrics_file, metrics_file, target_metric_types, num_datapoints)
             future_to_metrics_file[f] = os.path.basename(metrics_file)
         for future in futures.as_completed(future_to_metrics_file):
             data_df, mappings = future.result()
@@ -97,11 +96,12 @@ def load_dataset(
 def read_metrics_file(
     metrics_file: str,
     target_metric_types: dict[str, bool],
+    num_datapoints: int,
     logger: logging.Logger = logging.getLogger(),
 ) -> tuple[pd.DataFrame | None, dict[str, Any] | None]:
     try:
         data_df, mappings, metrics_meta = read_metrics_json(
-            metrics_file, target_metric_types,
+            metrics_file, target_metric_types, num_datapoints,
         )
     except ValueError as e:
         logger.warning(f">> Skip {metrics_file} because of {e}")
@@ -117,6 +117,7 @@ def read_metrics_file(
 def read_metrics_json(
     data_file: str,
     target_metric_types: dict[str, bool],
+    num_datapoints: int,
     interporate: bool = True,
 ) -> tuple[pd.DataFrame, dict[str, Any], dict[str, Any]]:
     """ Read metrics data file """
@@ -141,7 +142,7 @@ def read_metrics_json(
                 metric_name = "{}-{}_{}".format(metric_type[0], target_name, metric_name)
                 metrics_name_to_values[metric_name] = np.array(
                     metric["values"], dtype=np.float64,
-                )[:, 1][-PLOTS_NUM:]
+                )[:, 1][-num_datapoints:]
     data_df = pd.DataFrame(metrics_name_to_values).round(4)
     if interporate:
         try:

@@ -261,6 +261,7 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
     dataset: pd.DataFrame = meltria_loader.load_dataset(
         cfg.metrics_files,
         OmegaConf.to_container(cfg.target_metric_types, resolve=True),
+        cfg.time.num_datapoints,
     )[0]
     logger.info("Dataset loading complete")
 

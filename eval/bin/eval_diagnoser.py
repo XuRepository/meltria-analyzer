@@ -172,6 +172,7 @@ def eval_diagnoser(run: neptune.Run, cfg: DictConfig) -> None:
     dataset, mappings_by_metrics_file = meltria_loader.load_dataset(
         cfg.metrics_files,
         OmegaConf.to_container(cfg.target_metric_types, resolve=True),
+        cfg.time.num_datapoints,
     )
     logger.info("Dataset loading complete.")
 

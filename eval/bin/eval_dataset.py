@@ -39,6 +39,7 @@ def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
     dataset: pd.DataFrame = meltria.loader.load_dataset(
         cfg.metrics_files,
         OmegaConf.to_container(cfg.target_metric_types, resolve=True),
+        cfg.time.num_datapoints,
     )[0]
     logger.info("Dataset loading complete")
 

@@ -37,15 +37,15 @@ class PriorKnowledge(ABC):
         pass
 
     @abstractmethod
-    def get_containers_of_service(self) -> dict[str, list[str]]:
+    def get_containers_of_service(self) -> dict[str, list[str]] | None:
         pass
 
     @abstractmethod
-    def get_service_containers(self, service: str) -> list[str]:
+    def get_service_containers(self, service: str) -> list[str] | None:
         pass
 
     @abstractmethod
-    def get_service_by_container(self, ctnr: str) -> str:
+    def get_service_by_container(self, ctnr: str) -> str | None:
         pass
 
     @abstractmethod
@@ -111,8 +111,8 @@ class SockShopKnowledge(PriorKnowledge):
     def get_container_call_digraph(self) -> nx.DiGraph:
         return sock_shop.CONTAINER_CALL_DIGRAPH
 
-    def get_container_call_graph(self, ctnr: str) -> list[str]:
-        return sock_shop.CONTAINER_CALL_GRAPH[ctnr]
+    def get_container_call_graph(self, ctnr: str) -> list[str] | None:
+        return sock_shop.CONTAINER_CALL_GRAPH.get(ctnr)
 
     def get_service_routes(self, service: str) -> list[tuple[str, ...]]:
         routes = self._generate_service_to_service_routes(sock_shop.SERVICE_CALL_DIGRAPH, sock_shop.ROOT_SERVICE)
@@ -121,11 +121,11 @@ class SockShopKnowledge(PriorKnowledge):
     def get_containers_of_service(self) -> dict[str, list[str]]:
         return sock_shop.SERVICE_CONTAINERS
 
-    def get_service_containers(self, service: str) -> list[str]:
-        return sock_shop.SERVICE_CONTAINERS[service]
+    def get_service_containers(self, service: str) -> list[str] | None:
+        return sock_shop.SERVICE_CONTAINERS.get(service)
 
-    def get_service_by_container(self, ctnr: str) -> str:
-        return sock_shop.CONTAINER_TO_SERVICE[ctnr]
+    def get_service_by_container(self, ctnr: str) -> str | None:
+        return sock_shop.CONTAINER_TO_SERVICE.get(ctnr)
 
     def get_skip_containers(self) -> list[str]:
         return sock_shop.SKIP_CONTAINERS
@@ -166,11 +166,11 @@ class TrainTicketKnowledge(PriorKnowledge):
     def get_containers_of_service(self) -> dict[str, list[str]]:
         return train_ticket.SERVICE_CONTAINERS
 
-    def get_service_containers(self, service: str) -> list[str]:
-        return train_ticket.SERVICE_CONTAINERS[service]
+    def get_service_containers(self, service: str) -> list[str] | None:
+        return train_ticket.SERVICE_CONTAINERS.get(service)
 
-    def get_service_by_container(self, ctnr: str) -> str:
-        return train_ticket.CONTAINER_TO_SERVICE[ctnr]
+    def get_service_by_container(self, ctnr: str) -> str | None:
+        return train_ticket.CONTAINER_TO_SERVICE.get(ctnr)
 
     def get_skip_containers(self) -> list[str]:
         return train_ticket.SKIP_CONTAINERS

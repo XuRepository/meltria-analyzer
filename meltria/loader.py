@@ -15,6 +15,10 @@ from meltria.priorknowledge.priorknowledge import PriorKnowledge, new_knowledge
 
 PLOTS_NUM = 120
 
+METRIC_TYPE_SERVICES = 'services'
+METRIC_TYPE_CONTAINERS = 'containers'
+METRIC_TYPE_NODES = 'nodes'
+METRIC_TYPE_MIDDLEWARES = 'middlewares'
 
 class DatasetRecord:
     """A record of dataset"""
@@ -120,14 +124,18 @@ def read_metrics_json(
         raw_data: dict[str, Any] = json.load(f)
     metrics_name_to_values: dict[str, np.ndarray] = {}
     pk: PriorKnowledge = new_knowledge(raw_data['meta']['target_app'])
-    for metric_type, skip_ok in target_metric_types.items():
-        if not skip_ok:
+    for metric_type, enable in target_metric_types.items():
+        if not enable:
             continue
         for metrics in raw_data[metric_type].values():
             for metric in metrics:
                 # remove prefix of label name that Prometheus gives
                 metric_name = metric["metric_name"].removeprefix("container_").removeprefix("node_")
-                target_name = metric["{}_name".format(metric_type[:-1]) if metric_type != "middlewares" else "container_name"]
+                target_name = metric["{}_name".format(metric_type[:-1]) if metric_type != METRIC_TYPE_MIDDLEWARES else "container_name"]
+                if metric_type == METRIC_TYPE_SERVICES:
+                    service = pk.get_service_by_container(target_name)
+                    if service is not None:
+                        target_name = service
                 if target_name in pk.get_skip_containers():
                     continue
                 metric_name = "{}-{}_{}".format(metric_type[0], target_name, metric_name)

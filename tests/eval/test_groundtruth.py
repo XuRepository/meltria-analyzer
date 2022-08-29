@@ -17,7 +17,7 @@ def test_select_ground_truth_metrics_in_routes():
         's-ts-ui-dashboard_requests_count', 's-ts-ui-dashboard_request_errors_count',
         's-ts-ui-dashboard_request_duration_seconds',
     ]
-    routes: list[list[str]] = groundtruth.select_ground_truth_metrics_in_routes(
+    routes = groundtruth.select_ground_truth_metrics_in_routes(
         pk, metrics, 'pod-cpu-hog', 'ts-station-service')
     expected: list[list[str]] = [
         [
@@ -38,7 +38,7 @@ def test_select_ground_truth_metrics_in_routes():
             's-ts-ui-dashboard_request_duration_seconds',
         ]
     ]
-    assert routes == expected
+    assert [r[0] for r in routes] == expected
 
 
 def test_check_tsdr_ground_truth_by_route():

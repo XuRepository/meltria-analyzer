@@ -111,20 +111,26 @@ class Tsdr:
         elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
         stat.append((reduced_series1, count_metrics(reduced_series1), elapsed_time))
 
-        # step1.5
-        start = time.time()
+        if self.params['step1_residual_integral_change_start_point']:
+            # step1.5
+            start = time.time()
 
-        # TODO: choose SLI metrics formally
-        sli_name: str = pk.get_root_metrics()[0]
-        reduced_series15 = self.reduce_by_failure_detection_time(
-            reduced_series1, step1_results, series[sli_name].to_numpy())
+            sli_name: str = pk.get_root_metrics()[0]  # TODO: choose SLI metrics formally
+            reduced_series1 = self.reduce_by_failure_detection_time(
+                reduced_series1, step1_results, series[sli_name].to_numpy(),
+                sigma_threshold=self.params['step1_residual_integral_change_start_point_n_sigma'],
+            )
 
-        elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
+            elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
+            stat.append((reduced_series1, count_metrics(reduced_series1), elapsed_time))
+
 
         # step2
+        start = time.time()
+
         match series_type := self.params['step2_clustering_series_type']:
             case 'raw':
-                df_before_clustering = reduced_series15.apply(scipy.stats.zscore)
+                df_before_clustering = reduced_series1.apply(scipy.stats.zscore)
             case 'anomaly_score', 'binary_anomaly_score':
                 tmp_dict_to_df: dict[str, np.ndarray] = {}
                 for name, res in step1_results.items():
@@ -136,10 +142,6 @@ class Tsdr:
                 df_before_clustering = pd.DataFrame(tmp_dict_to_df)
             case _:
                 raise ValueError(f'step2_clustered_series_type is invalid {series_type}')
-
-        stat.append((df_before_clustering, count_metrics(df_before_clustering), elapsed_time))
-
-        start = time.time()
 
         reduced_series2, clustering_info = self.reduce_multivariate_series(
             df_before_clustering.copy(), pk, max_workers,
@@ -219,6 +221,7 @@ class Tsdr:
         clustering_info: dict[str, Any] = {}
         with futures.ProcessPoolExecutor(max_workers=n_workers) as executor:
             # Clustering metrics by service including services, containers and middlewares metrics
+            # TODO: node metrics clustering
             future_list: list[futures.Future] = []
             for service, containers in pk.get_containers_of_service().items():
                 service_metrics_df = series.loc[:, series.columns.str.startswith(f"s-{service}_")]

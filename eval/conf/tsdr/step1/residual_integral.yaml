@@ -1,3 +1,4 @@
 model_name: 'residual_integral'
 residual_integral_threshold: 20
 residual_integral_change_start_point: false
+residual_integral_change_start_point_n_sigma: 3

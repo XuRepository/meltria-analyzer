@@ -68,15 +68,15 @@ class Tsdr:
         self,
         series: pd.DataFrame,
         results: dict[str, UnivariateSeriesReductionResult],
-        sli_name: str,
+        sli: np.ndarray,
+        sigma_threshold: int = 3,
     ) -> pd.DataFrame:
         """ reduce series by failure detection time
         """
-        sli = series[sli_name].to_numpy()
         outliers = detect_with_n_sigma_rule(
             x=sli,
             test_start_time=self.params['time_fault_inject_time_index'],
-            sigma_threshold=3,
+            sigma_threshold=sigma_threshold,
         )
         failure_detection_time: int = 0 if outliers.size == 0 else outliers[0]
 
@@ -115,10 +115,9 @@ class Tsdr:
         start = time.time()
 
         # TODO: choose SLI metrics formally
-        if (sli_name := pk.get_root_metrics()[0]) in reduced_series1.columns:
-            reduced_series15 = self.reduce_by_failure_detection_time(reduced_series1, step1_results, sli_name)
-        else:
-            raise ValueError(f'SLI:{sli_name} may be filtered by step1')
+        sli_name: str = pk.get_root_metrics()[0]
+        reduced_series15 = self.reduce_by_failure_detection_time(
+            reduced_series1, step1_results, series[sli_name].to_numpy())
 
         elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
 

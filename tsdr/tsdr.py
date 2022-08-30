@@ -66,12 +66,10 @@ class Tsdr:
         self,
         series: pd.DataFrame,
         results: dict[str, UnivariateSeriesReductionResult],
-        pk: PriorKnowledge,
+        sli_name: str,
     ) -> pd.DataFrame:
         """ reduce series by failure detection time
         """
-        # TODO: choose SLI metrics formally
-        sli_name = pk.get_root_metrics()[0]
         sli = series[sli_name].to_numpy()
         outliers = detect_with_n_sigma_rule(
             x=sli,
@@ -114,7 +112,11 @@ class Tsdr:
         # step1.5
         start = time.time()
 
-        reduced_series15 = self.reduce_by_failure_detection_time(reduced_series1, step1_results, pk)
+        # TODO: choose SLI metrics formally
+        if (sli_name := pk.get_root_metrics()[0]) in reduced_series1.columns:
+            reduced_series15 = self.reduce_by_failure_detection_time(reduced_series1, step1_results, sli_name)
+        else:
+            raise ValueError(f'SLI:{sli_name} may be filtered by step1')
 
         elapsed_time = round(time.time() - start, 2)
 

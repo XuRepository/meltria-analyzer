@@ -71,11 +71,11 @@ def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
                         'ok': total_ok,
                     }, **val))
 
-        kpi_df = pd.DataFrame(kpi_anomalies).set_index(['chaos_type', 'chaos_comp', 'metrics_file', 'route_no', 'n_sigma'])
-        # reset_index: see https://stackoverflow.com/questions/70013696/print-multi-index-dataframe-with-tabulate
-        print(tabulate(
-            kpi_df.reset_index(), headers='keys', tablefmt='github',
-            numalign='right', stralign='left', showindex='always'))
+    kpi_df = pd.DataFrame(kpi_anomalies).set_index(['chaos_type', 'chaos_comp', 'metrics_file', 'route_no', 'n_sigma'])
+    # reset_index: see https://stackoverflow.com/questions/70013696/print-multi-index-dataframe-with-tabulate
+    print(tabulate(
+        kpi_df.reset_index(), headers='keys', tablefmt='github',
+        numalign='right', stralign='left', showindex='always'))
 
 
 @hydra.main(config_path='../conf/dataset', config_name='config')

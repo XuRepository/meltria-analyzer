@@ -20,6 +20,8 @@ from tsdr.clustering.sbd import sbd, silhouette_score
 from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
 from tsdr.unireducer import UnivariateSeriesReductionResult, has_variation
 
+ELAPSED_TIME_NUM_DECIMAL_PLACES: int = 4
+
 
 class Tsdr:
     def __init__(
@@ -98,7 +100,7 @@ class Tsdr:
 
         series: pd.DataFrame = self.filter_out_no_change_metrics(X)
 
-        elapsed_time: float = round(time.time() - start, 2)
+        elapsed_time: float = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
         stat.append((series, count_metrics(series), elapsed_time))
 
         # step1
@@ -106,7 +108,7 @@ class Tsdr:
 
         reduced_series1, step1_results, anomaly_points = self.reduce_univariate_series(series, max_workers)
 
-        elapsed_time = round(time.time() - start, 2)
+        elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
         stat.append((reduced_series1, count_metrics(reduced_series1), elapsed_time))
 
         # step1.5
@@ -118,7 +120,7 @@ class Tsdr:
         else:
             raise ValueError(f'SLI:{sli_name} may be filtered by step1')
 
-        elapsed_time = round(time.time() - start, 2)
+        elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
 
         # step2
         match series_type := self.params['step2_clustering_series_type']:
@@ -144,7 +146,7 @@ class Tsdr:
             df_before_clustering.copy(), pk, max_workers,
         )
 
-        elapsed_time = round(time.time() - start, 2)
+        elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
         stat.append((reduced_series2, count_metrics(reduced_series2), elapsed_time))
 
         return stat, clustering_info, anomaly_points

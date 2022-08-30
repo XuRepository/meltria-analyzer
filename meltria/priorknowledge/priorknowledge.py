@@ -37,7 +37,7 @@ class PriorKnowledge(ABC):
         pass
 
     @abstractmethod
-    def get_containers_of_service(self) -> dict[str, list[str]] | None:
+    def get_containers_of_service(self) -> dict[str, list[str]]:
         pass
 
     @abstractmethod

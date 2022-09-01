@@ -1669,7 +1669,7 @@ test = ["websockets"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.10,<3.11"
-content-hash = "f9714210832cd3706cbf46d8d9b1cf587edfa5a30fa44b7a4da8bf615702e55f"
+content-hash = "6ca47181f88effdb20a0c357b781944aeacca3ae85f62d730ce0f555052962de"
 
 [metadata.files]
 antlr4-python3-runtime = []

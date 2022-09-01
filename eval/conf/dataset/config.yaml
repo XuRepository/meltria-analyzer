@@ -5,7 +5,6 @@ target_metric_types:
   services: True
   nodes: True
   middlewares: True
-exclude_middleware_metrics: true
 upload_plots: false  # upload graph image to Neptune
 neptune:
   mode: debug

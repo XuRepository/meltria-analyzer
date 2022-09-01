@@ -1,5 +1,3 @@
-from collections import defaultdict
-
 import networkx as nx
 
 TARGET_APP_NAME: str = 'train-ticket'

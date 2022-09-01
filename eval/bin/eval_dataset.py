@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import logging
-import math
 import os
 from typing import Any
 
@@ -13,7 +12,7 @@ from omegaconf import DictConfig, OmegaConf
 from tabulate import tabulate
 
 import meltria.loader
-from eval.groundtruth import check_route, select_ground_truth_metrics_in_routes
+from eval.validation import validate_data_record
 from meltria.loader import DatasetRecord
 from meltria.priorknowledge.priorknowledge import PriorKnowledge, new_knowledge
 from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
@@ -43,35 +42,19 @@ def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
     )[0]
     logger.info("Dataset loading complete")
 
-    kpi_anomalies: list[dict[str, Any]] = []
+    kpi_df_list: list[pd.DataFrame] = []
     for (target_app, chaos_type, chaos_comp), sub_df in dataset.groupby(level=[0, 1, 2]):
         prior_knowledge: PriorKnowledge = new_knowledge(target_app)
         for (metrics_file, grafana_dashboard_url), data_df in sub_df.groupby(level=[3, 4]):
             record = DatasetRecord(target_app, chaos_type, chaos_comp, metrics_file, data_df)
-
-            gt_metrics_routes = select_ground_truth_metrics_in_routes(
-                prior_knowledge, list(data_df.columns), chaos_type, chaos_comp,
+            kpi_df = validate_data_record(
+                record, prior_knowledge,
+                OmegaConf.to_container(cfg.labbeling, resolve=True),
+                cfg.time.fault_inject_time_index,
             )
-            for i, (gt_route, gt_route_matcher) in enumerate(gt_metrics_routes):
-                gt_route_metrics = data_df.loc[:, data_df.columns.intersection(set(gt_route))]
-                res = validate_anomalie_range(
-                    gt_route_metrics,
-                    OmegaConf.to_container(cfg.labbeling, resolve=True),
-                    fi_time=cfg.time.fault_inject_time_index,
-                )
-                for n, val in res.items():
-                    ok_kpis: list[str] = [kpi for kpi, ok in val.items() if not math.isnan(ok) and ok]
-                    total_ok, _ = check_route(ok_kpis, gt_route_matcher)
-                    kpi_anomalies.append(dict({
-                        'chaos_type': record.chaos_type,
-                        'chaos_comp': record.chaos_comp,
-                        'metrics_file': record.metrics_file,
-                        'route_no': i,
-                        'n_sigma': n,
-                        'ok': total_ok,
-                    }, **val))
+            kpi_df_list.append(kpi_df)
 
-    kpi_df = pd.DataFrame(kpi_anomalies).set_index(['chaos_type', 'chaos_comp', 'metrics_file', 'route_no', 'n_sigma'])
+    kpi_df = pd.concat(kpi_df_list)
     # reset_index: see https://stackoverflow.com/questions/70013696/print-multi-index-dataframe-with-tabulate
     print(tabulate(
         kpi_df.reset_index(), headers='keys', tablefmt='github',

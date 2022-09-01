@@ -43,16 +43,17 @@ def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
     logger.info("Dataset loading complete")
 
     kpi_df_list: list[pd.DataFrame] = []
-    for (target_app, chaos_type, chaos_comp), sub_df in dataset.groupby(level=[0, 1, 2]):
-        prior_knowledge: PriorKnowledge = new_knowledge(target_app)
-        for (metrics_file, grafana_dashboard_url), data_df in sub_df.groupby(level=[3, 4]):
-            record = DatasetRecord(target_app, chaos_type, chaos_comp, metrics_file, data_df)
-            kpi_df = validate_data_record(
-                record, prior_knowledge,
-                OmegaConf.to_container(cfg.labbeling, resolve=True),
-                cfg.time.fault_inject_time_index,
-            )
-            kpi_df_list.append(kpi_df)
+    for (target_app, chaos_type, chaos_comp, metrics_file), data_df in dataset.groupby(level=[0, 1, 2, 3]):
+        pk: PriorKnowledge = new_knowledge(target_app)
+        record = DatasetRecord(target_app, chaos_type, chaos_comp, metrics_file, data_df)
+        kpi_df = validate_data_record(
+            record, pk,
+            OmegaConf.to_container(cfg.labbeling, resolve=True),
+            cfg.time.fault_inject_time_index,
+        )
+        if kpi_df is None:
+            continue
+        kpi_df_list.append(kpi_df)
 
     kpi_df = pd.concat(kpi_df_list)
     # reset_index: see https://stackoverflow.com/questions/70013696/print-multi-index-dataframe-with-tabulate

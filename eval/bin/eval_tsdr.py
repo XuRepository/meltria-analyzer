@@ -272,75 +272,70 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
     non_clustered_records: list[dict[str, Any]] = []
     tests_records: list[dict[str, Any]] = []
 
-    for (target_app, chaos_type, chaos_comp), sub_df in dataset.groupby(level=[0, 1, 2]):
-        prior_knowledge: PriorKnowledge = new_knowledge(target_app)
-        for (metrics_file, grafana_dashboard_url), data_df in sub_df.groupby(level=[3, 4]):
-            record = DatasetRecord(target_app, chaos_type, chaos_comp, metrics_file, data_df)
-
-            # check any True of all causal paths
-            valid_dataset_ok: bool | None = None
-            if cfg.disable_dataset_validation:
-                logger.info(f">> Skip validation of dataset {record.chaos_case_full()} ...")
-            else:
-                logger.info(f">> Validating dataset {record.chaos_case_full()} ...")
-                valid_dataset_ok = check_valid_dataset(
-                    record, prior_knowledge,
-                    OmegaConf.to_container(cfg.labbeling, resolve=True),
-                    cfg.time.fault_inject_time_index,
-                )
-
-            ts_plotter.log_plots_as_html(record, prior_knowledge)
-
-            logger.info(f">> Running tsdr {record.chaos_case_full()} ...")
-
-            tsdr_param = {'time_fault_inject_time_index': cfg.time.fault_inject_time_index}
-            tsdr_param.update({f'step1_{k}': v for k, v in OmegaConf.to_container(cfg.step1, resolve=True).items()})
-            tsdr_param.update({f'step2_{k}': v for k, v in OmegaConf.to_container(cfg.step2, resolve=True).items()})
-            reducer = tsdr.Tsdr(cfg.step1.model_name, **tsdr_param)
-            tsdr_stat, clustering_info, anomaly_points = reducer.run(
-                X=data_df,
-                pk=prior_knowledge,
-                max_workers=cpu_count(),
+    for (target_app, chaos_type, chaos_comp, metrics_file, grafana_dashboard_url), data_df in dataset.groupby(level=[0, 1, 2, 3, 4]):
+        pk: PriorKnowledge = new_knowledge(target_app)
+        record = DatasetRecord(target_app, chaos_type, chaos_comp, metrics_file, data_df)
+        # check any True of all causal paths
+        valid_dataset_ok: bool | None = None
+        if cfg.disable_dataset_validation:
+            logger.info(f">> Skip validation of dataset {record.chaos_case_full()} ...")
+        else:
+            logger.info(f">> Validating dataset {record.chaos_case_full()} ...")
+            valid_dataset_ok = check_valid_dataset(
+                record, pk,
+                OmegaConf.to_container(cfg.labbeling, resolve=True),
+                cfg.time.fault_inject_time_index,
             )
-            # skip the first item of tsdr_stat because it
-            for i, (reduced_df, stat_df, elapsed_time) in enumerate(tsdr_stat[1:], start=1):
-                ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
-                    pk=prior_knowledge,
-                    metrics=list(reduced_df.columns),
-                    chaos_type=chaos_type,
-                    chaos_comp=chaos_comp,
-                )
-                # 'raw': tsdr_stat[0]
-                # 'prefiltered_total': tsdr_stat[1]
-                tests_records.append({
-                    'chaos_type': chaos_type, 'chaos_comp': chaos_comp, 'metrics_file': metrics_file,
-                    'step': f"step{i}",
-                    'valid_dataset_ok': valid_dataset_ok,
-                    'ok': ok,
-                    'num_series_raw': tsdr_stat[0][1]['count'].sum(),
-                    'num_series_total': tsdr_stat[1][1]['count'].sum(),
-                    'num_series_reduced': stat_df['count'].sum(),
-                    'elapsed_time': elapsed_time,
-                    'found_metrics': ','.join(found_metrics),
-                    'grafana_dashboard_url': grafana_dashboard_url,
-                })
 
-            for representative_metric, sub_metrics in clustering_info.items():
-                clustering_records.append({
-                    'chaos_type': chaos_type, 'chaos_comp': chaos_comp, 'metrics_file': metrics_file,
-                    'representative_metric': representative_metric,
-                    'sub_metrics': ','.join(sub_metrics),
-                })
+        ts_plotter.log_plots_as_html(record, pk)
 
-            rep_metrics: list[str] = list(clustering_info.keys())
-            post_clustered_reduced_df = tsdr_stat[-1][0]  # the last item pf tsdr_stat should be clustered result.
-            non_clustered_reduced_df: pd.DataFrame = post_clustered_reduced_df.drop(columns=rep_metrics)
-            non_clustered_records.append({
+        logger.info(f">> Running tsdr {record.chaos_case_full()} ...")
+
+        tsdr_param = {'time_fault_inject_time_index': cfg.time.fault_inject_time_index}
+        tsdr_param.update({f'step1_{k}': v for k, v in OmegaConf.to_container(cfg.step1, resolve=True).items()})
+        tsdr_param.update({f'step2_{k}': v for k, v in OmegaConf.to_container(cfg.step2, resolve=True).items()})
+        reducer = tsdr.Tsdr(cfg.step1.model_name, **tsdr_param)
+        tsdr_stat, clustering_info, anomaly_points = reducer.run(
+            X=data_df, pk=pk, max_workers=cpu_count(),
+        )
+        # skip the first item of tsdr_stat because it
+        for i, (reduced_df, stat_df, elapsed_time) in enumerate(tsdr_stat[1:], start=1):
+            ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
+                pk=pk, metrics=list(reduced_df.columns), chaos_type=chaos_type, chaos_comp=chaos_comp,
+            )
+            # 'raw': tsdr_stat[0]
+            # 'prefiltered_total': tsdr_stat[1]
+            tests_records.append({
                 'chaos_type': chaos_type, 'chaos_comp': chaos_comp, 'metrics_file': metrics_file,
-                'non_clustered_metrics': ','.join(non_clustered_reduced_df.columns),
+                'step': f"step{i}",
+                'valid_dataset_ok': valid_dataset_ok,
+                'ok': ok,
+                'num_series_raw': tsdr_stat[0][1]['count'].sum(),
+                'num_series_total': tsdr_stat[1][1]['count'].sum(),
+                'num_series_reduced': stat_df['count'].sum(),
+                'elapsed_time': elapsed_time,
+                'found_metrics': ','.join(found_metrics),
+                'grafana_dashboard_url': grafana_dashboard_url,
             })
 
-            ts_plotter.log_clustering_plots_as_html(clustering_info, non_clustered_reduced_df, record, anomaly_points, prior_knowledge)
+        for representative_metric, sub_metrics in clustering_info.items():
+            clustering_records.append({
+                'chaos_type': chaos_type, 'chaos_comp': chaos_comp, 'metrics_file': metrics_file,
+                'representative_metric': representative_metric,
+                'sub_metrics': ','.join(sub_metrics),
+            })
+
+        rep_metrics: list[str] = list(clustering_info.keys())
+        post_clustered_reduced_df = tsdr_stat[-1][0]  # the last item pf tsdr_stat should be clustered result.
+        non_clustered_reduced_df: pd.DataFrame = post_clustered_reduced_df.drop(columns=rep_metrics)
+        non_clustered_records.append({
+            'chaos_type': chaos_type, 'chaos_comp': chaos_comp, 'metrics_file': metrics_file,
+            'non_clustered_metrics': ','.join(non_clustered_reduced_df.columns),
+        })
+
+        ts_plotter.log_clustering_plots_as_html(
+            clustering_info, non_clustered_reduced_df, record, anomaly_points, pk,
+        )
 
     save_scores(run, tests_records, clustering_records, non_clustered_records)
 

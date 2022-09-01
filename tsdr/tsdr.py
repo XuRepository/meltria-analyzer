@@ -124,7 +124,6 @@ class Tsdr:
             elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
             stat.append((reduced_series1, count_metrics(reduced_series1), elapsed_time))
 
-
         # step2
         start = time.time()
 

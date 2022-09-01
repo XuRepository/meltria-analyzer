@@ -61,7 +61,7 @@ def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
         numalign='right', stralign='left', showindex='always'))
 
 
-@hydra.main(config_path='../conf/dataset', config_name='config')
+@hydra.main(version_base="1.2", config_path='../conf/dataset', config_name='config')
 def main(cfg: DictConfig) -> None:
     logging.basicConfig(format='%(asctime)s %(levelname)s:%(message)s', level=logging.INFO)
 

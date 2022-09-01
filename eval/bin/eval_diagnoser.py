@@ -267,7 +267,7 @@ def eval_diagnoser(run: neptune.Run, cfg: DictConfig) -> None:
         logger.info("\n"+agg_df.to_string())
 
 
-@hydra.main(config_path='../conf/diagnoser', config_name='config')
+@hydra.main(version_base="1.2", config_path='../conf/diagnoser', config_name='config')
 def main(cfg: DictConfig) -> None:
     logging.basicConfig(format='%(asctime)s %(levelname)s:%(message)s', level=logging.INFO)
 

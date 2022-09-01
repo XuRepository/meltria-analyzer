@@ -345,7 +345,7 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
     save_scores(run, tests_records, clustering_records, non_clustered_records)
 
 
-@hydra.main(config_path='../conf/tsdr', config_name='config')
+@hydra.main(version_base="1.2", config_path='../conf/tsdr', config_name='config')
 def main(cfg: DictConfig) -> None:
     logging.basicConfig(format='%(asctime)s %(levelname)s:%(message)s', level=logging.INFO)
 

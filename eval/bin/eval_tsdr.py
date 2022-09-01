@@ -216,8 +216,9 @@ def save_scores(
         tp = int(x['ok'].sum())
         fn = int((~x['ok']).sum())
         rate = (1 - x['num_series_reduced'] / x['num_series_total'])
+        valid: pd.Series = x['valid_dataset_ok']
         d = {
-            'data_validity': int((x['valid_dataset_ok']).sum()) / x['valid_dataset_ok'].size,
+            'data_validity': int(valid.sum()) / valid.size if valid.notnull().any() else np.NaN,
             'tp': tp,
             'fn': fn,
             'accuracy': tp / (tp + fn),
@@ -276,14 +277,17 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
         for (metrics_file, grafana_dashboard_url), data_df in sub_df.groupby(level=[3, 4]):
             record = DatasetRecord(target_app, chaos_type, chaos_comp, metrics_file, data_df)
 
-            logger.info(f">> Validating dataset {record.chaos_case_full()} ...")
-
             # check any True of all causal paths
-            valid_dataset_ok: bool = check_valid_dataset(
-                record, prior_knowledge,
-                OmegaConf.to_container(cfg.labbeling, resolve=True),
-                cfg.time.fault_inject_time_index,
-            )
+            valid_dataset_ok: bool | None = None
+            if cfg.disable_dataset_validation:
+                logger.info(f">> Skip validation of dataset {record.chaos_case_full()} ...")
+            else:
+                logger.info(f">> Validating dataset {record.chaos_case_full()} ...")
+                valid_dataset_ok = check_valid_dataset(
+                    record, prior_knowledge,
+                    OmegaConf.to_container(cfg.labbeling, resolve=True),
+                    cfg.time.fault_inject_time_index,
+                )
 
             ts_plotter.log_plots_as_html(record, prior_knowledge)
 

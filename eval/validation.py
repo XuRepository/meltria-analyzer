@@ -25,7 +25,7 @@ def validate_data_record(
     pk: PriorKnowledge,
     labbeling: dict[str, Any],
     fault_inject_time_index: int,
-) -> pd.DataFrame:
+) -> pd.DataFrame | None:
     gt_metrics_routes = select_ground_truth_metrics_in_routes(
         pk, list(record.data_df.columns), record.chaos_type, record.chaos_comp,
     )
@@ -48,5 +48,18 @@ def validate_data_record(
                 'n_sigma': n,
                 'ok': total_ok,
             }, **val))
-
+    if not validation_results:
+        return None
     return pd.DataFrame(validation_results).set_index(['chaos_type', 'chaos_comp', 'metrics_file', 'route_no', 'n_sigma'])
+
+
+def check_valid_dataset(
+    record: DatasetRecord,
+    pk: PriorKnowledge,
+    labbeling: dict[str, Any],
+    fault_inject_time_index: int,
+) -> bool:
+    df: pd.DataFrame | None = validate_data_record(record, pk, labbeling, fault_inject_time_index)
+    if df is None:
+        return False
+    return df.loc[(record.chaos_type, record.chaos_comp, record.metrics_file), :]['ok'].any()

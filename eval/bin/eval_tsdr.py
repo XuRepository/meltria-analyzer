@@ -22,6 +22,7 @@ from omegaconf import DictConfig, OmegaConf
 
 import meltria.loader as meltria_loader
 from eval import groundtruth
+from eval.validation import check_valid_dataset
 from meltria.loader import DatasetRecord
 from meltria.priorknowledge.priorknowledge import PriorKnowledge, new_knowledge
 from tsdr import tsdr
@@ -216,6 +217,7 @@ def save_scores(
         fn = int((~x['ok']).sum())
         rate = (1 - x['num_series_reduced'] / x['num_series_total'])
         d = {
+            'data_validity': int((x['valid_dataset_ok']).sum()) / x['valid_dataset_ok'].size,
             'tp': tp,
             'fn': fn,
             'accuracy': tp / (tp + fn),
@@ -274,9 +276,18 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
         for (metrics_file, grafana_dashboard_url), data_df in sub_df.groupby(level=[3, 4]):
             record = DatasetRecord(target_app, chaos_type, chaos_comp, metrics_file, data_df)
 
+            logger.info(f">> Validating dataset {record.chaos_case_full()} ...")
+
+            # check any True of all causal paths
+            valid_dataset_ok: bool = check_valid_dataset(
+                record, prior_knowledge,
+                OmegaConf.to_container(cfg.labbeling, resolve=True),
+                cfg.time.fault_inject_time_index,
+            )
+
             ts_plotter.log_plots_as_html(record, prior_knowledge)
 
-            logger.info(f">> Running tsdr {record.chaos_case_file()} ...")
+            logger.info(f">> Running tsdr {record.chaos_case_full()} ...")
 
             tsdr_param = {'time_fault_inject_time_index': cfg.time.fault_inject_time_index}
             tsdr_param.update({f'step1_{k}': v for k, v in OmegaConf.to_container(cfg.step1, resolve=True).items()})
@@ -300,6 +311,7 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
                 tests_records.append({
                     'chaos_type': chaos_type, 'chaos_comp': chaos_comp, 'metrics_file': metrics_file,
                     'step': f"step{i}",
+                    'valid_dataset_ok': valid_dataset_ok,
                     'ok': ok,
                     'num_series_raw': tsdr_stat[0][1]['count'].sum(),
                     'num_series_total': tsdr_stat[1][1]['count'].sum(),

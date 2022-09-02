@@ -223,13 +223,17 @@ class Tsdr:
             # TODO: node metrics clustering
             future_list: list[futures.Future] = []
             for service, containers in pk.get_containers_of_service().items():
+                # 1. service-level clustering
+                # TODO: retrieve service metrics efficently
                 service_metrics_df = series.loc[:, series.columns.str.startswith(f"s-{service}_")]
                 if len(service_metrics_df.columns) > 1:
                     future_list.append(
                         make_clusters(service_metrics_df, **self.params),
                     )
+                # 2. container-level clustering
                 for container in containers:
                     # perform clustering in each type of metric
+                    # TODO: retrieve container and middleware metrics efficently
                     container_metrics_df = series.loc[
                         :, series.columns.str.startswith((f"c-{container}_", f"m-{container}_"))]
                     if len(container_metrics_df.columns) <= 1:
@@ -237,6 +241,14 @@ class Tsdr:
                     future_list.append(
                         make_clusters(container_metrics_df, **self.params),
                     )
+            # 3. node-level clustering
+            for node in pk.get_nodes():
+                node_metrics_df = series.loc[:, series.columns.str.startswith(f"n-{node}_")]
+                if len(node_metrics_df.columns) <= 1:
+                    continue
+                future_list.append(
+                    make_clusters(node_metrics_df, **self.params),
+                )
             for future in futures.as_completed(future_list):
                 c_info, remove_list = future.result()
                 clustering_info.update(c_info)

@@ -61,7 +61,24 @@ class PriorKnowledge(ABC):
         pass
 
     def get_nodes_to_containers(self) -> dict[str, list[str]] | None:
+        """ Example
+        "nodes-containers": {
+            "gke-train-ticket-01-default-pool-1db6151d-0fxo": [
+                "ts-assurance-mongo",
+                "ts-verification-code-service",
+                "ts-consign-price-mongo",
+                "ts-train-mongo",
+                "ts-order-service",
+                "ts-station-mongo",
+                "ts-food-map-mongo",
+                "ts-notification-service"
+            ],
+        }
+        """
         return self.mappings.get('nodes-containers')
+
+    def get_nodes(self) -> list[str]:
+        return self.get_nodes_to_containers().keys()
 
     def get_nodes_to_containers_graph(self) -> nx.Graph:
         G: nx.Graph = nx.Graph()  # Here, a node means a host running containers.

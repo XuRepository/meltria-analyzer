@@ -5,11 +5,9 @@ from diagnoser import metric_node as mn
 from eval import groundtruth
 from meltria.priorknowledge.priorknowledge import new_knowledge
 
-prior_knowledge = new_knowledge('sock-shop')
-
 
 def test_select_ground_truth_metrics_in_routes():
-    pk = new_knowledge('train-ticket')
+    pk = new_knowledge('train-ticket', {'node-containers': {}})
     metrics = [
         'c-ts-station-service_cpu_system_seconds_total', 'c-ts-station-service_sockets',
         's-ts-station_request_duration_seconds',
@@ -51,8 +49,9 @@ def test_check_tsdr_ground_truth_by_route():
         's-orders_latency',
         's-front-end_latency',
     ]
+    pk = new_knowledge('sock-shop', {'node-containers': {}})
     ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
-        prior_knowledge, metrics, 'pod-cpu-hog', 'user-db')
+        pk, metrics, 'pod-cpu-hog', 'user-db')
     assert ok is True
     expected = [
         'c-user-db_cpu_usage_seconds_total',
@@ -71,8 +70,9 @@ def test_check_tsdr_ground_truth_by_route():
         's-user_latency',
         's-front-end_latency',
     ]
+    pk = new_knowledge('sock-shop', {'node-containers': {}})
     ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
-        prior_knowledge, metrics, 'pod-cpu-hog', 'user-db')
+        pk, metrics, 'pod-cpu-hog', 'user-db')
     assert ok is True
     expected = [
         'c-user-db_cpu_usage_seconds_total',
@@ -89,8 +89,9 @@ def test_check_tsdr_ground_truth_by_route():
         'c-user-db_network_receive_bytes',
         's-user_latency',
     ]
+    pk = new_knowledge('sock-shop', {'node-containers': {}})
     ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
-        prior_knowledge, metrics, 'pod-cpu-hog', 'user-db')
+        pk, metrics, 'pod-cpu-hog', 'user-db')
     assert ok is False
     expected = [
         'c-user-db_cpu_usage_seconds_total',
@@ -107,7 +108,7 @@ def test_check_tsdr_ground_truth_by_route():
         's-front-end_latency',
     ]
     ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
-        prior_knowledge, metrics, 'pod-cpu-hog', 'front-end')
+        pk, metrics, 'pod-cpu-hog', 'front-end')
     assert ok is True
     expected = [
         'c-front-end_cpu_usage_seconds_total',
@@ -118,7 +119,7 @@ def test_check_tsdr_ground_truth_by_route():
 
 
 def test_check_tsdr_ground_truth_by_route_train_ticket():
-    pk = new_knowledge('train-ticket')
+    pk = new_knowledge('train-ticket', {'node-containers': {}})
     metrics = [
         'c-ts-food-mongo_cpu_usage_seconds_total',
         'c-ts-food-mongo_cpu_user_seconds_total',
@@ -209,6 +210,7 @@ def test_check_causal_graph(desc, chaos_type, chaos_comp, input, expected):
     edges = [(mn.MetricNode(u), mn.MetricNode(v)) for (u, v) in input]
     expected_edges = [[mn.MetricNode(n) for n in path] for path in expected]
     G = nx.DiGraph(edges)
-    ok, routes = groundtruth.check_causal_graph(prior_knowledge, G, chaos_type, chaos_comp)
+    pk = new_knowledge('sock-shop', {'node-containers': {}})
+    ok, routes = groundtruth.check_causal_graph(pk, G, chaos_type, chaos_comp)
     assert ok
     assert sorted([r.nodes for r in routes]) == sorted(expected_edges)

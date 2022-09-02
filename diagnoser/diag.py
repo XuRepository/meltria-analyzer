@@ -39,13 +39,13 @@ def filter_by_target_metrics(data_df: pd.DataFrame, pk: PriorKnowledge) -> pd.Da
     return pd.concat([containers_df, services_df, nodes_df], axis=1)
 
 
-def build_subgraph_of_removal_edges(nodes: mn.MetricNodes, mappings: dict[str, Any], pk: PriorKnowledge) -> nx.Graph:
+def build_subgraph_of_removal_edges(nodes: mn.MetricNodes, pk: PriorKnowledge) -> nx.Graph:
     """Build a subgraph consisting of removal edges with prior knowledges.
     """
     ctnr_graph: nx.Graph = pk.get_container_call_digraph().to_undirected()
     service_graph: nx.Graph = pk.get_service_call_digraph().to_undirected()
     node_ctnr_graph: nx.Graph = nx.Graph()  # Here, a node means a host running containers.
-    if (nodes_ctnrs := mappings.get('nodes-containers')):
+    if (nodes_ctnrs := pk.get_nodes_to_containers()):
         for node, ctnrs in nodes_ctnrs.items():
             # TODO: 'nsenter' container should be removed from original dataset.
             for ctnr in [c for c in ctnrs if c != 'nsenter']:
@@ -102,12 +102,12 @@ def build_subgraph_of_removal_edges(nodes: mn.MetricNodes, mappings: dict[str, A
     return G
 
 
-def prepare_init_graph(nodes: mn.MetricNodes, mappings: dict[str, Any], pk: PriorKnowledge) -> nx.Graph:
+def prepare_init_graph(nodes: mn.MetricNodes, pk: PriorKnowledge) -> nx.Graph:
     """Prepare initialized causal graph."""
     init_g = nx.Graph()
     for (u, v) in combinations(nodes, 2):
         init_g.add_edge(u, v)
-    RG: nx.Graph = build_subgraph_of_removal_edges(nodes, mappings, pk)
+    RG: nx.Graph = build_subgraph_of_removal_edges(nodes, pk)
     init_g.remove_edges_from(RG.edges())
     return init_g
 
@@ -263,7 +263,6 @@ def remove_nodes_subgraph_uncontained_root(G: nx.DiGraph, root_labels: tuple[str
 
 def run(
     dataset: pd.DataFrame,
-    mappings: dict[str, Any],
     pk: PriorKnowledge,
     **kwargs,
 ) -> tuple[nx.DiGraph, tuple[list[nx.DiGraph], list[nx.DiGraph]], dict[str, Any]]:
@@ -274,7 +273,7 @@ def run(
     building_graph_start: float = time.time()
 
     nodes: mn.MetricNodes = mn.MetricNodes.from_dataframe(dataset)
-    init_g: nx.Graph = prepare_init_graph(nodes, mappings)
+    init_g: nx.Graph = prepare_init_graph(nodes, pk)
 
     if (pc_library := kwargs['pc_library']) == 'pcalg':
         G = build_causal_graph_with_pcalg(

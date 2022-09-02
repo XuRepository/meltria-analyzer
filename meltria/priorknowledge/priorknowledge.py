@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from functools import cache
+from typing import Any
 
 import networkx as nx
 
@@ -8,6 +9,9 @@ from meltria.priorknowledge import sock_shop, train_ticket
 
 
 class PriorKnowledge(ABC):
+    def __init__(self, mappings: dict[str, dict[str, list[str]]]) -> None:
+        self.mappings = mappings  # mappings includes node to/from container mapping .
+
     @abstractmethod
     def get_root_service(self):
         pass
@@ -56,6 +60,9 @@ class PriorKnowledge(ABC):
     def get_diagnoser_target_data(self) -> dict[str, list[str]]:
         pass
 
+    def get_nodes_to_containers(self) -> dict[str, list[str]] | None:
+        return self.mappings.get('nodes-containers')
+
     def group_metrics_by_service(self, metrics: list[str]) -> dict[str, list[str]]:
         groups: dict[str, list[str]] = defaultdict(lambda: list())
         for metric in metrics:
@@ -90,8 +97,8 @@ class PriorKnowledge(ABC):
 
 
 class SockShopKnowledge(PriorKnowledge):
-    def __init__(self) -> None:
-        pass
+    def __init__(self, mappings: dict[str, dict[str, list[str]]]) -> None:
+        super().__init__(mappings)
 
     def get_root_service(self):
         return sock_shop.ROOT_SERVICE
@@ -135,8 +142,8 @@ class SockShopKnowledge(PriorKnowledge):
 
 
 class TrainTicketKnowledge(PriorKnowledge):
-    def __init__(self) -> None:
-        pass
+    def __init__(self, mappings: dict[str, dict[str, list[str]]]) -> None:
+        super().__init__(mappings)
 
     def get_root_service(self):
         return train_ticket.ROOT_SERVICE
@@ -179,11 +186,12 @@ class TrainTicketKnowledge(PriorKnowledge):
         return train_ticket.DIAGNOSER_TARGET_DATA
 
 
-def new_knowledge(target_app: str) -> PriorKnowledge:
+def new_knowledge(target_app: str, mappings: dict[str, dict[str, list[str]]]) -> PriorKnowledge:
+    """ Create new knowledge object for the given target app. """
     match target_app:
         case sock_shop.TARGET_APP_NAME:
-            return SockShopKnowledge()
+            return SockShopKnowledge(mappings)
         case train_ticket.TARGET_APP_NAME:
-            return TrainTicketKnowledge()
+            return TrainTicketKnowledge(mappings)
         case _:
             raise ValueError(f"{target_app} is invalid")

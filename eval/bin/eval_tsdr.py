@@ -261,11 +261,11 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
         logger=logger,
     )
 
-    dataset: pd.DataFrame = meltria_loader.load_dataset(
+    dataset, mappings_by_metrics_files = meltria_loader.load_dataset(
         cfg.metrics_files,
         OmegaConf.to_container(cfg.target_metric_types, resolve=True),
         cfg.time.num_datapoints,
-    )[0]
+    )
     logger.info("Dataset loading complete")
 
     clustering_records: list[dict[str, Any]] = []
@@ -273,7 +273,7 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
     tests_records: list[dict[str, Any]] = []
 
     for (target_app, chaos_type, chaos_comp, metrics_file, grafana_dashboard_url), data_df in dataset.groupby(level=[0, 1, 2, 3, 4]):
-        pk: PriorKnowledge = new_knowledge(target_app)
+        pk: PriorKnowledge = new_knowledge(target_app, mappings_by_metrics_files[metrics_file])
         record = DatasetRecord(target_app, chaos_type, chaos_comp, metrics_file, data_df)
         # check any True of all causal paths
         valid_dataset_ok: bool | None = None

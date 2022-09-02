@@ -179,7 +179,7 @@ def eval_diagnoser(run: neptune.Run, cfg: DictConfig) -> None:
     tests_records: list[dict[str, Any]] = []
 
     for (target_app, chaos_type, chaos_comp, metrics_file, grafana_dashboard_url), data_df in dataset.groupby(level=[0, 1, 2, 3, 4]):
-        prior_knowledge: PriorKnowledge = new_knowledge(target_app)
+        prior_knowledge: PriorKnowledge = new_knowledge(target_app, mappings_by_metrics_file[metrics_file])
         record = DatasetRecord(target_app, chaos_type, chaos_comp, metrics_file, data_df)
 
         logger.info(f">> Running tsdr {record.chaos_case_file()} ...")
@@ -194,7 +194,7 @@ def eval_diagnoser(run: neptune.Run, cfg: DictConfig) -> None:
 
         try:
             causal_graph, causal_subgraphs, stats = diag.run(
-                reduced_df, mappings_by_metrics_file[record.metrics_file], prior_knowledge, **{
+                reduced_df, prior_knowledge, **{
                     'pc_library': cfg.params.pc_library,
                     'pc_citest': cfg.params.pc_citest,
                     'pc_citest_alpha': cfg.params.pc_citest_alpha,

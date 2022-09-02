@@ -200,6 +200,7 @@ class TimeSeriesPlotter:
 def save_scores(
     run: neptune.Run,
     tests: list[dict[str, Any]], clustering: list[dict[str, Any]], non_clustered: list[dict[str, Any]],
+    target_metric_types: dict[str, bool]
 ) -> None:
     clustering_df = pd.DataFrame(clustering).set_index(
         ['chaos_type', 'chaos_comp', 'metrics_file', 'representative_metric', 'sub_metrics'])
@@ -215,14 +216,28 @@ def save_scores(
     def agg_score(x: pd.DataFrame) -> pd.Series:
         tp = int(x['ok'].sum())
         fn = int((~x['ok']).sum())
-        rate = (1 - x['num_series_reduced'] / x['num_series_total'])
+        rate = (1 - x['num_series/total/reduced'] / x['num_series/total/filtered'])
         valid: pd.Series = x['valid_dataset_ok']
+        num_series_items: dict[str, str] = {}
+        for metric_type, ok in target_metric_types.items():
+            if not ok:
+                continue
+            num_series_items[f'num_series/{metric_type}'] = '/'.join([
+                f"{int(x[f'num_series/{metric_type}/reduced'].mean())}",
+                f"{int(x[f'num_series/{metric_type}/filtered'].mean())}",
+                f"{int(x[f'num_series/{metric_type}/raw'].mean())}",
+            ])
         d = {
             'data_validity': int(valid.sum()) / valid.size if valid.notnull().any() else np.NaN,
             'tp': tp,
             'fn': fn,
             'accuracy': tp / (tp + fn),
-            'num_series': f"{int(x['num_series_reduced'].mean())}/{int(x['num_series_total'].mean())}/{int(x['num_series_raw'].mean())}",
+            'num_series/total': '/'.join([
+                f"{int(x['num_series/total/reduced'].mean())}",
+                f"{int(x['num_series/total/filtered'].mean())}",
+                f"{int(x['num_series/total/raw'].mean())}",
+            ]),
+            **num_series_items,
             'reduction_rate_mean': rate.mean(),
             'reduction_rate_max': rate.max(),
             'reduction_rate_min': rate.min(),
@@ -303,16 +318,22 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
             ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
                 pk=pk, metrics=list(reduced_df.columns), chaos_type=chaos_type, chaos_comp=chaos_comp,
             )
-            # 'raw': tsdr_stat[0]
-            # 'prefiltered_total': tsdr_stat[1]
+            num_series_by_type: dict[str, int] = {}
+            for metric_type, ok in cfg.target_metric_types.items():
+                if not ok:
+                    continue
+                num_series_by_type[f"num_series/{metric_type}/raw"] = tsdr_stat[0][1].loc[metric_type]['count'].sum()
+                num_series_by_type[f"num_series/{metric_type}/filtered"] = tsdr_stat[1][1].loc[metric_type]['count'].sum()
+                num_series_by_type[f"num_series/{metric_type}/reduced"] = stat_df.loc[metric_type]['count'].sum()
             tests_records.append({
                 'chaos_type': chaos_type, 'chaos_comp': chaos_comp, 'metrics_file': metrics_file,
                 'step': f"step{i}",
                 'valid_dataset_ok': valid_dataset_ok,
                 'ok': ok,
-                'num_series_raw': tsdr_stat[0][1]['count'].sum(),
-                'num_series_total': tsdr_stat[1][1]['count'].sum(),
-                'num_series_reduced': stat_df['count'].sum(),
+                'num_series/total/raw': tsdr_stat[0][1]['count'].sum(),  # raw
+                'num_series/total/filtered': tsdr_stat[1][1]['count'].sum(),  # after step0
+                'num_series/total/reduced': stat_df['count'].sum(),  # after step{i}
+                **num_series_by_type,
                 'elapsed_time': elapsed_time,
                 'found_metrics': ','.join(found_metrics),
                 'grafana_dashboard_url': grafana_dashboard_url,
@@ -337,7 +358,7 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
             clustering_info, non_clustered_reduced_df, record, anomaly_points, pk,
         )
 
-    save_scores(run, tests_records, clustering_records, non_clustered_records)
+    save_scores(run, tests_records, clustering_records, non_clustered_records, cfg.target_metric_types)
 
 
 @hydra.main(version_base="1.2", config_path='../conf/tsdr', config_name='config')

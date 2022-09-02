@@ -13,10 +13,10 @@ import pandas as pd
 from eval import groundtruth
 from meltria.priorknowledge.priorknowledge import PriorKnowledge, new_knowledge
 
-METRIC_TYPE_SERVICES = 'services'
-METRIC_TYPE_CONTAINERS = 'containers'
-METRIC_TYPE_NODES = 'nodes'
-METRIC_TYPE_MIDDLEWARES = 'middlewares'
+METRIC_TYPE_SERVICES: str = 'services'
+METRIC_TYPE_CONTAINERS: str = 'containers'
+METRIC_TYPE_NODES: str = 'nodes'
+METRIC_TYPE_MIDDLEWARES: str = 'middlewares'
 
 
 class DatasetRecord:
@@ -124,7 +124,8 @@ def read_metrics_json(
     with open(data_file) as f:
         raw_data: dict[str, Any] = json.load(f)
     metrics_name_to_values: dict[str, np.ndarray] = {}
-    pk: PriorKnowledge = new_knowledge(raw_data['meta']['target_app'])
+    # TODO: return pk object and reuse it.
+    pk: PriorKnowledge = new_knowledge(raw_data['meta']['target_app'], raw_data['mappings'])
     for metric_type, enable in target_metric_types.items():
         if not enable:
             continue
@@ -134,9 +135,11 @@ def read_metrics_json(
                 metric_name = metric["metric_name"].removeprefix("container_").removeprefix("node_")
                 target_name = metric["{}_name".format(metric_type[:-1]) if metric_type != METRIC_TYPE_MIDDLEWARES else "container_name"]
                 if metric_type == METRIC_TYPE_SERVICES:
-                    service = pk.get_service_by_container(target_name)
-                    if service is not None:
+                    if (service := pk.get_service_by_container(target_name)) is not None:
                         target_name = service
+                elif metric_type == METRIC_TYPE_NODES:
+                    # FIXME: workaround for node name include ';' as suffix due to the issue of prometheus config
+                    target_name = target_name.removesuffix(';')
                 if target_name in pk.get_skip_containers():
                     continue
                 metric_name = "{}-{}_{}".format(metric_type[0], target_name, metric_name)

@@ -44,12 +44,7 @@ def build_subgraph_of_removal_edges(nodes: mn.MetricNodes, pk: PriorKnowledge) -
     """
     ctnr_graph: nx.Graph = pk.get_container_call_digraph().to_undirected()
     service_graph: nx.Graph = pk.get_service_call_digraph().to_undirected()
-    node_ctnr_graph: nx.Graph = nx.Graph()  # Here, a node means a host running containers.
-    if (nodes_ctnrs := pk.get_nodes_to_containers()):
-        for node, ctnrs in nodes_ctnrs.items():
-            # TODO: 'nsenter' container should be removed from original dataset.
-            for ctnr in [c for c in ctnrs if c != 'nsenter']:
-                node_ctnr_graph.add_edge(node, ctnr)
+    node_ctnr_graph: nx.Graph = pk.get_nodes_to_containers_graph()
 
     G: nx.Graph = nx.Graph()
     for u, v in combinations(nodes, 2):

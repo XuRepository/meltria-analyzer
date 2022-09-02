@@ -63,6 +63,15 @@ class PriorKnowledge(ABC):
     def get_nodes_to_containers(self) -> dict[str, list[str]] | None:
         return self.mappings.get('nodes-containers')
 
+    def get_nodes_to_containers_graph(self) -> nx.Graph:
+        G: nx.Graph = nx.Graph()  # Here, a node means a host running containers.
+        if (nodes_ctnrs := self.get_nodes_to_containers()):
+            for node, ctnrs in nodes_ctnrs.items():
+                # 'nsenter' container should be removed from original dataset.
+                for ctnr in [c for c in ctnrs if c != 'nsenter']:
+                    G.add_edge(node, ctnr)
+        return G
+
     def group_metrics_by_service(self, metrics: list[str]) -> dict[str, list[str]]:
         groups: dict[str, list[str]] = defaultdict(lambda: list())
         for metric in metrics:

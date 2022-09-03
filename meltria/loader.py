@@ -3,6 +3,7 @@ import logging
 import os
 import warnings
 from collections import defaultdict
+from collections.abc import Iterator
 from concurrent import futures
 from dataclasses import dataclass
 from multiprocessing import cpu_count
@@ -65,11 +66,23 @@ class DatasetRecord:
         return self.data_df[ground_truth_metrics]
 
 
+def load_dataset_as_generator(
+    metrics_files: list[str], target_metric_types: dict[str, bool], num_datapoints: int,
+    n_jobs: int = 0,
+) -> Iterator[tuple[pd.DataFrame, dict[str, Any]]]:
+    """ Load metrics dataset as generator """
+    if n_jobs == 0:
+        n_jobs = cpu_count()
+
+    parts_of_files: list[list[str]] = np.array_split(metrics_files, int(len(metrics_files)/n_jobs))
+    for part_of_files in parts_of_files:
+        yield load_dataset(part_of_files, target_metric_types, num_datapoints)
+
+
 def load_dataset(
     metrics_files: list[str], target_metric_types: dict[str, bool], num_datapoints: int,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
-    """ Load metrics dataset
-    """
+    """ Load metrics dataset """
     df_list: list[pd.DataFrame] = []
     mappings_by_metrics_file: dict[str, Any] = {}
     with futures.ProcessPoolExecutor(max_workers=cpu_count()) as executor:

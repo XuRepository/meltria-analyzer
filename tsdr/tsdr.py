@@ -465,24 +465,3 @@ def kshape_clustering(
         remove_list.extend(r_list)
 
     return clustering_info, remove_list
-
-
-def sieve_reduce_series(data_df):
-    return reduce_series_with_cv(data_df)
-
-
-def sieve_clustering(reduced_df, services_list, max_workers):
-    clustering_info = {}
-
-    with futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-        # Clustering metrics by services including services, containers and middlewares
-        for ser in services_list:
-            target_df = reduced_df.loc[:, reduced_df.columns.str.startswith(
-                ("s-{}_".format(ser), "c-{}_".format(ser), "c-{}-".format(ser), "m-{}_".format(ser), "m-{}-".format(ser)))]
-            if len(target_df.columns) in [0, 1]:
-                continue
-            c_info, remove_list = kshape_clustering(target_df, ser, executor)
-            clustering_info.update(c_info)
-            reduced_df = reduced_df.drop(remove_list, axis=1)
-
-    return reduced_df, clustering_info

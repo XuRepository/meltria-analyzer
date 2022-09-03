@@ -37,9 +37,9 @@ tabulate = "^0.8.10"
 types-tabulate = "^0.8.11"
 
 [tool.poetry.dev-dependencies]
-flake8 = "^3.9.2"
-mypy = "^0.910"
-autopep8 = "^1.5.7"
+flake8 = "^5.0.4"
+mypy = "^0.971"
+autopep8 = "^1.7.0"
 pytest = "^6.2.4"
 pytest-cov = "^2.12.1"
 

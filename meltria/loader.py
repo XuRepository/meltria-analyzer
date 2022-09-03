@@ -164,7 +164,7 @@ def read_metrics_json(
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
-                data_df = data_df.interpolate(method="spline", order=3, limit_direction="both")
+                data_df.interpolate(method="akima", limit_direction="both", inplace=True)
         except:  # To cacth `dfitpack.error: (m>k) failed for hidden m: fpcurf0:m=3`
             raise ValueError("calculating spline error") from None
     return data_df, raw_data['mappings'], raw_data['meta']

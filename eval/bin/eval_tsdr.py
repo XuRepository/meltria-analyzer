@@ -3,6 +3,7 @@
 import logging
 import os
 from concurrent import futures
+from dataclasses import dataclass
 from functools import reduce
 from multiprocessing import cpu_count
 from operator import add
@@ -35,20 +36,11 @@ logger = logging.getLogger('root_experiment')
 logger.setLevel(logging.INFO)
 
 
+@dataclass
 class TimeSeriesPlotter:
     run: neptune.Run
     enable_upload_plots: bool
     logger: logging.Logger
-
-    def __init__(
-        self,
-        run: neptune.Run,
-        enable_upload_plots: bool,
-        logger: logging.Logger,
-    ) -> None:
-        self.run = run
-        self.enable_upload_plots = enable_upload_plots
-        self.logger = logger
 
     def log_plots_as_html(self, record: DatasetRecord, pk: PriorKnowledge) -> None:
         """ Upload found_metrics plot images to neptune.ai.

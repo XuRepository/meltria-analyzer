@@ -4,6 +4,7 @@ import os
 import warnings
 from collections import defaultdict
 from concurrent import futures
+from dataclasses import dataclass
 from multiprocessing import cpu_count
 from typing import Any
 
@@ -23,19 +24,14 @@ METRIC_TYPE_MAP: list[tuple[str, str]] = [
 ]
 
 
+@dataclass
 class DatasetRecord:
     """A record of dataset"""
-    chaos_comp: str     # chaos-injected component
-    chaos_type: str     # injected chaos type
-    metrics_file: str   # path of metrics file
+    target_app: str     # target-application eg. 'train-ticket'
+    chaos_comp: str     # chaos-injected component eg. 'carts-db'
+    chaos_type: str     # injected chaos type eg. 'pod-cpu-hog'
+    metrics_file: str   # path of metrics file eg. '2021-12-09-argowf-chaos-hg68n-carts-db_pod-cpu-hog_4.json'
     data_df: pd.DataFrame
-
-    def __init__(self, target_app: str, chaos_type: str, chaos_comp: str, metrics_file: str, data_df: pd.DataFrame):
-        self.target_app = target_app
-        self.chaos_comp = chaos_comp
-        self.chaos_type = chaos_type
-        self.metrics_file = metrics_file
-        self.data_df = data_df
 
     def chaos_case(self) -> str:
         return f"{self.chaos_comp}/{self.chaos_type}"

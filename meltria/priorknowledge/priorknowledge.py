@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from functools import cache
-from typing import Any
 
 import networkx as nx
 

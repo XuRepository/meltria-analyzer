@@ -42,11 +42,12 @@ class Tsdr:
         return unireducer.ar_based_ad_model(series, **kwargs)
 
     def filter_out_no_change_metrics(self, series: pd.DataFrame) -> pd.DataFrame:
-        def filter(x) -> bool:
-            if np.all(np.isnan(x)):
+        def filter(x: pd.Series) -> bool:
+            # pd.Series.diff returns a series with the first element is NaN
+            if x.isna().all() or (x == x[0]).all() or ((diff_x := x.diff()[1:]) == diff_x[0]).all():
                 return False
-            diff_x = np.diff(x)
-            return not (np.all(x == x[0]) or np.all(diff_x == diff_x[0]))
+            # remove an array including only the same value or nan
+            return not diff_x.apply(lambda z: np.isnan(z) or z == 0).all()
         return series.loc[:, series.apply(filter)]
 
     def detect_failure_start_point(self, sli: np.ndarray, sigma_threshold=3) -> tuple[int, float]:

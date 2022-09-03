@@ -70,13 +70,15 @@ def load_dataset_as_generator(
     metrics_files: list[str], target_metric_types: dict[str, bool], num_datapoints: int,
     n_jobs: int = 0,
 ) -> Iterator[tuple[pd.DataFrame, dict[str, Any]]]:
-    """ Load metrics dataset as generator """
+    """ Load n_jobs files at a time as generator """
     if n_jobs == 0:
         n_jobs = cpu_count()
-
-    parts_of_files: list[list[str]] = np.array_split(metrics_files, int(len(metrics_files)/n_jobs))
-    for part_of_files in parts_of_files:
-        yield load_dataset(part_of_files, target_metric_types, num_datapoints)
+    if len(metrics_files) < n_jobs:
+        yield load_dataset(metrics_files, target_metric_types, num_datapoints)
+    else:
+        parts_of_files: list[np.ndarray] = np.array_split(metrics_files, int(len(metrics_files)/n_jobs))
+        for part_of_files in parts_of_files:
+            yield load_dataset(part_of_files.tolist(), target_metric_types, num_datapoints)
 
 
 def load_dataset(

@@ -42,13 +42,13 @@ class TimeSeriesPlotter:
     enable_upload_plots: bool
     logger: logging.Logger
 
-    def log_plots_as_html(self, record: DatasetRecord, pk: PriorKnowledge) -> None:
+    def log_plots_as_html(self, record: DatasetRecord) -> None:
         """ Upload found_metrics plot images to neptune.ai.
         """
         if not self.enable_upload_plots:
             return
         self.logger.info(f">> Uploading plot figures of {record.chaos_case_file()} ...")
-        if (gtdf := record.ground_truth_metrics_frame(pk)) is None:
+        if (gtdf := record.ground_truth_metrics_frame()) is None:
             return
         html = self.generate_html_time_series(
             record, gtdf, title=f'Chart of time series metrics {record.chaos_case_full()}')
@@ -62,7 +62,6 @@ class TimeSeriesPlotter:
         non_clustered_reduced_df: pd.DataFrame,
         record: DatasetRecord,
         anomaly_points: dict[str, np.ndarray],
-        pk: PriorKnowledge,
     ) -> None:
         """ Upload clustered time series plots to neptune.ai.
         """
@@ -84,7 +83,6 @@ class TimeSeriesPlotter:
                 non_clustered_reduced_df=non_clustered_reduced_df,
                 record=record,
                 anomaly_points=anomaly_points,
-                pk=pk,
             )
             future_list[f] = f"tests/clustering/time_series_plots/{record.chaos_case_full()}.no_clustered"
             for future in futures.as_completed(future_list):
@@ -125,7 +123,6 @@ class TimeSeriesPlotter:
         record: DatasetRecord,
         non_clustered_reduced_df: pd.DataFrame,
         anomaly_points: dict[str, np.ndarray],
-        pk: PriorKnowledge,
     ) -> str:
         """ Upload non-clustered time series plots to neptune.ai.
         """
@@ -134,7 +131,7 @@ class TimeSeriesPlotter:
             return ''
 
         figures: list[hv.Overlay] = []
-        for service, metrics in pk.group_metrics_by_service(list(non_clustered_reduced_df.columns)).items():
+        for service, metrics in record.pk.group_metrics_by_service(list(non_clustered_reduced_df.columns)).items():
             fig: hv.Overlay = cls.generate_figure_time_series(
                 data=non_clustered_reduced_df[metrics],
                 anomaly_points=anomaly_points,
@@ -279,10 +276,8 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
     non_clustered_records: list[dict[str, Any]] = []
     tests_records: list[dict[str, Any]] = []
 
-    for dataset, mappings_by_metrics_files in dataset_generator:
-        for (target_app, chaos_type, chaos_comp, metrics_file, grafana_dashboard_url), data_df in dataset.groupby(level=[0, 1, 2, 3, 4]):
-            pk: PriorKnowledge = new_knowledge(target_app, mappings_by_metrics_files[metrics_file])
-            record = DatasetRecord(target_app, chaos_type, chaos_comp, metrics_file, data_df)
+    for records in dataset_generator:
+        for record in records:
             # check any True of all causal paths
             valid_dataset_ok: bool | None = None
             if cfg.disable_dataset_validation:
@@ -290,12 +285,12 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
             else:
                 logger.info(f">> Validating dataset {record.chaos_case_full()} ...")
                 valid_dataset_ok = check_valid_dataset(
-                    record, pk,
+                    record,
                     OmegaConf.to_container(cfg.labbeling, resolve=True),
                     cfg.time.fault_inject_time_index,
                 )
 
-            ts_plotter.log_plots_as_html(record, pk)
+            ts_plotter.log_plots_as_html(record)
 
             logger.info(f">> Running tsdr {record.chaos_case_full()} ...")
 
@@ -304,12 +299,12 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
             tsdr_param.update({f'step2_{k}': v for k, v in OmegaConf.to_container(cfg.step2, resolve=True).items()})
             reducer = tsdr.Tsdr(cfg.step1.model_name, **tsdr_param)
             tsdr_stat, clustering_info, anomaly_points = reducer.run(
-                X=data_df, pk=pk, max_workers=cpu_count(),
+                X=record.data_df, pk=record.pk, max_workers=cpu_count(),
             )
             # skip the first item of tsdr_stat because it
             for i, (reduced_df, stat_df, elapsed_time) in enumerate(tsdr_stat[1:], start=1):
                 ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
-                    pk=pk, metrics=list(reduced_df.columns), chaos_type=chaos_type, chaos_comp=chaos_comp,
+                    pk=record.pk, metrics=list(reduced_df.columns), chaos_type=record.chaos_type(), chaos_comp=record.chaos_comp(),
                 )
                 num_series_by_type: dict[str, int] = {}
                 for metric_type, ok in cfg.target_metric_types.items():
@@ -319,7 +314,8 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
                     num_series_by_type[f"num_series/{metric_type}/filtered"] = tsdr_stat[1][1].loc[metric_type]['count'].sum()
                     num_series_by_type[f"num_series/{metric_type}/reduced"] = stat_df.loc[metric_type]['count'].sum()
                 tests_records.append({
-                    'chaos_type': chaos_type, 'chaos_comp': chaos_comp, 'metrics_file': metrics_file,
+                    'chaos_type': record.chaos_type(), 'chaos_comp': record.chaos_comp(),
+                    'metrics_file': record.basename_of_metrics_file(),
                     'step': f"step{i}",
                     'valid_dataset_ok': valid_dataset_ok,
                     'ok': ok,
@@ -329,12 +325,13 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
                     **num_series_by_type,
                     'elapsed_time': elapsed_time,
                     'found_metrics': ','.join(found_metrics),
-                    'grafana_dashboard_url': grafana_dashboard_url,
+                    'grafana_dashboard_url': record.grafana_dashboard_url(),
                 })
 
             for representative_metric, sub_metrics in clustering_info.items():
                 clustering_records.append({
-                    'chaos_type': chaos_type, 'chaos_comp': chaos_comp, 'metrics_file': metrics_file,
+                    'chaos_type': record.chaos_type(), 'chaos_comp': record.chaos_comp(),
+                    'metrics_file': record.basename_of_metrics_file(),
                     'representative_metric': representative_metric,
                     'sub_metrics': ','.join(sub_metrics),
                 })
@@ -343,15 +340,15 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
             post_clustered_reduced_df = tsdr_stat[-1][0]  # the last item pf tsdr_stat should be clustered result.
             non_clustered_reduced_df: pd.DataFrame = post_clustered_reduced_df.drop(columns=rep_metrics)
             non_clustered_records.append({
-                'chaos_type': chaos_type, 'chaos_comp': chaos_comp, 'metrics_file': metrics_file,
+                'chaos_type': record.chaos_type(), 'chaos_comp': record.chaos_comp(),
+                'metrics_file': record.basename_of_metrics_file(),
                 'non_clustered_metrics': ','.join(non_clustered_reduced_df.columns),
             })
 
             ts_plotter.log_clustering_plots_as_html(
-                clustering_info, non_clustered_reduced_df, record, anomaly_points, pk,
+                clustering_info, non_clustered_reduced_df, record, anomaly_points,
             )
-
-        del dataset  # reduce memory usage
+        del records  # reduce memory usage
 
     save_scores(run, tests_records, clustering_records, non_clustered_records, cfg.target_metric_types)
 

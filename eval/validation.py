@@ -8,7 +8,6 @@ import pandas as pd
 
 from eval.groundtruth import check_route, select_ground_truth_metrics_in_routes
 from meltria.loader import DatasetRecord
-from meltria.priorknowledge.priorknowledge import PriorKnowledge
 from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
 
 
@@ -42,9 +41,9 @@ def validate_route(
         ok_kpis: list[str] = [kpi for kpi, ok in val.items() if not math.isnan(ok) and ok]
         total_ok, _ = check_route(ok_kpis, gt_route_matcher)
         validation_results.append(dict({
-            'chaos_type': record.chaos_type,
-            'chaos_comp': record.chaos_comp,
-            'metrics_file': record.metrics_file,
+            'chaos_type': record.chaos_type(),
+            'chaos_comp': record.chaos_comp(),
+            'metrics_file': record.basename_of_metrics_file(),
             'route_no': route_no,
             'n_sigma': n,
             'ok': total_ok,
@@ -54,13 +53,12 @@ def validate_route(
 
 def validate_data_record(
     record: DatasetRecord,
-    pk: PriorKnowledge,
     labbeling: dict[str, Any],
     fault_inject_time_index: int,
     n_workers: int = 0,
 ) -> pd.DataFrame | None:
     gt_metrics_routes = select_ground_truth_metrics_in_routes(
-        pk, list(record.data_df.columns), record.chaos_type, record.chaos_comp,
+        record.pk, list(record.data_df.columns), record.chaos_type(), record.chaos_comp(),
     )
     validation_results: list[dict[str, Any]] = []
     if n_workers == 0:
@@ -82,11 +80,10 @@ def validate_data_record(
 
 def check_valid_dataset(
     record: DatasetRecord,
-    pk: PriorKnowledge,
     labbeling: dict[str, Any],
     fault_inject_time_index: int,
 ) -> bool:
-    df: pd.DataFrame | None = validate_data_record(record, pk, labbeling, fault_inject_time_index)
+    df: pd.DataFrame | None = validate_data_record(record, labbeling, fault_inject_time_index)
     if df is None:
         return False
-    return df.loc[(record.chaos_type, record.chaos_comp, record.metrics_file), :]['ok'].any()
+    return df.loc[(record.chaos_type(), record.chaos_comp(), record.basename_of_metrics_file()), :]['ok'].any()

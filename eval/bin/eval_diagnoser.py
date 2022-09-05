@@ -132,7 +132,6 @@ def log_causal_graph(
     record: DatasetRecord,
     gt_routes: list[mn.MetricNodes],
     data_df: pd.DataFrame,
-    pk: PriorKnowledge,
 ) -> None:
     items: list[tuple[list[nx.DiGraph], str, tuple[int, int]]] = [
         (causal_subgraphs[0], "with-root", (1000, 800)),
@@ -148,7 +147,7 @@ def log_causal_graph(
                 unmerged_graphs.append(nx.compose_all(merged_graphs))
             layouts = []
             for graph in unmerged_graphs:
-                set_visual_style_to_graph(graph, gt_routes, pk)
+                set_visual_style_to_graph(graph, gt_routes, record.pk)
                 nw_graph = create_figure_of_causal_graph(graph, record, (width, height))
                 ts_graph = create_figure_of_time_series_lines(data_df, graph, record, (width, height))
                 layout = hv.Layout([nw_graph, ts_graph]).opts(
@@ -169,72 +168,71 @@ def log_causal_graph(
 
 
 def eval_diagnoser(run: neptune.Run, cfg: DictConfig) -> None:
-    dataset, mappings_by_metrics_file = meltria_loader.load_dataset(
+    dataset_generator = meltria_loader.load_dataset_as_generator(
         cfg.metrics_files,
         OmegaConf.to_container(cfg.target_metric_types, resolve=True),
         cfg.time.num_datapoints,
     )
-    logger.info("Dataset loading complete.")
+    logger.info(">> Loading dataset")
 
     tests_records: list[dict[str, Any]] = []
 
-    for (target_app, chaos_type, chaos_comp, metrics_file, grafana_dashboard_url), data_df in dataset.groupby(level=[0, 1, 2, 3, 4]):
-        prior_knowledge: PriorKnowledge = new_knowledge(target_app, mappings_by_metrics_file[metrics_file])
-        record = DatasetRecord(target_app, chaos_type, chaos_comp, metrics_file, data_df)
+    for records in dataset_generator:
+        for record in records:
+            logger.info(f">> Running tsdr {record.chaos_case_file()} ...")
 
-        logger.info(f">> Running tsdr {record.chaos_case_file()} ...")
+            tsdr_param = {f'step1_{k}': v for k, v in OmegaConf.to_container(cfg.tsdr.step1, resolve=True).items()}
+            tsdr_param.update({f'step2_{k}': v for k, v in OmegaConf.to_container(cfg.tsdr.step2, resolve=True).items()})
+            reducer = tsdr.Tsdr(cfg.tsdr.step1.model_name, **tsdr_param)
+            tsdr_stat, _, _ = reducer.run(X=record.data_df, pk=record.pk, max_workers=cpu_count())
+            reduced_df: pd.DataFrame = tsdr_stat[-1][0]
 
-        tsdr_param = {f'step1_{k}': v for k, v in OmegaConf.to_container(cfg.tsdr.step1, resolve=True).items()}
-        tsdr_param.update({f'step2_{k}': v for k, v in OmegaConf.to_container(cfg.tsdr.step2, resolve=True).items()})
-        reducer = tsdr.Tsdr(cfg.tsdr.step1.model_name, **tsdr_param)
-        tsdr_stat, _, _ = reducer.run(X=data_df, pk=prior_knowledge, max_workers=cpu_count())
-        reduced_df: pd.DataFrame = tsdr_stat[-1][0]
+            logger.info(f">> Running diagnosis of {record.chaos_case_file()} ...")
 
-        logger.info(f">> Running diagnosis of {record.chaos_case_file()} ...")
+            try:
+                causal_graph, causal_subgraphs, stats = diag.run(
+                    reduced_df, record.pk, **{
+                        'pc_library': cfg.params.pc_library,
+                        'pc_citest': cfg.params.pc_citest,
+                        'pc_citest_alpha': cfg.params.pc_citest_alpha,
+                        'pc_variant': cfg.params.pc_variant,
+                    }
+                )
+            except ValueError as e:
+                logger.error(e)
+                logger.info(f">> Skip because of error {record.chaos_case_file()}")
+                continue
 
-        try:
-            causal_graph, causal_subgraphs, stats = diag.run(
-                reduced_df, prior_knowledge, **{
-                    'pc_library': cfg.params.pc_library,
-                    'pc_citest': cfg.params.pc_citest,
-                    'pc_citest_alpha': cfg.params.pc_citest_alpha,
-                    'pc_variant': cfg.params.pc_variant,
-                }
+            # Check whether cause metrics exists in the causal graph
+            _, found_cause_nodes = groundtruth.check_cause_metrics(
+                mn.MetricNodes.from_list_of_metric_node(list(causal_graph.nodes)),
+                record.chaos_type(), record.chaos_comp(),
             )
-        except ValueError as e:
-            logger.error(e)
-            logger.info(f">> Skip because of error {record.chaos_case_file()}")
-            continue
 
-        # Check whether cause metrics exists in the causal graph
-        _, found_cause_nodes = groundtruth.check_cause_metrics(
-            mn.MetricNodes.from_list_of_metric_node(list(causal_graph.nodes)), chaos_type, chaos_comp,
-        )
-
-        logger.info(f">> Checking causal graph including chaos-injected metrics of {record.chaos_case_file()}")
-        graph_ok, routes = groundtruth.check_causal_graph(
-            prior_knowledge, causal_graph, chaos_type, chaos_comp)
-        if not graph_ok:
-            logger.info(f"wrong causal graph in {record.chaos_case_file()}")
-        tests_records.append({
-            'chaos_type': chaos_type,
-            'chaos_comp': chaos_comp,
-            'metrics_file': metrics_file,
-            'graph_ok': graph_ok,
-            'building_graph_elapsed_sec': stats['building_graph_elapsed_sec'],
-            'num_series': tsdr_stat[1][1]['count'].sum(),
-            'init_g_num_nodes': stats['init_graph_nodes_num'],
-            'init_g_num_edges': stats['init_graph_edges_num'],
-            'causal_g_num_nodes': stats['causal_graph_nodes_num'],
-            'causal_g_num_edges': stats['causal_graph_edges_num'],
-            'causal_graph_density': stats['causal_graph_density'],
-            'causal_graph_flow_hierarchy': stats['causal_graph_flow_hierarchy'],
-            'found_routes': ', '.join([route.liststr() for route in routes]),
-            'found_cause_metrics': ', '.join(found_cause_nodes.liststr()),
-            'grafana_dashboard_url': grafana_dashboard_url,
-        })
-        logger.info(f">> Logging causal graph including chaos-injected metrics of {record.chaos_case_file()}")
-        log_causal_graph(run, causal_subgraphs, record, routes, reduced_df, prior_knowledge)
+            logger.info(f">> Checking causal graph including chaos-injected metrics of {record.chaos_case_file()}")
+            graph_ok, routes = groundtruth.check_causal_graph(
+                record.pk, causal_graph, record.chaos_type(), record.chaos_comp())
+            if not graph_ok:
+                logger.info(f"wrong causal graph in {record.chaos_case_file()}")
+            tests_records.append({
+                'chaos_type': record.chaos_type(),
+                'chaos_comp': record.chaos_comp(),
+                'metrics_file': record.basename_of_metrics_file(),
+                'graph_ok': graph_ok,
+                'building_graph_elapsed_sec': stats['building_graph_elapsed_sec'],
+                'num_series': tsdr_stat[1][1]['count'].sum(),
+                'init_g_num_nodes': stats['init_graph_nodes_num'],
+                'init_g_num_edges': stats['init_graph_edges_num'],
+                'causal_g_num_nodes': stats['causal_graph_nodes_num'],
+                'causal_g_num_edges': stats['causal_graph_edges_num'],
+                'causal_graph_density': stats['causal_graph_density'],
+                'causal_graph_flow_hierarchy': stats['causal_graph_flow_hierarchy'],
+                'found_routes': ', '.join([route.liststr() for route in routes]),
+                'found_cause_metrics': ', '.join(found_cause_nodes.liststr()),
+                'grafana_dashboard_url': record.grafana_dashboard_url(),
+            })
+            logger.info(f">> Logging causal graph including chaos-injected metrics of {record.chaos_case_file()}")
+            log_causal_graph(run, causal_subgraphs, record, routes, reduced_df)
 
     tests_df = pd.DataFrame(tests_records).set_index(
         ['chaos_type', 'chaos_comp', 'metrics_file', 'grafana_dashboard_url'])

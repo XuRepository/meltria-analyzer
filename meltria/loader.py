@@ -97,6 +97,7 @@ def load_dataset_as_generator(
 
 def load_dataset(
     metrics_files: list[str], target_metric_types: dict[str, bool], num_datapoints: int,
+    logger: logging.Logger = logging.getLogger(),
 ) -> list[DatasetRecord]:
     """ Load metrics dataset """
     records: list[DatasetRecord] = []
@@ -106,30 +107,19 @@ def load_dataset(
             f = executor.submit(read_metrics_file, metrics_file, target_metric_types, num_datapoints)
             future_to_metrics_file[f] = os.path.basename(metrics_file)
         for future in futures.as_completed(future_to_metrics_file):
-            if (record := future.result()) is not None:
-                records.append(record)
+            metrics_file = future_to_metrics_file[future]
+            try:
+                record: DatasetRecord = future.result()
+            except ValueError as e:
+                logger.warning(f">> Skip {metrics_file} because of {e}")
+                continue
+            records.append(record)
     if len(records) < 1:
         raise ValueError("No metrics data loaded")
     return records
 
 
 def read_metrics_file(
-    metrics_file: str,
-    target_metric_types: dict[str, bool],
-    num_datapoints: int,
-    logger: logging.Logger = logging.getLogger(),
-) -> DatasetRecord | None:
-    try:
-        record: DatasetRecord = read_metrics_json(
-            metrics_file, target_metric_types, num_datapoints,
-        )
-    except ValueError as e:
-        logger.warning(f">> Skip {metrics_file} because of {e}")
-        return None
-    return record
-
-
-def read_metrics_json(
     data_file: str,
     target_metric_types: dict[str, bool],
     num_datapoints: int,

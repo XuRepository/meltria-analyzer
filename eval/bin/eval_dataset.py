@@ -22,17 +22,6 @@ logger = logging.getLogger('eval_dataset')
 logger.setLevel(logging.INFO)
 
 
-def validate_anomalie_range(metrics: pd.DataFrame, labbeling: dict[str, Any], fi_time: int) -> dict[int, Any]:
-    """ Evaluate the range of anomalies in KPI metrics """
-    result: dict[int, Any] = {}
-    for n_sigma in labbeling['n_sigma_rule']['n_sigmas']:
-        anomalies_range = metrics.apply(
-            lambda X: detect_with_n_sigma_rule(X, test_start_time=fi_time, sigma_threshold=n_sigma).size > 0
-        )
-        result[n_sigma] = anomalies_range.to_dict()
-    return result
-
-
 def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
     """ Evaluate a dataset """
     dataset_generator = meltria.loader.load_dataset_as_generator(
@@ -44,6 +33,7 @@ def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
 
     kpi_df_list: list[pd.DataFrame] = []
     for records in dataset_generator:
+        record: DatasetRecord
         for record in records:
             kpi_df = validate_data_record(
                 record,

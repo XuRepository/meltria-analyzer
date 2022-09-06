@@ -1,14 +1,13 @@
 import json
-import logging
 import os
 import warnings
 from collections import defaultdict
 from collections.abc import Iterator
-from concurrent import futures
 from dataclasses import dataclass
 from multiprocessing import cpu_count
 from typing import Any
 
+import joblib
 import numpy as np
 import pandas as pd
 
@@ -97,24 +96,12 @@ def load_dataset_as_generator(
 
 def load_dataset(
     metrics_files: list[str], target_metric_types: dict[str, bool], num_datapoints: int,
-    logger: logging.Logger = logging.getLogger(),
 ) -> list[DatasetRecord]:
     """ Load metrics dataset """
-    records: list[DatasetRecord] = []
-    with futures.ProcessPoolExecutor(max_workers=cpu_count()) as executor:
-        future_to_metrics_file = {}
-        for metrics_file in metrics_files:
-            f = executor.submit(read_metrics_file, metrics_file, target_metric_types, num_datapoints)
-            future_to_metrics_file[f] = os.path.basename(metrics_file)
-        for future in futures.as_completed(future_to_metrics_file):
-            metrics_file = future_to_metrics_file[future]
-            try:
-                record: DatasetRecord = future.result()
-            except ValueError as e:
-                logger.warning(f">> Skip {metrics_file} because of {e}")
-                continue
-            records.append(record)
-    if len(records) < 1:
+    records: list[DatasetRecord] | None = joblib.Parallel(n_jobs=-1, backend='multiprocessing')(
+        joblib.delayed(read_metrics_file)(path, target_metric_types, num_datapoints) for path in metrics_files
+    )
+    if records is None or len(records) < 1:
         raise ValueError("No metrics data loaded")
     return records
 

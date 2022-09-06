@@ -5,6 +5,7 @@ import os
 from typing import Any
 
 import hydra
+import joblib
 import neptune.new as neptune
 import pandas as pd
 from neptune.new.integrations.python_logger import NeptuneHandler
@@ -14,12 +15,15 @@ from tabulate import tabulate
 import meltria.loader
 from eval.validation import validate_data_record
 from meltria.loader import DatasetRecord
-from meltria.priorknowledge.priorknowledge import PriorKnowledge, new_knowledge
-from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
 
 # see https://docs.neptune.ai/api-reference/integrations/python-logger
 logger = logging.getLogger('eval_dataset')
 logger.setLevel(logging.INFO)
+
+
+def validate_data_record_wrapper(record: DatasetRecord, labbeling: dict[str, dict[str, Any]], fi_time: int) -> pd.DataFrame | None:
+    logger.info(f">> Validating data record of {record.chaos_case_full()} ...")
+    return validate_data_record(record, labbeling, fi_time)
 
 
 def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
@@ -31,18 +35,17 @@ def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
     )
     logger.info(">> Loading dataset")
 
+    labbeling: dict[str, dict[str, Any]] = OmegaConf.to_container(cfg.labbeling, resolve=True)
+    fi_time: int = cfg.time.fault_inject_time_index
+
     kpi_df_list: list[pd.DataFrame] = []
     for records in dataset_generator:
-        record: DatasetRecord
-        for record in records:
-            kpi_df = validate_data_record(
-                record,
-                OmegaConf.to_container(cfg.labbeling, resolve=True),
-                cfg.time.fault_inject_time_index,
-            )
-            if kpi_df is None:
-                continue
-            kpi_df_list.append(kpi_df)
+        dfs: list[pd.DataFrame] | None = joblib.Parallel(n_jobs=-1, backend='multiprocessing')(
+            joblib.delayed(validate_data_record_wrapper)(record, labbeling, fi_time) for record in records
+        )
+        if dfs is None:
+            continue
+        kpi_df_list.extend(dfs)
 
     kpi_df = pd.concat(kpi_df_list)
     # reset_index: see https://stackoverflow.com/questions/70013696/print-multi-index-dataframe-with-tabulate

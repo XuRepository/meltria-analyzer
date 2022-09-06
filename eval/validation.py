@@ -1,7 +1,4 @@
 import math
-from concurrent import futures
-from concurrent.futures import Future
-from multiprocessing import cpu_count
 from typing import Any
 
 import pandas as pd
@@ -11,7 +8,7 @@ from meltria.loader import DatasetRecord
 from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
 
 
-def validate_anomalie_range(metrics: pd.DataFrame, labbeling: dict[str, Any], fi_time: int) -> dict[int, Any]:
+def validate_anomalie_range(metrics: pd.DataFrame, labbeling: dict[str, dict[str, Any]], fi_time: int) -> dict[int, Any]:
     """ Evaluate the range of anomalies in KPI metrics """
     result: dict[int, Any] = {}
     for n_sigma in labbeling['n_sigma_rule']['n_sigmas']:
@@ -27,7 +24,7 @@ def validate_route(
     route_no: int,
     gt_route,
     gt_route_matcher,
-    labbeling: dict[str, Any],
+    labbeling: dict[str, dict[str, Any]],
     fault_inject_time_index: int,
 ) -> list[dict[str, Any]]:
     validation_results: list[dict[str, Any]] = []
@@ -53,29 +50,22 @@ def validate_route(
 
 def validate_data_record(
     record: DatasetRecord,
-    labbeling: dict[str, Any],
+    labbeling: dict[str, dict[str, Any]],
     fault_inject_time_index: int,
-    n_workers: int = 0,
 ) -> pd.DataFrame | None:
     gt_metrics_routes = select_ground_truth_metrics_in_routes(
         record.pk, list(record.data_df.columns), record.chaos_type(), record.chaos_comp(),
     )
     validation_results: list[dict[str, Any]] = []
-    if n_workers == 0:
-        n_workers = cpu_count()
-    with futures.ProcessPoolExecutor(max_workers=n_workers) as executor:
-        future_to_gt_route_no: dict[Future, int] = {}
-        for i, (gt_route, gt_route_matcher) in enumerate(gt_metrics_routes):
-            f: Future = executor.submit(
-                validate_route, record, i, gt_route, gt_route_matcher, labbeling, fault_inject_time_index)
-            future_to_gt_route_no[f] = i
-        for future in futures.as_completed(future_to_gt_route_no):
-            if (res := future.result()) is None:
-                continue
-            validation_results.extend(res)
+    for i, (gt_route, gt_route_matcher) in enumerate(gt_metrics_routes):
+        res = validate_route(record, i, gt_route, gt_route_matcher, labbeling, fault_inject_time_index)
+        if res is None:
+            continue
+        validation_results.extend(res)
     if not validation_results:
         return None
-    return pd.DataFrame(validation_results).set_index(['chaos_type', 'chaos_comp', 'metrics_file', 'route_no', 'n_sigma'])
+    return pd.DataFrame(validation_results).set_index(
+        ['chaos_type', 'chaos_comp', 'metrics_file', 'route_no', 'n_sigma'])
 
 
 def check_valid_dataset(

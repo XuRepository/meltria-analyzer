@@ -12,7 +12,6 @@ from omegaconf import DictConfig, OmegaConf
 from tabulate import tabulate
 
 import meltria.loader
-from eval.validation import validate_data_record
 from meltria.loader import DatasetRecord
 from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
 
@@ -37,6 +36,8 @@ def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
     for records in dataset_generator:
         record: DatasetRecord
         for record in records:
+            logger.info(f">> Processing {record.chaos_case_full()} ...")
+
             def detect_anomaly(X: pd.Series, n_sigma: int) -> bool:
                 return detect_with_n_sigma_rule(X, test_start_time=fi_time, sigma_threshold=n_sigma).size > 0
 

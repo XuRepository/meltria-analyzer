@@ -41,15 +41,6 @@ class Tsdr:
     def univariate_series_func(self, series: np.ndarray, **kwargs: Any) -> UnivariateSeriesReductionResult:
         return unireducer.ar_based_ad_model(series, **kwargs)
 
-    def filter_out_no_change_metrics(self, series: pd.DataFrame) -> pd.DataFrame:
-        def filter(x: pd.Series) -> bool:
-            # pd.Series.diff returns a series with the first element is NaN
-            if x.isna().all() or (x == x.iat[0]).all() or ((diff_x := x.diff()[1:]) == diff_x.iat[0]).all():
-                return False
-            # remove an array including only the same value or nan
-            return not diff_x.apply(lambda z: np.isnan(z) or z == 0).all()
-        return series.loc[:, series.apply(filter)]
-
     def detect_failure_start_point(self, sli: np.ndarray, sigma_threshold=3) -> tuple[int, float]:
         """ Detect failure start point in SLO metrics.
         The method uses outliter detection with 'robust z-score' and 3-sigma rule.
@@ -99,7 +90,7 @@ class Tsdr:
         # step0
         start: float = time.time()
 
-        series: pd.DataFrame = self.filter_out_no_change_metrics(X)
+        series: pd.DataFrame = filter_out_no_change_metrics(X)
 
         elapsed_time: float = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
         stat.append((series, count_metrics(series), elapsed_time))
@@ -255,6 +246,16 @@ class Tsdr:
                 clustering_info.update(c_info)
                 series.drop(remove_list, axis=1, inplace=True)
         return series, clustering_info
+
+
+def filter_out_no_change_metrics(data_df: pd.DataFrame) -> pd.DataFrame:
+    def filter(x: pd.Series) -> bool:
+        # pd.Series.diff returns a series with the first element is NaN
+        if x.isna().all() or (x == x.iat[0]).all() or ((diff_x := x.diff()[1:]) == diff_x.iat[0]).all():
+            return False
+        # remove an array including only the same value or nan
+        return not diff_x.apply(lambda z: np.isnan(z) or z == 0).all()
+    return data_df.loc[:, data_df.apply(filter)]
 
 
 def reduce_series_with_cv(data_df: pd.DataFrame, cv_threshold: float = 0.002):

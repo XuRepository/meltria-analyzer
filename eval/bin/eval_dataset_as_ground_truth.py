@@ -16,6 +16,7 @@ from tabulate import tabulate
 import meltria.loader
 from meltria.loader import DatasetRecord
 from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
+from tsdr.tsdr import filter_out_no_change_metrics
 
 # see https://docs.neptune.ai/api-reference/integrations/python-logger
 logger = logging.getLogger('eval_dataset')
@@ -26,6 +27,8 @@ def detect_anomalies_in_record(
     record: DatasetRecord, labbeling: dict[str, dict[str, Any]], fi_time: int,
 ) -> pd.DataFrame:
     logger.info(f">> Processing {record.chaos_case_full()} ...")
+
+    filtered_df: pd.DataFrame = filter_out_no_change_metrics(record.data_df)
 
     """ Detect anomalies in a dataset record """
     def detect_anomaly(X: pd.Series, n_sigma: int) -> bool:
@@ -41,8 +44,8 @@ def detect_anomalies_in_record(
             'chaos_comp': record.chaos_comp(),
             'chaos_case_num': record.chaos_case_num(),
             'n_sigma': n_sigma,
-            'num_anomalies': f"{vc[True]} / {vc[True] + vc[False]}",
-            'anomalies_rate': round(vc[True] / (vc[True] + vc[False]), 2),
+            'num_anomalies': f"{vc[True]}/{filtered_df.shape[1]}/{vc[True] + vc[False]}",
+            'anomalies_rate': round(vc[True] / filtered_df.shape[1], 2),
         })
     df = pd.DataFrame(
         items,

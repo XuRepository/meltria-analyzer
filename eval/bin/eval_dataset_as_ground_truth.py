@@ -6,6 +6,7 @@ from functools import partial
 from typing import Any
 
 import hydra
+import joblib
 import neptune.new as neptune
 import pandas as pd
 from neptune.new.integrations.python_logger import NeptuneHandler
@@ -24,6 +25,8 @@ logger.setLevel(logging.INFO)
 def detect_anomalies_in_record(
     record: DatasetRecord, labbeling: dict[str, dict[str, Any]], fi_time: int,
 ) -> pd.DataFrame:
+    logger.info(f">> Processing {record.chaos_case_full()} ...")
+
     """ Detect anomalies in a dataset record """
     def detect_anomaly(X: pd.Series, n_sigma: int) -> bool:
         return detect_with_n_sigma_rule(X, test_start_time=fi_time, sigma_threshold=n_sigma).size > 0
@@ -62,11 +65,12 @@ def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
 
     stat_df_list: list[pd.DataFrame] = []
     for records in dataset_generator:
-        record: DatasetRecord
-        for record in records:
-            logger.info(f">> Processing {record.chaos_case_full()} ...")
-            df = detect_anomalies_in_record(record, labbeling, fi_time)
-            stat_df_list.append(df)
+        dfs: list[pd.DataFrame] | None = joblib.Parallel(n_jobs=-1, backend='multiprocessing')(
+            joblib.delayed(detect_anomalies_in_record)(record, labbeling, fi_time) for record in records
+        )
+        if dfs is None:
+            continue
+        stat_df_list.extend(dfs)
 
     stat_df = pd.concat(stat_df_list, copy=False)
     # reset_index: see https://stackoverflow.com/questions/70013696/print-multi-index-dataframe-with-tabulate

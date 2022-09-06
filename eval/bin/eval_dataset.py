@@ -57,8 +57,8 @@ def main(cfg: DictConfig) -> None:
 
     # Setup neptune.ai client
     run: neptune.Run = neptune.init(
-        project=os.environ['TSDR_NEPTUNE_PROJECT'],
-        api_token=os.environ['TSDR_NEPTUNE_API_TOKEN'],
+        project=os.environ['DATASET_NEPTUNE_PROJECT'],
+        api_token=os.environ['DATASET_NEPTUNE_API_TOKEN'],
         mode=cfg.neptune.mode,
     )
     npt_handler = NeptuneHandler(run=run)

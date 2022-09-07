@@ -259,15 +259,6 @@ def filter_out_no_change_metrics(data_df: pd.DataFrame) -> pd.DataFrame:
     return data_df.loc[:, data_df.apply(filter)]
 
 
-def reduce_series_with_cv(data_df: pd.DataFrame, cv_threshold: float = 0.002):
-    reduced_by_cv_df = pd.DataFrame()
-    for col in data_df.columns:
-        data = data_df[col].values
-        if has_variation(data, cv_threshold):
-            reduced_by_cv_df[col] = data_df[col]
-    return reduced_by_cv_df
-
-
 def hierarchical_clustering(
     target_df: pd.DataFrame,
     dist_func: Callable,

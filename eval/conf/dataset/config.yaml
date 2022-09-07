@@ -8,6 +8,7 @@ target_metric_types:
 upload_plots: false  # upload graph image to Neptune
 neptune:
   mode: debug
+eval_task: validation  # validation or labeling
 time:
   num_datapoints: 120
   fault_inject_time_index: 99

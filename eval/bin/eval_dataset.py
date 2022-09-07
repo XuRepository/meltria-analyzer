@@ -2,7 +2,7 @@
 
 import logging
 import os
-from typing import Any
+from typing import Any, Callable
 
 import hydra
 import joblib
@@ -13,17 +13,12 @@ from omegaconf import DictConfig, OmegaConf
 from tabulate import tabulate
 
 import meltria.loader
+from eval.labeling import detect_anomalies_in_record
 from eval.validation import validate_data_record
-from meltria.loader import DatasetRecord
 
 # see https://docs.neptune.ai/api-reference/integrations/python-logger
 logger = logging.getLogger('eval_dataset')
 logger.setLevel(logging.INFO)
-
-
-def validate_data_record_wrapper(record: DatasetRecord, labbeling: dict[str, dict[str, Any]], fi_time: int) -> pd.DataFrame | None:
-    logger.info(f">> Validating data record of {record.chaos_case_full()} ...")
-    return validate_data_record(record, labbeling, fi_time)
 
 
 def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
@@ -38,19 +33,32 @@ def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
     labbeling: dict[str, dict[str, Any]] = OmegaConf.to_container(cfg.labbeling, resolve=True)
     fi_time: int = cfg.time.fault_inject_time_index
 
-    kpi_df_list: list[pd.DataFrame] = []
+    eval_func: Callable
+    doing: str
+    match cfg.eval_task:
+        case 'validation':
+            eval_func, doing = validate_data_record, 'Validating'
+        case 'labeling':
+            eval_func, doing = detect_anomalies_in_record, 'Labeling'
+        case _:
+            raise ValueError(f"Unknown eval_task: {cfg.eval_task}")
+
+    stat_dfs: list[pd.DataFrame] = []
     for records in dataset_generator:
+        for record in records:
+            logger.info(f">> {doing} data record of {record.chaos_case_full()} ...")
+
         dfs: list[pd.DataFrame] | None = joblib.Parallel(n_jobs=-1, backend='multiprocessing')(
-            joblib.delayed(validate_data_record_wrapper)(record, labbeling, fi_time) for record in records
+            joblib.delayed(eval_func)(record, labbeling, fi_time) for record in records
         )
         if dfs is None:
             continue
-        kpi_df_list.extend(dfs)
+        stat_dfs.extend(dfs)
 
-    kpi_df = pd.concat(kpi_df_list)
+    stat_df = pd.concat(stat_dfs)
     # reset_index: see https://stackoverflow.com/questions/70013696/print-multi-index-dataframe-with-tabulate
     print(tabulate(
-        kpi_df.reset_index(), headers='keys', tablefmt='github',
+        stat_df.reset_index(), headers='keys', tablefmt='github',
         numalign='right', stralign='left', showindex='always'))
 
 

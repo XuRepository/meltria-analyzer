@@ -1,20 +1,24 @@
 version: '3'
 
 services:
-  tsdr:
+  eval-dataset:
     build: .
     volumes:
       - .:/usr/src/app
-    entrypoint: ["/usr/src/app/bin/tsdr_cli.py"]
+    entrypoint: ["/usr/src/app/eval/bin/eval_dataset.py"]
+    env_file:
+      - .env.local
   eval-tsdr:
     build: .
     volumes:
       - .:/usr/src/app
-    entrypoint: ["/usr/src/app/tools/eval_tsdr.py"]
+    entrypoint: ["/usr/src/app/eval/bin/eval_tsdr.py"]
     env_file:
       - .env.local
-  verify-metrics:
+  eval-diagnoser:
     build: .
     volumes:
       - .:/usr/src/app
-    entrypoint: ["/usr/src/app/tools/verify_metrics.py"]
+    entrypoint: ["/usr/src/app/eval/bin/eval_diagnoser.py"]
+    env_file:
+      - .env.local

@@ -25,7 +25,6 @@ import meltria.loader as meltria_loader
 from eval import groundtruth
 from eval.validation import check_valid_dataset
 from meltria.loader import DatasetRecord
-from meltria.priorknowledge.priorknowledge import PriorKnowledge, new_knowledge
 from tsdr import tsdr
 
 hv.extension('bokeh')

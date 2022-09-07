@@ -1,7 +1,7 @@
 import re
 from collections import defaultdict
 from functools import cache
-from typing import Any
+from typing import Any, Final
 
 import networkx as nx
 
@@ -9,7 +9,7 @@ import diagnoser.metric_node as mn
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
 # TODO: define this by each target app.
-CHAOS_TO_CAUSE_METRIC_PATTERNS: dict[str, list[str]] = {
+CHAOS_TO_CAUSE_METRIC_PATTERNS: Final[dict[str, list[str]]] = {
     'pod-cpu-hog': [
         'cpu_.+', 'threads', 'sockets', 'file_descriptors', 'processes', 'memory_cache', 'memory_mapped_file',
     ],

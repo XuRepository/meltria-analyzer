@@ -15,8 +15,6 @@ from meltria.priorknowledge.priorknowledge import PriorKnowledge
 from .citest.fisher_z import ci_test_fisher_z
 from .citest.fisher_z_pgmpy import fisher_z
 
-SIGNIFICANCE_LEVEL = 0.05
-
 
 def filter_by_target_metrics(data_df: pd.DataFrame, pk: PriorKnowledge) -> pd.DataFrame:
     """Filter by specified target metrics

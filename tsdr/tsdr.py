@@ -2,7 +2,7 @@ import random
 import time
 from collections.abc import Callable
 from concurrent import futures
-from typing import Any
+from typing import Any, Final
 
 import numpy as np
 import pandas as pd
@@ -21,7 +21,7 @@ from tsdr.clustering.sbd import sbd, silhouette_score
 from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
 from tsdr.unireducer import UnivariateSeriesReductionResult, has_variation
 
-ELAPSED_TIME_NUM_DECIMAL_PLACES: int = 4
+ELAPSED_TIME_NUM_DECIMAL_PLACES: Final[int] = 4
 
 
 class Tsdr:

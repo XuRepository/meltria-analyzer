@@ -1,11 +1,13 @@
+from typing import Final
+
 import networkx as nx
 
-TARGET_APP_NAME: str = 'sock-shop'
+TARGET_APP_NAME: Final[str] = 'sock-shop'
 
-ROOT_SERVICE: str = 'front-end'
-ROOT_METRIC_LABELS: tuple[str, str, str] = ("s-front-end_latency", "s-front-end_throughput", "s-front-end_errors")
+ROOT_SERVICE: Final[str] = 'front-end'
+ROOT_METRIC_LABELS: Final[tuple[str, str, str]] = ("s-front-end_latency", "s-front-end_throughput", "s-front-end_errors")
 
-SERVICE_CALL_DIGRAPH: nx.DiGraph = nx.DiGraph([
+SERVICE_CALL_DIGRAPH: Final[nx.DiGraph] = nx.DiGraph([
     ('front-end', 'orders'),
     ('front-end', 'catalogue'),
     ('front-end', 'user'),
@@ -16,7 +18,7 @@ SERVICE_CALL_DIGRAPH: nx.DiGraph = nx.DiGraph([
     ('orders', 'carts'),
 ])
 
-CONTAINER_CALL_DIGRAPH: nx.DiGraph = nx.DiGraph([
+CONTAINER_CALL_DIGRAPH: Final[nx.DiGraph] = nx.DiGraph([
     ('front-end', 'orders'),
     ('front-end', 'carts'),
     ('front-end', 'user'),
@@ -34,7 +36,7 @@ CONTAINER_CALL_DIGRAPH: nx.DiGraph = nx.DiGraph([
     ('rabbitmq', 'queue-master'),
 ])
 
-CONTAINER_CALL_GRAPH: dict[str, list[str]] = {
+CONTAINER_CALL_GRAPH: Final[dict[str, list[str]]] = {
     "front-end": ["orders", "carts", "user", "catalogue"],
     "catalogue": ["front-end", "catalogue-db"],
     "catalogue-db": ["catalogue"],
@@ -52,7 +54,7 @@ CONTAINER_CALL_GRAPH: dict[str, list[str]] = {
 }
 
 # Use list of tuple because of supporting multiple routes
-SERVICE_TO_SERVICES: dict[str, list[str]] = {
+SERVICE_TO_SERVICES: Final[dict[str, list[str]]] = {
     'orders': ['front-end'],
     'carts': ['orders', 'front-end'],
     'user': ['orders', 'front-end'],
@@ -63,7 +65,7 @@ SERVICE_TO_SERVICES: dict[str, list[str]] = {
 }
 
 # TODO: wrong call graph?
-SERVICE_TO_SERVICE_ROUTES: dict[str, list[tuple[str, ...]]] = {
+SERVICE_TO_SERVICE_ROUTES: Final[dict[str, list[tuple[str, ...]]]] = {
     'orders': [('front-end',)],
     'carts': [('orders', 'front-end'), ('front-end',)],
     'user': [('orders', 'front-end'), ('front-end',)],
@@ -73,7 +75,7 @@ SERVICE_TO_SERVICE_ROUTES: dict[str, list[tuple[str, ...]]] = {
     'front-end': [()],
 }
 
-SERVICE_CONTAINERS: dict[str, list[str]] = {
+SERVICE_CONTAINERS: Final[dict[str, list[str]]] = {
     "carts": ["carts", "carts-db"],
     "payment": ["payment"],
     "shipping": ["shipping"],
@@ -83,11 +85,11 @@ SERVICE_CONTAINERS: dict[str, list[str]] = {
     "orders": ["orders", "orders-db"],
 }
 
-CONTAINER_TO_SERVICE: dict[str, str] = {c: s for s, ctnrs in SERVICE_CONTAINERS.items() for c in ctnrs}
+CONTAINER_TO_SERVICE: Final[dict[str, str]] = {c: s for s, ctnrs in SERVICE_CONTAINERS.items() for c in ctnrs}
 
-SKIP_CONTAINERS = ["queue-master", "rabbitmq", "session-db"]
+SKIP_CONTAINERS: Final[list[str]] = ["queue-master", "rabbitmq", "session-db"]
 
-DIAGNOSER_TARGET_DATA: dict[str, list[str]] = {
+DIAGNOSER_TARGET_DATA: Final[dict[str, list[str]]] = {
     "containers": [],  # all
     "services": ["throughput", "latency", "errors"],
     "nodes": [

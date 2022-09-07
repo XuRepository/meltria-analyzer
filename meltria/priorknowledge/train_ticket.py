@@ -1,15 +1,17 @@
+from typing import Final
+
 import networkx as nx
 
-TARGET_APP_NAME: str = 'train-ticket'
+TARGET_APP_NAME: Final[str] = 'train-ticket'
 
-ROOT_SERVICE: str = 'ts-ui-dashboard'
-ROOT_METRIC_LABELS: tuple[str, str, str] = (
+ROOT_SERVICE: Final[str] = 'ts-ui-dashboard'
+ROOT_METRIC_LABELS: Final[tuple[str, str, str]] = (
     "s-ts-ui-dashboard_request_duration_seconds",
     "s-ts-ui-dashboard_requests_count",
     "s-ts-ui-dashboard_requests_errors_count",
 )
 
-SERVICE_CALL_DIGRAPH: nx.DiGraph = nx.DiGraph([
+SERVICE_CALL_DIGRAPH: Final[nx.DiGraph] = nx.DiGraph([
     ('ts-ui-dashboard', 'ts-travel'),
     ('ts-ui-dashboard', 'ts-travel2'),
     ('ts-ui-dashboard', 'ts-user'),
@@ -170,7 +172,7 @@ SERVICE_CALL_DIGRAPH: nx.DiGraph = nx.DiGraph([
 ])
 
 
-SERVICE_CONTAINERS: dict[str, list[str]] = {
+SERVICE_CONTAINERS: Final[dict[str, list[str]]] = {
     "rabbitmq": ["rabbitmq"],
     "ts-admin-basic-info": ["ts-admin-basic-info-service"],
     "ts-admin-order": ["ts-admin-order-service"],
@@ -217,7 +219,7 @@ SERVICE_CONTAINERS: dict[str, list[str]] = {
     "ts-voucher": ["ts-voucher-service", "ts-voucher-mysql"],
 }
 
-CONTAINER_TO_SERVICE: dict[str, str] = {c: s for s, ctnrs in SERVICE_CONTAINERS.items() for c in ctnrs}
+CONTAINER_TO_SERVICE: Final[dict[str, str]] = {c: s for s, ctnrs in SERVICE_CONTAINERS.items() for c in ctnrs}
 
 
 def generate_container_call_graph() -> nx.DiGraph:
@@ -233,14 +235,14 @@ def generate_container_call_graph() -> nx.DiGraph:
     return ctnr_g
 
 
-CONTAINER_CALL_DIGRAPH: nx.DiGraph = generate_container_call_graph()
+CONTAINER_CALL_DIGRAPH: Final[nx.DiGraph] = generate_container_call_graph()
 
-CONTAINER_CALL_GRAPH: dict[str, list[str]] = {n: list(nbr.keys()) for n, nbr in CONTAINER_CALL_DIGRAPH.adjacency()}
+CONTAINER_CALL_GRAPH: Final[dict[str, list[str]]] = {n: list(nbr.keys()) for n, nbr in CONTAINER_CALL_DIGRAPH.adjacency()}
 
 
-SKIP_CONTAINERS: list[str] = []
+SKIP_CONTAINERS: Final[list[str]] = []
 
-DIAGNOSER_TARGET_DATA: dict[str, list[str]] = {
+DIAGNOSER_TARGET_DATA: Final[dict[str, list[str]]] = {
     "containers": [],  # all
     "services": ["request_duration_seconds", "requests_count", "requests_errors_counterrors"],
     "nodes": [],  # all

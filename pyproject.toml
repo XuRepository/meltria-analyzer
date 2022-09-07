@@ -36,6 +36,7 @@ pyod = "^1.0.0"
 tabulate = "^0.8.10"
 types-tabulate = "^0.8.11"
 joblib = "^1.1.0"
+pandarallel = "^1.6.3"
 
 [tool.poetry.dev-dependencies]
 flake8 = "^5.0.4"

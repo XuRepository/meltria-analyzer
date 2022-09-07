@@ -11,7 +11,7 @@ from tsdr.tsdr import filter_out_no_change_metrics
 def detect_anomalies_in_record(
     record: DatasetRecord, labbeling: dict[str, dict[str, Any]], fi_time: int,
 ) -> pd.DataFrame:
-    filtered_df: pd.DataFrame = filter_out_no_change_metrics(record.data_df)
+    filtered_df: pd.DataFrame = filter_out_no_change_metrics(record.data_df, parallel=False)
 
     """ Detect anomalies in a dataset record """
     def detect_anomaly(X: pd.Series, n_sigma: int) -> bool:

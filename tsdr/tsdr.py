@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import scipy.signal
 import scipy.stats
+from pandarallel import pandarallel
 from scipy.cluster.hierarchy import fcluster, linkage
 from scipy.spatial.distance import hamming, pdist, squareform
 
@@ -22,6 +23,8 @@ from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
 from tsdr.unireducer import UnivariateSeriesReductionResult, has_variation
 
 ELAPSED_TIME_NUM_DECIMAL_PLACES: Final[int] = 4
+
+pandarallel.initialize(progress_bar=False)
 
 
 class Tsdr:
@@ -91,7 +94,7 @@ class Tsdr:
         # step0
         start: float = time.time()
 
-        series: pd.DataFrame = filter_out_no_change_metrics(X)
+        series: pd.DataFrame = filter_out_no_change_metrics(X, parallel=(max_workers != 1))
 
         elapsed_time: float = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
         stat.append((series, count_metrics(series), elapsed_time))
@@ -249,7 +252,7 @@ class Tsdr:
         return series, clustering_info
 
 
-def filter_out_no_change_metrics(data_df: pd.DataFrame) -> pd.DataFrame:
+def filter_out_no_change_metrics(data_df: pd.DataFrame, parallel: bool = False) -> pd.DataFrame:
     vf: Callable = np.vectorize(lambda x: np.isnan(x) or x == 0)
 
     def filter(x: pd.Series) -> bool:
@@ -259,7 +262,10 @@ def filter_out_no_change_metrics(data_df: pd.DataFrame) -> pd.DataFrame:
         # remove an array including only the same value or nan
         return not vf(diff_x).all()
 
-    return data_df.loc[:, data_df.apply(filter)]
+    if parallel:
+        return data_df.loc[:, data_df.parallel_apply(filter)]
+    else:
+        return data_df.loc[:, data_df.apply(filter)]
 
 
 def hierarchical_clustering(

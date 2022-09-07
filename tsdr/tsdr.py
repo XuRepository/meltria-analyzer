@@ -1,7 +1,8 @@
 import random
 import time
+from collections.abc import Callable
 from concurrent import futures
-from typing import Any, Callable
+from typing import Any
 
 import numpy as np
 import pandas as pd

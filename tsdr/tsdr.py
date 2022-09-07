@@ -250,12 +250,15 @@ class Tsdr:
 
 
 def filter_out_no_change_metrics(data_df: pd.DataFrame) -> pd.DataFrame:
+    vf: Callable = np.vectorize(lambda x: np.isnan(x) or x == 0)
+
     def filter(x: pd.Series) -> bool:
         # pd.Series.diff returns a series with the first element is NaN
-        if x.isna().all() or (x == x.iat[0]).all() or ((diff_x := x.diff()[1:]) == diff_x.iat[0]).all():
+        if x.isna().all() or (x == x.iat[0]).all() or ((diff_x := np.diff(x)) == diff_x[0]).all():
             return False
         # remove an array including only the same value or nan
-        return not diff_x.apply(lambda z: np.isnan(z) or z == 0).all()
+        return not vf(diff_x).all()
+
     return data_df.loc[:, data_df.apply(filter)]
 
 

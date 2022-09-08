@@ -6,7 +6,7 @@ import math
 import numpy as np
 from numpy.fft import fft, ifft
 from numpy.linalg import eigh, norm
-from numpy.random import randint, seed
+from numpy.random import randint
 
 
 def zscore(a: np.ndarray, axis: int = 0, ddof: int = 0) -> np.ndarray:

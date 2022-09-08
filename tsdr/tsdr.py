@@ -20,7 +20,7 @@ from tsdr.clustering.kshape import kshape
 from tsdr.clustering.metricsnamecluster import cluster_words
 from tsdr.clustering.sbd import sbd, silhouette_score
 from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
-from tsdr.unireducer import UnivariateSeriesReductionResult, has_variation
+from tsdr.unireducer import UnivariateSeriesReductionResult
 
 ELAPSED_TIME_NUM_DECIMAL_PLACES: Final[int] = 4
 

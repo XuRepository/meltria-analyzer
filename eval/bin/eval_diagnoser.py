@@ -24,7 +24,7 @@ import meltria.loader as meltria_loader
 from diagnoser import diag
 from eval import groundtruth
 from meltria.loader import DatasetRecord
-from meltria.priorknowledge.priorknowledge import PriorKnowledge, new_knowledge
+from meltria.priorknowledge.priorknowledge import PriorKnowledge
 from tsdr import tsdr
 
 hv.extension("bokeh")

@@ -248,7 +248,7 @@ def differencial_of_anomaly_score_model(series: np.ndarray, **kwargs: Any) -> Un
     train_series, test_series = np.split(series, 2)
 
     # Phase 1
-    ar_threshold: float = kwargs["step1_ar_anomaly_score_threshold"]
+    # ar_threshold: float = kwargs["step1_ar_anomaly_score_threshold"]
     ar = AROutlierDetector(train_series)
     ar.fit(
         regression=kwargs["step1_ar_regression"],

@@ -1,5 +1,3 @@
-from pprint import pp, pprint
-
 import numpy as np
 
 from tsdr.outlierdetection.ar import AROutlierDetector

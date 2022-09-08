@@ -17,29 +17,23 @@ from .citest.fisher_z_pgmpy import fisher_z
 
 
 def filter_by_target_metrics(data_df: pd.DataFrame, pk: PriorKnowledge) -> pd.DataFrame:
-    """Filter by specified target metrics
-    """
+    """Filter by specified target metrics"""
     containers_df, services_df, nodes_df, middlewares_df = None, None, None, None
     target: dict[str, list[str]] = pk.get_diagnoser_target_data()
-    if 'containers' in target:
-        containers_df = data_df.filter(
-            regex=f"^c-.+({'|'.join(target['containers'])})$")
-    if 'services' in target:
-        services_df = data_df.filter(
-            regex=f"^s-.+({'|'.join(target['services'])})$")
-    if 'nodes' in target:
-        nodes_df = data_df.filter(
-            regex=f"^n-.+({'|'.join(target['nodes'])})$")
-    if 'middlewares' in target:
+    if "containers" in target:
+        containers_df = data_df.filter(regex=f"^c-.+({'|'.join(target['containers'])})$")
+    if "services" in target:
+        services_df = data_df.filter(regex=f"^s-.+({'|'.join(target['services'])})$")
+    if "nodes" in target:
+        nodes_df = data_df.filter(regex=f"^n-.+({'|'.join(target['nodes'])})$")
+    if "middlewares" in target:
         # TODO: middleware
-        middlewares_df = data_df.filter(
-            regex=f"^m-.+({'|'.join(target['middlewares'])})$")
+        middlewares_df = data_df.filter(regex=f"^m-.+({'|'.join(target['middlewares'])})$")
     return pd.concat([containers_df, services_df, nodes_df], axis=1)
 
 
 def build_subgraph_of_removal_edges(nodes: mn.MetricNodes, pk: PriorKnowledge) -> nx.Graph:
-    """Build a subgraph consisting of removal edges with prior knowledges.
-    """
+    """Build a subgraph consisting of removal edges with prior knowledges."""
     ctnr_graph: nx.Graph = pk.get_container_call_digraph().to_undirected()
     service_graph: nx.Graph = pk.get_service_call_digraph().to_undirected()
     node_ctnr_graph: nx.Graph = pk.get_nodes_to_containers_graph()
@@ -69,7 +63,7 @@ def build_subgraph_of_removal_edges(nodes: mn.MetricNodes, pk: PriorKnowledge) -
         elif u.is_container() and v.is_node():
             if node_ctnr_graph.has_edge(u.comp, v.comp):
                 continue
-        elif (u.is_node() and v.is_service()):
+        elif u.is_node() and v.is_service():
             v_ctnrs: list[str] = pk.get_service_containers(v.comp)
             has_ctnr_on_node = False
             for v_ctnr in v_ctnrs:
@@ -115,7 +109,9 @@ def fix_edge_direction_based_hieralchy(G: nx.DiGraph, u: mn.MetricNode, v: mn.Me
 
 
 def fix_edge_direction_based_network_call(
-    G: nx.DiGraph, u: mn.MetricNode, v: mn.MetricNode,
+    G: nx.DiGraph,
+    u: mn.MetricNode,
+    v: mn.MetricNode,
     service_dep_graph: nx.DiGraph,
     container_dep_graph: nx.DiGraph,
     pk: PriorKnowledge,
@@ -125,8 +121,7 @@ def fix_edge_direction_based_network_call(
         # If u and v is in the same service, force bi-directed edge.
         if u.comp == v.comp:
             nx_util.set_bidirected_edge(G, u, v)
-        if (v.comp not in service_dep_graph[u.comp]) and \
-           (u.comp in service_dep_graph[v.comp]):
+        if (v.comp not in service_dep_graph[u.comp]) and (u.comp in service_dep_graph[v.comp]):
             nx_util.reverse_edge_direction(G, u, v)
 
     # From container to container
@@ -134,15 +129,13 @@ def fix_edge_direction_based_network_call(
         # If u and v is in the same container, force bi-directed edge.
         if u.comp == v.comp:
             nx_util.set_bidirected_edge(G, u, v)
-        elif (v.comp not in container_dep_graph[u.comp]) and \
-             (u.comp in container_dep_graph[v.comp]):
+        elif (v.comp not in container_dep_graph[u.comp]) and (u.comp in container_dep_graph[v.comp]):
             nx_util.reverse_edge_direction(G, u, v)
 
     # From service to container
     if u.is_service() and v.is_container():
         v_service = pk.get_service_by_container(v.comp)
-        if (v_service not in service_dep_graph[u.comp]) and \
-           (u.comp in service_dep_graph[v_service]):
+        if (v_service not in service_dep_graph[u.comp]) and (u.comp in service_dep_graph[v_service]):
             nx_util.reverse_edge_direction(G, u, v)
 
     # From container to service
@@ -150,8 +143,7 @@ def fix_edge_direction_based_network_call(
         # u_ctnr = u.split('-', maxsplit=1)[1].split('_')[0]
         # v_service = v.split('-', maxsplit=1)[1].split('_')[0]
         u_service = pk.get_service_by_container(u.comp)
-        if (v.comp not in service_dep_graph[u_service]) and \
-           (u_service in service_dep_graph[v.comp]):
+        if (v.comp not in service_dep_graph[u_service]) and (u_service in service_dep_graph[v.comp]):
             nx_util.reverse_edge_direction(G, u, v)
 
 
@@ -181,15 +173,15 @@ def build_causal_graph_with_pcalg(
     init_g: nx.Graph,
     pk: PriorKnowledge,
     pc_citest_alpha: float,
-    pc_variant: str = '',
-    pc_citest: str = 'fisher-z',
+    pc_variant: str = "",
+    pc_citest: str = "fisher-z",
 ) -> nx.DiGraph:
     """
     Build causal graph with PC algorithm.
     """
     init_g = nx.relabel_nodes(init_g, mapping=nodes.node_to_num)
     cm = np.corrcoef(dm.T)
-    ci_test = ci_test_fisher_z if pc_citest == 'fisher-z' else pc_citest
+    ci_test = ci_test_fisher_z if pc_citest == "fisher-z" else pc_citest
     (G, sep_set) = pcalg.estimate_skeleton(
         indep_test_func=ci_test,
         data_matrix=dm,
@@ -207,23 +199,22 @@ def build_causal_graphs_with_pgmpy(
     df: pd.DataFrame,
     pk: PriorKnowledge,
     pc_citest_alpha: float,
-    pc_variant: str = 'orig',
-    pc_citest: str = 'fisher-z',
+    pc_variant: str = "orig",
+    pc_citest: str = "fisher-z",
 ) -> nx.DiGraph:
     c = estimators.PC(data=df)
-    ci_test = fisher_z if pc_citest == 'fisher-z' else pc_citest
+    ci_test = fisher_z if pc_citest == "fisher-z" else pc_citest
     G: nx.DiGraph = c.estimate(
         variant=pc_variant,
         ci_test=ci_test,
         significance_level=pc_citest_alpha,
-        return_type='pdag',
+        return_type="pdag",
     )
     return fix_edge_directions_in_causal_graph(G, pk)
 
 
 def find_connected_subgraphs(G: nx.DiGraph, root_labels: tuple[str, ...]) -> tuple[list[nx.DiGraph], list[nx.DiGraph]]:
-    """ Find subgraphs connected components.
-    """
+    """Find subgraphs connected components."""
     root_contained_subg: list[nx.DiGraph] = []
     root_uncontained_subg: list[nx.DiGraph] = []
     root_nodes = [mn.MetricNode(root) for root in root_labels]
@@ -237,8 +228,7 @@ def find_connected_subgraphs(G: nx.DiGraph, root_labels: tuple[str, ...]) -> tup
 
 
 def remove_nodes_subgraph_uncontained_root(G: nx.DiGraph, root_labels: tuple[str, ...]) -> nx.DiGraph:
-    """Find graphs containing root metric node.
-    """
+    """Find graphs containing root metric node."""
     remove_nodes = []
     UG: nx.Graph = G.to_undirected()
     for node in G.nodes:
@@ -268,19 +258,23 @@ def run(
     nodes: mn.MetricNodes = mn.MetricNodes.from_dataframe(dataset)
     init_g: nx.Graph = prepare_init_graph(nodes, pk)
 
-    if (pc_library := kwargs['pc_library']) == 'pcalg':
+    if (pc_library := kwargs["pc_library"]) == "pcalg":
         G = build_causal_graph_with_pcalg(
-            dataset.to_numpy(), nodes, init_g, pk,
-            pc_variant=kwargs['pc_variant'],
-            pc_citest=kwargs['pc_citest'],
-            pc_citest_alpha=kwargs['pc_citest_alpha'],
+            dataset.to_numpy(),
+            nodes,
+            init_g,
+            pk,
+            pc_variant=kwargs["pc_variant"],
+            pc_citest=kwargs["pc_citest"],
+            pc_citest_alpha=kwargs["pc_citest_alpha"],
         )
-    elif pc_library == 'pgmpy':
+    elif pc_library == "pgmpy":
         G = build_causal_graphs_with_pgmpy(
-            dataset, pk,
-            pc_variant=kwargs['pc_variant'],
-            pc_citest=kwargs['pc_citest'],
-            pc_citest_alpha=kwargs['pc_citest_alpha'],
+            dataset,
+            pk,
+            pc_variant=kwargs["pc_variant"],
+            pc_citest=kwargs["pc_citest"],
+            pc_citest_alpha=kwargs["pc_citest_alpha"],
         )
     else:
         raise ValueError(f"pc_library should be pcalg or pgmpy ({pc_library})")
@@ -291,12 +285,12 @@ def run(
 
     G = remove_nodes_subgraph_uncontained_root(G, pk.get_root_metrics())  # for stats
     stats = {
-        'init_graph_nodes_num': init_g.number_of_nodes(),
-        'init_graph_edges_num': init_g.number_of_edges(),
-        'causal_graph_nodes_num': G.number_of_nodes(),
-        'causal_graph_edges_num': G.number_of_edges(),
-        'causal_graph_density': nx.density(G),
-        'causal_graph_flow_hierarchy': nx.flow_hierarchy(G),
-        'building_graph_elapsed_sec': building_graph_elapsed,
+        "init_graph_nodes_num": init_g.number_of_nodes(),
+        "init_graph_edges_num": init_g.number_of_edges(),
+        "causal_graph_nodes_num": G.number_of_nodes(),
+        "causal_graph_edges_num": G.number_of_edges(),
+        "causal_graph_density": nx.density(G),
+        "causal_graph_flow_hierarchy": nx.flow_hierarchy(G),
+        "building_graph_elapsed_sec": building_graph_elapsed,
     }
     return G, (root_contained_graphs, root_uncontained_graphs), stats

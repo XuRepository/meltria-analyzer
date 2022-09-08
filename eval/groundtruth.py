@@ -10,15 +10,27 @@ from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
 # TODO: define this by each target app.
 CHAOS_TO_CAUSE_METRIC_PATTERNS: Final[dict[str, list[str]]] = {
-    'pod-cpu-hog': [
-        'cpu_.+', 'threads', 'sockets', 'file_descriptors', 'processes', 'memory_cache', 'memory_mapped_file',
+    "pod-cpu-hog": [
+        "cpu_.+",
+        "threads",
+        "sockets",
+        "file_descriptors",
+        "processes",
+        "memory_cache",
+        "memory_mapped_file",
     ],
-    'pod-memory-hog': [
-        'memory_.+', 'threads', 'sockets', 'file_descriptors',
-        'processes', 'fs_inodes_total', 'fs_limit_bytes', 'ulimits_soft',
+    "pod-memory-hog": [
+        "memory_.+",
+        "threads",
+        "sockets",
+        "file_descriptors",
+        "processes",
+        "fs_inodes_total",
+        "fs_limit_bytes",
+        "ulimits_soft",
     ],
-    'pod-network-loss': ['network_.+'],
-    'pod-network-latency': ['network_.+'],
+    "pod-network-loss": ["network_.+"],
+    "pod-network-latency": ["network_.+"],
 }
 
 
@@ -52,7 +64,10 @@ def get_tsdr_ground_truth(pk: PriorKnowledge, chaos_type: str, chaos_comp: str) 
 
 
 def select_ground_truth_metrics_in_routes(
-    pk: PriorKnowledge, metrics: list[str], chaos_type: str, chaos_comp: str,
+    pk: PriorKnowledge,
+    metrics: list[str],
+    chaos_type: str,
+    chaos_comp: str,
 ) -> list[tuple[list[str], list[str]]]:
     gt_metrics_routes: list[list[str]] = get_tsdr_ground_truth(pk, chaos_type, chaos_comp)
     candidates: list[tuple[list[str], list[str]]] = []
@@ -115,9 +130,12 @@ def check_cause_metrics(nodes: mn.MetricNodes, chaos_type: str, chaos_comp: str)
 
 
 def check_causal_graph(
-    pk: PriorKnowledge, G: nx.DiGraph, chaos_type: str, chaos_comp: str,
+    pk: PriorKnowledge,
+    G: nx.DiGraph,
+    chaos_type: str,
+    chaos_comp: str,
 ) -> tuple[bool, list[mn.MetricNodes]]:
-    """Check that the causal graph (G) has the accurate route. """
+    """Check that the causal graph (G) has the accurate route."""
     call_graph: nx.DiGraph = G.reverse()  # for traverse starting from root node
     cause_metric_exps: list[str] = CHAOS_TO_CAUSE_METRIC_PATTERNS[chaos_type]
     cause_metric_pattern: re.Pattern = re.compile(f"^c-{chaos_comp}_({'|'.join(cause_metric_exps)})$")
@@ -131,7 +149,7 @@ def check_causal_graph(
                 continue
             # compare the path with ground truth paths
             for i, node in enumerate(path[1:], start=1):  # skip ROOT_METRIC
-                prev_node: mn.MetricNode = path[i-1]
+                prev_node: mn.MetricNode = path[i - 1]
                 if node.is_service():
                     if prev_node.is_container():
                         prev_service = pk.get_service_by_container(prev_node.comp)

@@ -14,8 +14,7 @@ def zscore(a: np.ndarray, axis: int = 0, ddof: int = 0) -> np.ndarray:
     mns = a.mean(axis=axis)
     sstd = a.std(axis=axis, ddof=ddof)
     if axis and mns.ndim < a.ndim:
-        res = (((a - np.expand_dims(mns, axis=axis)) /
-                np.expand_dims(sstd, axis=axis)))
+        res = (a - np.expand_dims(mns, axis=axis)) / np.expand_dims(sstd, axis=axis)
     else:
         res = (a - mns) / sstd
     return np.nan_to_num(res)
@@ -35,11 +34,11 @@ def roll_zeropad(a, shift, axis=None):
         res = np.zeros_like(a)
     elif shift < 0:
         shift += n
-        zeros = np.zeros_like(a.take(np.arange(n-shift), axis))
-        res = np.concatenate((a.take(np.arange(n-shift,n), axis), zeros), axis)
+        zeros = np.zeros_like(a.take(np.arange(n - shift), axis))
+        res = np.concatenate((a.take(np.arange(n - shift, n), axis), zeros), axis)
     else:
-        zeros = np.zeros_like(a.take(np.arange(n-shift,n), axis))
-        res = np.concatenate((zeros, a.take(np.arange(n-shift), axis)), axis)
+        zeros = np.zeros_like(a.take(np.arange(n - shift, n), axis))
+        res = np.concatenate((zeros, a.take(np.arange(n - shift), axis)), axis)
     if reshape:
         return res.reshape(a.shape)
     else:
@@ -60,9 +59,9 @@ def _ncc_c(x, y):
     den[den == 0] = np.Inf
 
     x_len = len(x)
-    fft_size = 1 << (2*x_len-1).bit_length()
+    fft_size = 1 << (2 * x_len - 1).bit_length()
     cc = ifft(fft(x, fft_size) * np.conj(fft(y, fft_size)))
-    cc = np.concatenate((cc[-(x_len-1):], cc[:x_len]))
+    cc = np.concatenate((cc[-(x_len - 1) :], cc[:x_len]))
     return np.real(cc) / den
 
 
@@ -115,7 +114,7 @@ def _extract_shape(idx, x, j, cur_center):
     s = np.dot(y.transpose(), y)
 
     p = np.empty((columns, columns))
-    p.fill(1.0/columns)
+    p.fill(1.0 / columns)
     p = np.eye(columns) - p
 
     # these are the 2 most expensive operations
@@ -144,7 +143,7 @@ def _kshape(x, k, initial_clustering=None):
         idx = initial_clustering
     else:
         idx = randint(0, k, size=m)
-    centroids = np.zeros((k,x.shape[1]))
+    centroids = np.zeros((k, x.shape[1]))
     distances = np.empty((m, k))
 
     for _ in range(100):
@@ -153,8 +152,8 @@ def _kshape(x, k, initial_clustering=None):
             centroids[j] = _extract_shape(idx, x, j, centroids[j])
 
         for i in range(m):
-             for j in range(k):
-                 distances[i,j] = 1 - max(_ncc_c(x[i], centroids[j]))
+            for j in range(k):
+                distances[i, j] = 1 - max(_ncc_c(x[i], centroids[j]))
         idx = distances.argmin(1)
         if np.array_equal(old_idx, idx):
             break
@@ -176,4 +175,5 @@ def kshape(x, k, initial_clustering=None):
 
 if __name__ == "__main__":
     import doctest
+
     doctest.testmod()

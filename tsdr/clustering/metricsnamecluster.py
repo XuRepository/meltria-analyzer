@@ -7,7 +7,7 @@ from scipy.cluster.hierarchy import fcluster, linkage
 
 def jaro_distance(ying, yang):
     if isinstance(ying, bytes) or isinstance(yang, bytes):
-        raise TypeError('ying required type of bytes')
+        raise TypeError("ying required type of bytes")
 
     ying_len = len(ying)
     yang_len = len(yang)
@@ -20,15 +20,15 @@ def jaro_distance(ying, yang):
     if search_range < 0:
         search_range = 0
 
-    ying_flags = [False]*ying_len
-    yang_flags = [False]*yang_len
+    ying_flags = [False] * ying_len
+    yang_flags = [False] * yang_len
 
     # looking only within search range, count & flag matched pairs
     common_chars = 0
     for i, ying_ch in enumerate(ying):
         low = i - search_range if i > search_range else 0
         hi = i + search_range if i + search_range < yang_len else yang_len - 1
-        for j in range(low, hi+1):
+        for j in range(low, hi + 1):
             if not yang_flags[j] and yang[j] == ying_ch:
                 ying_flags[i] = yang_flags[j] = True
                 common_chars += 1
@@ -52,8 +52,7 @@ def jaro_distance(ying, yang):
 
     # adjust for similarities in nonmatched characters
     common_chars = float(common_chars)
-    weight = ((common_chars/ying_len + common_chars/yang_len +
-              (common_chars-trans_count) / common_chars)) / 3
+    weight = ((common_chars / ying_len + common_chars / yang_len + (common_chars - trans_count) / common_chars)) / 3
     return weight
 
 
@@ -68,8 +67,9 @@ def cluster_words(words: list[str], service_name: str, size: int) -> np.ndarray:
     def distance(coord):
         i, j = coord
         return 1 - jaro_distance(cleaned_words[i], cleaned_words[j])
+
     indices = np.triu_indices(len(words), 1)
     distances = np.apply_along_axis(distance, 0, indices)
     z = linkage(distances)
-    labels = fcluster(z, t=size, criterion='maxclust')
+    labels = fcluster(z, t=size, criterion="maxclust")
     return labels

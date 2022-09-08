@@ -145,24 +145,14 @@ class PC(StructureEstimator):
         """
         # Step 0: Do checks that the specified parameters are correct, else throw meaningful error.
         if variant not in ("orig", "stable", "parallel"):
-            raise ValueError(
-                f"variant must be one of: orig, stable, or parallel. Got: {variant}"
-            )
-        elif (not callable(ci_test)) and (
-            ci_test not in ("chi_square", "independence_match", "pearsonr")
-        ):
-            raise ValueError(
-                "ci_test must be a callable or one of: chi_square, pearsonr, independence_match"
-            )
+            raise ValueError(f"variant must be one of: orig, stable, or parallel. Got: {variant}")
+        elif (not callable(ci_test)) and (ci_test not in ("chi_square", "independence_match", "pearsonr")):
+            raise ValueError("ci_test must be a callable or one of: chi_square, pearsonr, independence_match")
 
         if (ci_test == "independence_match") and (self.independencies is None):
-            raise ValueError(
-                "For using independence_match, independencies argument must be specified"
-            )
+            raise ValueError("For using independence_match, independencies argument must be specified")
         elif (ci_test in ("chi_square", "pearsonr")) and (self.data is None):
-            raise ValueError(
-                "For using Chi Square or Pearsonr, data arguement must be specified"
-            )
+            raise ValueError("For using Chi Square or Pearsonr, data arguement must be specified")
 
         # Step 1: Run the PC algorithm to build the skeleton and get the separating sets.
         skel, separating_sets = self.build_skeleton(
@@ -187,9 +177,7 @@ class PC(StructureEstimator):
         elif return_type.lower() == "dag":
             return pdag.to_dag()
         else:
-            raise ValueError(
-                f"return_type must be one of: dag, pdag, cpdag, or skeleton. Got: {return_type}"
-            )
+            raise ValueError(f"return_type must be one of: dag, pdag, cpdag, or skeleton. Got: {return_type}")
 
     def build_skeleton(
         self,
@@ -274,17 +262,15 @@ class PC(StructureEstimator):
             pbar = tqdm(total=max_cond_vars)
             pbar.set_description("Working for n conditional variables: 0")
 
-        if 'init_graph' in kwargs:
-            graph = kwargs['init_graph']
+        if "init_graph" in kwargs:
+            graph = kwargs["init_graph"]
         else:
             # Step 1: Initialize a fully connected undirected graph
             graph = nx.complete_graph(n=self.variables, create_using=nx.Graph)
 
         # Exit condition: 1. If all the nodes in graph has less than `lim_neighbors` neighbors.
         #             or  2. `lim_neighbors` is greater than `max_conditional_variables`.
-        while not all(
-            [len(list(graph.neighbors(var))) < lim_neighbors for var in graph.nodes()]
-        ):
+        while not all([len(list(graph.neighbors(var))) < lim_neighbors for var in graph.nodes()]):
 
             # Step 2: Iterate over the edges and find a conditioning set of
             # size `lim_neighbors` which makes u and v independent.
@@ -361,9 +347,7 @@ class PC(StructureEstimator):
                         separating_sets[frozenset((u, v))] = sep_set
 
             else:
-                raise ValueError(
-                    f"variant must be one of (orig, stable, parallel). Got: {variant}"
-                )
+                raise ValueError(f"variant must be one of (orig, stable, parallel). Got: {variant}")
 
             # Step 3: After iterating over all the edges, expand the search space by increasing the size
             #         of conditioning set by 1.
@@ -374,9 +358,7 @@ class PC(StructureEstimator):
 
             if show_progress and SHOW_PROGRESS:
                 pbar.update(1)
-                pbar.set_description(
-                    f"Working for n conditional variables: {lim_neighbors}"
-                )
+                pbar.set_description(f"Working for n conditional variables: {lim_neighbors}")
 
         if show_progress and SHOW_PROGRESS:
             pbar.close()

@@ -31,33 +31,33 @@ class Tsdr:
     def __init__(
         self,
         univariate_series_func_or_name: Callable[[np.ndarray, Any], UnivariateSeriesReductionResult] | str,
-        **kwargs
+        **kwargs,
     ) -> None:
         self.params = kwargs
         if callable(univariate_series_func_or_name):
-            setattr(self, 'univariate_series_func', univariate_series_func_or_name)
+            setattr(self, "univariate_series_func", univariate_series_func_or_name)
         elif type(univariate_series_func_or_name) == str:
             func: Callable = unireducer.map_model_name_to_func(univariate_series_func_or_name)
-            setattr(self, 'univariate_series_func', func)
+            setattr(self, "univariate_series_func", func)
         else:
-            raise TypeError(f'Invalid type of step1 mode: {type(univariate_series_func_or_name)}')
+            raise TypeError(f"Invalid type of step1 mode: {type(univariate_series_func_or_name)}")
 
     def univariate_series_func(self, series: np.ndarray, **kwargs: Any) -> UnivariateSeriesReductionResult:
         return unireducer.ar_based_ad_model(series, **kwargs)
 
     def detect_failure_start_point(self, sli: np.ndarray, sigma_threshold=3) -> tuple[int, float]:
-        """ Detect failure start point in SLO metrics.
+        """Detect failure start point in SLO metrics.
         The method uses outliter detection with 'robust z-score' and 3-sigma rule.
         """
-        fi_time = self.params['time_fault_inject_time_index']
+        fi_time = self.params["time_fault_inject_time_index"]
         train, test = np.split(sli, [fi_time])
-        coeff = scipy.stats.norm.ppf(0.75)-scipy.stats.norm.ppf(0.25)
+        coeff = scipy.stats.norm.ppf(0.75) - scipy.stats.norm.ppf(0.25)
         iqr = np.quantile(train, 0.75) - np.quantile(train, 0.25)
         niqr = iqr / coeff
         median = np.median(train)
         for i, v in enumerate(test):
-            if np.abs((v - median)/niqr) > sigma_threshold:
-                return (fi_time+i, v)
+            if np.abs((v - median) / niqr) > sigma_threshold:
+                return (fi_time + i, v)
         return (0, 0.0)
 
     def reduce_by_failure_detection_time(
@@ -67,11 +67,10 @@ class Tsdr:
         sli: np.ndarray,
         sigma_threshold: int = 3,
     ) -> pd.DataFrame:
-        """ reduce series by failure detection time
-        """
+        """reduce series by failure detection time"""
         outliers = detect_with_n_sigma_rule(
             x=sli,
-            test_start_time=self.params['time_fault_inject_time_index'],
+            test_start_time=self.params["time_fault_inject_time_index"],
             sigma_threshold=sigma_threshold,
         )
         failure_detection_time: int = 0 if outliers.size == 0 else outliers[0]
@@ -86,8 +85,11 @@ class Tsdr:
         return series[kept_series_labels]
 
     def run(
-        self, X: pd.DataFrame, pk: PriorKnowledge, max_workers: int,
-    ) -> tuple[list[tuple[pd.DataFrame, pd.DataFrame, float]], dict[str, Any], dict[str, np.ndarray]]:
+        self,
+        X: pd.DataFrame,
+        pk: PriorKnowledge,
+        max_workers: int,
+    ) -> tuple[list[tuple[pd.DataFrame, pd.DataFrame, float]], dict[str, Any], dict[str, np.ndarray],]:
         stat: list[tuple[pd.DataFrame, pd.DataFrame, float]] = []
         stat.append((X, count_metrics(X), 0.0))
 
@@ -107,14 +109,16 @@ class Tsdr:
         elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
         stat.append((reduced_series1, count_metrics(reduced_series1), elapsed_time))
 
-        if self.params['step1_residual_integral_change_start_point']:
+        if self.params["step1_residual_integral_change_start_point"]:
             # step1.5
             start = time.time()
 
             sli_name: str = pk.get_root_metrics()[0]  # TODO: choose SLI metrics formally
             reduced_series1 = self.reduce_by_failure_detection_time(
-                reduced_series1, step1_results, series[sli_name].to_numpy(),
-                sigma_threshold=self.params['step1_residual_integral_change_start_point_n_sigma'],
+                reduced_series1,
+                step1_results,
+                series[sli_name].to_numpy(),
+                sigma_threshold=self.params["step1_residual_integral_change_start_point_n_sigma"],
             )
 
             elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
@@ -123,23 +127,25 @@ class Tsdr:
         # step2
         start = time.time()
 
-        match series_type := self.params['step2_clustering_series_type']:
-            case 'raw':
+        match series_type := self.params["step2_clustering_series_type"]:
+            case "raw":
                 df_before_clustering = reduced_series1.apply(scipy.stats.zscore)
-            case 'anomaly_score', 'binary_anomaly_score':
+            case "anomaly_score", "binary_anomaly_score":
                 tmp_dict_to_df: dict[str, np.ndarray] = {}
                 for name, res in step1_results.items():
                     if res.has_kept:
-                        if series_type == 'anomaly_score':
+                        if series_type == "anomaly_score":
                             tmp_dict_to_df[name] = scipy.stats.zscore(res.anomaly_scores)
-                        elif series_type == 'binary_anomaly_score':
+                        elif series_type == "binary_anomaly_score":
                             tmp_dict_to_df[name] = res.binary_scores()
                 df_before_clustering = pd.DataFrame(tmp_dict_to_df)
             case _:
-                raise ValueError(f'step2_clustered_series_type is invalid {series_type}')
+                raise ValueError(f"step2_clustered_series_type is invalid {series_type}")
 
         reduced_series2, clustering_info = self.reduce_multivariate_series(
-            df_before_clustering.copy(), pk, max_workers,
+            df_before_clustering.copy(),
+            pk,
+            max_workers,
         )
 
         elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
@@ -179,35 +185,46 @@ class Tsdr:
             df: pd.DataFrame,
             **kwargs: Any,
         ) -> futures.Future:
-            method_name = kwargs['step2_clustering_method_name']
-            choice_method = kwargs['step2_clustering_choice_method']
+            method_name = kwargs["step2_clustering_method_name"]
+            choice_method = kwargs["step2_clustering_choice_method"]
 
             future: futures.Future
 
-            if method_name == 'hierarchy':
-                dist_type = kwargs['step2_hierarchy_dist_type']
-                dist_threshold = kwargs['step2_hierarchy_dist_threshold']
-                linkage_method = kwargs['step2_hierarchy_linkage_method']
+            if method_name == "hierarchy":
+                dist_type = kwargs["step2_hierarchy_dist_type"]
+                dist_threshold = kwargs["step2_hierarchy_dist_threshold"]
+                linkage_method = kwargs["step2_hierarchy_linkage_method"]
 
-                if dist_type == 'sbd':
+                if dist_type == "sbd":
                     future = executor.submit(
                         hierarchical_clustering,
-                        df, sbd, dist_threshold, choice_method, linkage_method,
+                        df,
+                        sbd,
+                        dist_threshold,
+                        choice_method,
+                        linkage_method,
                     )
-                elif dist_type == 'hamming':
+                elif dist_type == "hamming":
                     if dist_threshold >= 1.0:
                         # make the distance threshold intuitive
                         dist_threshold /= series.shape[0]
                     future = executor.submit(
                         hierarchical_clustering,
-                        df, hamming, dist_threshold, choice_method, linkage_method,
+                        df,
+                        hamming,
+                        dist_threshold,
+                        choice_method,
+                        linkage_method,
                     )
                 else:
                     raise ValueError('dist_func must be "sbd" or "hamming"')
-            elif method_name == 'dbscan':
+            elif method_name == "dbscan":
                 future = executor.submit(
                     dbscan_clustering,
-                    df, kwargs['step2_dbscan_dist_type'], kwargs['step2_dbscan_min_pts'], choice_method,
+                    df,
+                    kwargs["step2_dbscan_dist_type"],
+                    kwargs["step2_dbscan_min_pts"],
+                    choice_method,
                 )
             else:
                 raise ValueError('method_name must be "hierarchy" or "dbscan"')
@@ -231,7 +248,9 @@ class Tsdr:
                     # perform clustering in each type of metric
                     # TODO: retrieve container and middleware metrics efficently
                     container_metrics_df = series.loc[
-                        :, series.columns.str.startswith((f"c-{container}_", f"m-{container}_"))]
+                        :,
+                        series.columns.str.startswith((f"c-{container}_", f"m-{container}_")),
+                    ]
                     if len(container_metrics_df.columns) <= 1:
                         continue
                     future_list.append(
@@ -272,8 +291,8 @@ def hierarchical_clustering(
     target_df: pd.DataFrame,
     dist_func: Callable,
     dist_threshold: float,
-    choice_method: str = 'medoid',
-    linkage_method: str = 'single',
+    choice_method: str = "medoid",
+    linkage_method: str = "single",
 ) -> tuple[dict[str, Any], list[str]]:
     dist = pdist(target_df.values.T, metric=dist_func)
     dist_matrix: np.ndarray = squareform(dist)
@@ -286,19 +305,19 @@ def hierarchical_clustering(
         else:
             cluster_dict[v] = [i]
 
-    if choice_method == 'medoid':
+    if choice_method == "medoid":
         return choose_metric_with_medoid(target_df.columns, cluster_dict, dist_matrix)
-    elif choice_method == 'maxsum':
+    elif choice_method == "maxsum":
         return choose_metric_with_maxsum(target_df, cluster_dict)
     else:
-        raise ValueError('choice_method is required.')
+        raise ValueError("choice_method is required.")
 
 
 def dbscan_clustering(
     target_df: pd.DataFrame,
     dist_func: str,
     min_pts: int,
-    choice_method: str = 'medoid',
+    choice_method: str = "medoid",
 ) -> tuple[dict[str, Any], list[str]]:
     labels, dist_matrix = dbscan.learn_clusters(target_df.values.T, dist_func, min_pts)
 
@@ -309,12 +328,12 @@ def dbscan_clustering(
         else:
             cluster_dict[v] = [i]
 
-    if choice_method == 'medoid':
+    if choice_method == "medoid":
         return choose_metric_with_medoid(target_df.columns, cluster_dict, dist_matrix)
-    elif choice_method == 'maxsum':
+    elif choice_method == "maxsum":
         return choose_metric_with_maxsum(target_df, cluster_dict)
     else:
-        raise ValueError('choice_method is required.')
+        raise ValueError("choice_method is required.")
 
 
 def choose_metric_with_medoid(
@@ -330,8 +349,7 @@ def choose_metric_with_medoid(
         if len(cluster_metrics) == 2:
             # Select the representative metric at random
             shuffle_list = random.sample(cluster_metrics, len(cluster_metrics))
-            clustering_info[columns[shuffle_list[0]]] = [
-                columns[shuffle_list[1]]]
+            clustering_info[columns[shuffle_list[0]]] = [columns[shuffle_list[1]]]
             remove_list.append(columns[shuffle_list[1]])
         elif len(cluster_metrics) > 2:
             # Select medoid as the representative metric
@@ -357,7 +375,7 @@ def choose_metric_with_maxsum(
     data_df: pd.DataFrame,
     cluster_dict: dict[int, list[int]],
 ) -> tuple[dict[str, Any], list[str]]:
-    """ Choose metrics which has max of sum of datapoints in each metrics in each cluster. """
+    """Choose metrics which has max of sum of datapoints in each metrics in each cluster."""
     clustering_info, remove_list = {}, []
     for c in cluster_dict:
         cluster_metrics: list[int] = cluster_dict[c]
@@ -394,7 +412,9 @@ def create_clusters(data: pd.DataFrame, columns: list[str], service_name: str, n
 
 def select_representative_metric(
     data: pd.DataFrame,
-    cluster_metrics: list[str], columns: dict[str, Any], centroid: int,
+    cluster_metrics: list[str],
+    columns: dict[str, Any],
+    centroid: int,
 ) -> tuple[dict[str, Any], list[str]]:
     clustering_info: dict[str, Any] = {}
     remove_list: list[str] = []
@@ -416,13 +436,14 @@ def select_representative_metric(
             if r == representative_metric:
                 continue
             remove_list.append(columns[r])
-            clustering_info[columns[representative_metric]].append(
-                columns[r])
+            clustering_info[columns[representative_metric]].append(columns[r])
     return clustering_info, remove_list
 
 
 def kshape_clustering(
-    target_df: pd.DataFrame, service_name: str, executor,
+    target_df: pd.DataFrame,
+    service_name: str,
+    executor,
 ) -> tuple[dict[str, Any], list[str]]:
     future_list = []
 
@@ -430,7 +451,11 @@ def kshape_clustering(
     for n in np.arange(2, data.shape[0]):
         future_list.append(
             executor.submit(
-                create_clusters, data, target_df.columns, service_name, n,
+                create_clusters,
+                data,
+                target_df.columns,
+                service_name,
+                n,
             )
         )
     labels, scores, centroids = [], [], []
@@ -455,8 +480,13 @@ def kshape_clustering(
     future_list = []
     for c, cluster_metrics in cluster_dict.items():
         future_list.append(
-            executor.submit(select_representative_metric, data,
-                            cluster_metrics, target_df.columns, centroid[c])
+            executor.submit(
+                select_representative_metric,
+                data,
+                cluster_metrics,
+                target_df.columns,
+                centroid[c],
+            )
         )
     clustering_info = {}
     remove_list = []

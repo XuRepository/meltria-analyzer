@@ -1,7 +1,6 @@
 import numpy as np
 from scipy.stats import chi2
-from statsmodels.tsa.ar_model import (AutoReg, AutoRegResultsWrapper,
-                                      ar_select_order)
+from statsmodels.tsa.ar_model import AutoReg, AutoRegResultsWrapper, ar_select_order
 from statsmodels.tsa.base.prediction import PredictionResults
 
 
@@ -15,9 +14,9 @@ class AROutlierDetector:
 
     def fit(
         self,
-        regression: str = 'n',
+        regression: str = "n",
         lag: int = 0,
-        ic: str = 'bic',
+        ic: str = "bic",
     ) -> None:
         autolag: bool = lag == 0
         if autolag:
@@ -35,7 +34,7 @@ class AROutlierDetector:
         pred_results: PredictionResults = self._fit_model.get_prediction(dynamic=dynamic)
         preds = pred_results.predicted_mean
         # remove the plots for the lag. And read through the first value because the prediction line is shifted by 1 plot for some reason.
-        preds = preds[self._lag+1:]
+        preds = preds[self._lag + 1 :]
         var = pred_results.var_pred_mean
         sig2: float = var[self._lag]
         if sig2 == 0:
@@ -52,24 +51,26 @@ class AROutlierDetector:
     def predict_both_of_sample(self, test_samples_size: int, dynamic: bool = False) -> tuple[np.ndarray, float]:
         pred_results: PredictionResults = self._fit_model.get_prediction(
             start=0,
-            end=self._samples.size+test_samples_size+1,
+            end=self._samples.size + test_samples_size + 1,
             dynamic=dynamic,
         )
         preds = pred_results.predicted_mean
         # remove the plots for the lag. And read through the first value because the prediction line is shifted by 1 plot for some reason.
-        preds = preds[self._lag+1:]
+        preds = preds[self._lag + 1 :]
         var = pred_results.var_pred_mean
         sig2: float = var[self._lag]
         if sig2 == 0:
             return np.empty([]), 0
         return preds, sig2
 
-    def anomaly_scores_both_of_sample(self, test_samples: np.ndarray, dynamic: bool = False) -> tuple[np.ndarray,np.ndarray]:
+    def anomaly_scores_both_of_sample(
+        self, test_samples: np.ndarray, dynamic: bool = False
+    ) -> tuple[np.ndarray, np.ndarray]:
         preds, sig2 = self.predict_both_of_sample(test_samples.size, dynamic)
         scores: np.ndarray = np.zeros(self._samples.size + test_samples.size, dtype=np.float32)
         if preds.size <= 1:
             return scores, preds
-        actuals: np.ndarray = np.concatenate([self._samples, test_samples])[self._lag:]
+        actuals: np.ndarray = np.concatenate([self._samples, test_samples])[self._lag :]
         for i, (xi, pred) in enumerate(zip(actuals, preds)):
             scores[i] = (xi - pred) ** 2 / sig2
         return scores, preds
@@ -77,8 +78,8 @@ class AROutlierDetector:
     def anomaly_scores_in_sample(self) -> np.ndarray:
         preds, sig2 = self.predict_in_sample()
         scores: np.ndarray = np.zeros(self._samples.size, dtype=np.float32)
-        for i, (xi, pred) in enumerate(zip(self._samples[self._lag:], preds)):
-            scores[self._lag+i] = (xi - pred) ** 2 / sig2
+        for i, (xi, pred) in enumerate(zip(self._samples[self._lag :], preds)):
+            scores[self._lag + i] = (xi - pred) ** 2 / sig2
         return scores
 
     def anomaly_scores_out_of_sample(self, test_samples: np.ndarray, dynamic=False) -> np.ndarray:
@@ -92,7 +93,7 @@ class AROutlierDetector:
 
     def sse_in_sample(self, dynamic=False) -> float:
         preds = self.predict_in_sample(dynamic)[0]
-        actuals = self._samples[self._lag:-1]
+        actuals = self._samples[self._lag : -1]
         return np.sum((actuals - preds) ** 2)
 
     @classmethod
@@ -108,7 +109,7 @@ class AROutlierDetector:
         #     m_mo = 1
         # if s_mo < 1:
         #     s_mo = 1
-        abn_th = chi2.interval(alpha=1-threshold, df=1, scale=1)[1]
+        abn_th = chi2.interval(alpha=1 - threshold, df=1, scale=1)[1]
         anomalies: list[tuple[int, float]] = []
         for i, a in enumerate(scores):
             if a > abn_th:

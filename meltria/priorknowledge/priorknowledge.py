@@ -60,7 +60,7 @@ class PriorKnowledge(ABC):
         pass
 
     def get_nodes_to_containers(self) -> dict[str, list[str]] | None:
-        """ Example
+        """Example
         "nodes-containers": {
             "gke-train-ticket-01-default-pool-1db6151d-0fxo": [
                 "ts-assurance-mongo",
@@ -74,17 +74,17 @@ class PriorKnowledge(ABC):
             ],
         }
         """
-        return self.mappings.get('nodes-containers')
+        return self.mappings.get("nodes-containers")
 
     def get_nodes(self) -> list[str]:
         return self.get_nodes_to_containers().keys()
 
     def get_nodes_to_containers_graph(self) -> nx.Graph:
         G: nx.Graph = nx.Graph()  # Here, a node means a host running containers.
-        if (nodes_ctnrs := self.get_nodes_to_containers()):
+        if nodes_ctnrs := self.get_nodes_to_containers():
             for node, ctnrs in nodes_ctnrs.items():
                 # 'nsenter' container should be removed from original dataset.
-                for ctnr in [c for c in ctnrs if c != 'nsenter']:
+                for ctnr in [c for c in ctnrs if c != "nsenter"]:
                     G.add_edge(node, ctnr)
         return G
 
@@ -92,22 +92,23 @@ class PriorKnowledge(ABC):
         groups: dict[str, list[str]] = defaultdict(lambda: list())
         for metric in metrics:
             # TODO: resolve duplicated code of MetricNode class.
-            comp, base_name = metric.split('-', maxsplit=1)[1].split('_', maxsplit=1)
-            if metric.startswith('c-'):
+            comp, base_name = metric.split("-", maxsplit=1)[1].split("_", maxsplit=1)
+            if metric.startswith("c-"):
                 service = self.get_service_by_container(comp)
-            elif metric.startswith('s-'):
+            elif metric.startswith("s-"):
                 service = comp
-            elif metric.startswith('m-'):
+            elif metric.startswith("m-"):
                 service = self.get_service_by_container(comp)
             else:
-                raise ValueError(f'{metric} is invalid')
+                raise ValueError(f"{metric} is invalid")
             groups[service].append(metric)
         return groups
 
     @staticmethod
     @cache
     def _generate_service_to_service_routes(
-        service_call_g: nx.DiGraph, root_service: str,
+        service_call_g: nx.DiGraph,
+        root_service: str,
     ) -> dict[str, list[tuple[str, ...]]]:
         """Generate adjacency list of service to service routes."""
         stos_routes: dict[str, list[tuple[str, ...]]] = defaultdict(list)
@@ -212,7 +213,7 @@ class TrainTicketKnowledge(PriorKnowledge):
 
 
 def new_knowledge(target_app: str, mappings: dict[str, dict[str, list[str]]]) -> PriorKnowledge:
-    """ Create new knowledge object for the given target app. """
+    """Create new knowledge object for the given target app."""
     match target_app:
         case sock_shop.TARGET_APP_NAME:
             return SockShopKnowledge(mappings)

@@ -11,9 +11,7 @@ def fisher_z(X, Y, Z, data, boolean=True, **kwargs):
         Z = list(Z)
 
     if not isinstance(data, pd.DataFrame):
-        raise ValueError(
-            f"Variable data. Expected type: pandas.DataFrame. Got type: {type(data)}"
-        )
+        raise ValueError(f"Variable data. Expected type: pandas.DataFrame. Got type: {type(data)}")
 
     n = data.shape[0]
     zs = zstat(X, Y, Z, data, n)

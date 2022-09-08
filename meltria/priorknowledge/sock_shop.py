@@ -2,39 +2,47 @@ from typing import Final
 
 import networkx as nx
 
-TARGET_APP_NAME: Final[str] = 'sock-shop'
+TARGET_APP_NAME: Final[str] = "sock-shop"
 
-ROOT_SERVICE: Final[str] = 'front-end'
-ROOT_METRIC_LABELS: Final[tuple[str, str, str]] = ("s-front-end_latency", "s-front-end_throughput", "s-front-end_errors")
+ROOT_SERVICE: Final[str] = "front-end"
+ROOT_METRIC_LABELS: Final[tuple[str, str, str]] = (
+    "s-front-end_latency",
+    "s-front-end_throughput",
+    "s-front-end_errors",
+)
 
-SERVICE_CALL_DIGRAPH: Final[nx.DiGraph] = nx.DiGraph([
-    ('front-end', 'orders'),
-    ('front-end', 'catalogue'),
-    ('front-end', 'user'),
-    ('front-end', 'carts'),
-    ('orders', 'shipping'),
-    ('orders', 'payment'),
-    ('orders', 'user'),
-    ('orders', 'carts'),
-])
+SERVICE_CALL_DIGRAPH: Final[nx.DiGraph] = nx.DiGraph(
+    [
+        ("front-end", "orders"),
+        ("front-end", "catalogue"),
+        ("front-end", "user"),
+        ("front-end", "carts"),
+        ("orders", "shipping"),
+        ("orders", "payment"),
+        ("orders", "user"),
+        ("orders", "carts"),
+    ]
+)
 
-CONTAINER_CALL_DIGRAPH: Final[nx.DiGraph] = nx.DiGraph([
-    ('front-end', 'orders'),
-    ('front-end', 'carts'),
-    ('front-end', 'user'),
-    ('front-end', 'catalogue'),
-    ('front-end', 'session-db'),
-    ('orders', 'shipping'),
-    ('orders', 'payment'),
-    ('orders', 'user'),
-    ('orders', 'carts'),
-    ('orders', 'orders-db'),
-    ('catalogue', 'catalogue-db'),
-    ('user', 'user-db'),
-    ('carts', 'carts-db'),
-    ('shipping', 'rabbitmq'),
-    ('rabbitmq', 'queue-master'),
-])
+CONTAINER_CALL_DIGRAPH: Final[nx.DiGraph] = nx.DiGraph(
+    [
+        ("front-end", "orders"),
+        ("front-end", "carts"),
+        ("front-end", "user"),
+        ("front-end", "catalogue"),
+        ("front-end", "session-db"),
+        ("orders", "shipping"),
+        ("orders", "payment"),
+        ("orders", "user"),
+        ("orders", "carts"),
+        ("orders", "orders-db"),
+        ("catalogue", "catalogue-db"),
+        ("user", "user-db"),
+        ("carts", "carts-db"),
+        ("shipping", "rabbitmq"),
+        ("rabbitmq", "queue-master"),
+    ]
+)
 
 CONTAINER_CALL_GRAPH: Final[dict[str, list[str]]] = {
     "front-end": ["orders", "carts", "user", "catalogue"],
@@ -50,29 +58,29 @@ CONTAINER_CALL_GRAPH: Final[dict[str, list[str]]] = {
     "rabbitmq": ["shipping", "queue-master"],
     "carts": ["front-end", "carts-db", "orders"],
     "carts-db": ["carts"],
-    "session-db": ["front-end"]
+    "session-db": ["front-end"],
 }
 
 # Use list of tuple because of supporting multiple routes
 SERVICE_TO_SERVICES: Final[dict[str, list[str]]] = {
-    'orders': ['front-end'],
-    'carts': ['orders', 'front-end'],
-    'user': ['orders', 'front-end'],
-    'catalogue': ['front-end'],
-    'payment': ['orders'],
-    'shipping': ['orders'],
-    'front-end': [],
+    "orders": ["front-end"],
+    "carts": ["orders", "front-end"],
+    "user": ["orders", "front-end"],
+    "catalogue": ["front-end"],
+    "payment": ["orders"],
+    "shipping": ["orders"],
+    "front-end": [],
 }
 
 # TODO: wrong call graph?
 SERVICE_TO_SERVICE_ROUTES: Final[dict[str, list[tuple[str, ...]]]] = {
-    'orders': [('front-end',)],
-    'carts': [('orders', 'front-end'), ('front-end',)],
-    'user': [('orders', 'front-end'), ('front-end',)],
-    'catalogue': [('front-end',)],
-    'payment': [('orders',)],
-    'shipping': [('orders',)],
-    'front-end': [()],
+    "orders": [("front-end",)],
+    "carts": [("orders", "front-end"), ("front-end",)],
+    "user": [("orders", "front-end"), ("front-end",)],
+    "catalogue": [("front-end",)],
+    "payment": [("orders",)],
+    "shipping": [("orders",)],
+    "front-end": [()],
 }
 
 SERVICE_CONTAINERS: Final[dict[str, list[str]]] = {
@@ -98,7 +106,7 @@ DIAGNOSER_TARGET_DATA: Final[dict[str, list[str]]] = {
         "node_filesystem_avail_bytes",
         "node_memory_MemAvailable_bytes",
         "node_network_receive_bytes_total",
-        "node_network_transmit_bytes_total"
+        "node_network_transmit_bytes_total",
     ],
     # "middlewares": "all"}
 }

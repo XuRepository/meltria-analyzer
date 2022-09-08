@@ -18,9 +18,9 @@ def _ncc_c(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     den = np.array(norm(x) * norm(y))
     den[den == 0] = np.Inf
     x_len = len(x)
-    fft_size = 1 << (2*x_len-1).bit_length()
+    fft_size = 1 << (2 * x_len - 1).bit_length()
     cc = ifft(fft(x, fft_size) * np.conj(fft(y, fft_size)))
-    cc = np.concatenate((cc[-(x_len-1):], cc[:x_len]))
+    cc = np.concatenate((cc[-(x_len - 1) :], cc[:x_len]))
     return np.real(cc) / den
 
 
@@ -32,4 +32,4 @@ def silhouette_score(data, labels):
                 distances[idx_a, idx_b] = 0
                 continue
             distances[idx_a, idx_b] = sbd(data_a, data_b)
-    return _silhouette_score(distances, labels, metric='precomputed')
+    return _silhouette_score(distances, labels, metric="precomputed")

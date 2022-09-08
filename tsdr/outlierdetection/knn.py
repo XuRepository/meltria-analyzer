@@ -12,6 +12,7 @@ class KNNOutlierDetector:
     >>> knn.score(data)
     [nan, 1.4142135623730951, 8.06225774829855, 8.06225774829855, 1.4142135623730951]
     """
+
     w: int = 0
     k: int = 1
 
@@ -27,14 +28,14 @@ class KNNOutlierDetector:
             for window in windows:
                 distances.append(self.dist(windows[t], window))
             distances.sort()
-            s: float = functools.reduce(lambda x, y: x+y, distances[1:self.k+1], 0.0) / self.k
+            s: float = functools.reduce(lambda x, y: x + y, distances[1 : self.k + 1], 0.0) / self.k
             scores.append(s)
         # Adjust the size of input/output list
-        return [np.nan] * (self.w-1) + scores
+        return [np.nan] * (self.w - 1) + scores
 
     def sliding_windows(self, data: np.ndarray) -> list[np.ndarray]:
         num: int = data.size - self.w + 1
-        return [data[t:t+self.w] for t in range(num)]
+        return [data[t : t + self.w] for t in range(num)]
 
     def dist(self, v1: np.ndarray, v2: np.ndarray) -> float:
         sum: float = 0.0

@@ -3,7 +3,7 @@
 import logging
 import os
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import hydra
 import joblib
@@ -26,12 +26,12 @@ def eval_dataset(run: neptune.Run, cfg: DictConfig) -> None:
     """Evaluate a dataset"""
     dataset_generator = meltria.loader.load_dataset_as_generator(
         cfg.metrics_files,
-        OmegaConf.to_container(cfg.target_metric_types, resolve=True),
+        cast(dict[str, bool], OmegaConf.to_container(cfg.target_metric_types, resolve=True)),
         cfg.time.num_datapoints,
     )
     logger.info(">> Loading dataset")
 
-    labbeling: dict[str, dict[str, Any]] = OmegaConf.to_container(cfg.labbeling, resolve=True)
+    labbeling = cast(dict[str, dict[str, Any]], OmegaConf.to_container(cfg.labbeling, resolve=True))
     fi_time: int = cfg.time.fault_inject_time_index
 
     eval_func: Callable
@@ -90,7 +90,7 @@ def main(cfg: DictConfig) -> None:
     }
 
     # Hydra parameters are passed to the Neptune.ai run object
-    params.update(OmegaConf.to_container(cfg, resolve=True))
+    params.update(cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)))
 
     run["parameters"] = params
     run.wait()  # sync parameters for 'async' neptune mode

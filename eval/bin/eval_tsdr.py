@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from functools import reduce
 from multiprocessing import cpu_count
 from operator import add
-from typing import Any
+from typing import Any, cast
 
 import holoviews as hv
 import hydra
@@ -138,7 +138,7 @@ class TimeSeriesPlotter:
             )
             figures.append(fig)
         final_fig = reduce(add, figures)
-        return file_html(hv.render(final_fig), CDN, record.chaos_case_full())
+        return cast(str, file_html(hv.render(final_fig), CDN, record.chaos_case_full()))
 
     @classmethod
     def generate_html_time_series(
@@ -149,7 +149,7 @@ class TimeSeriesPlotter:
         anomaly_points: dict[str, np.ndarray] = {},
     ) -> str:
         fig = cls.generate_figure_time_series(data, title=title, anomaly_points=anomaly_points)
-        return file_html(hv.render(fig), CDN, record.chaos_case_full())
+        return cast(str, file_html(hv.render(fig), CDN, record.chaos_case_full()))
 
     @classmethod
     def generate_figure_time_series(
@@ -291,7 +291,7 @@ def save_scores(
             logger.info("\n" + df.to_string())
 
 
-def eval_tsdr(run: neptune.Run, cfg: DictConfig):
+def eval_tsdr(run: neptune.Run, cfg: DictConfig) -> None:
     ts_plotter: TimeSeriesPlotter = TimeSeriesPlotter(
         run=run,
         enable_upload_plots=cfg.upload_plots,
@@ -300,7 +300,7 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
 
     dataset_generator = meltria_loader.load_dataset_as_generator(
         cfg.metrics_files,
-        OmegaConf.to_container(cfg.target_metric_types, resolve=True),
+        cast(dict[str, bool], OmegaConf.to_container(cfg.target_metric_types, resolve=True)),
         cfg.time.num_datapoints,
     )
     logger.info("Loading metrics files")
@@ -319,7 +319,7 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
                 logger.info(f">> Validating dataset {record.chaos_case_full()} ...")
                 valid_dataset_ok = check_valid_dataset(
                     record,
-                    OmegaConf.to_container(cfg.labbeling, resolve=True),
+                    cast(dict[str, Any], OmegaConf.to_container(cfg.labbeling, resolve=True)),
                     cfg.time.fault_inject_time_index,
                 )
 
@@ -328,8 +328,10 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
             logger.info(f">> Running tsdr {record.chaos_case_full()} ...")
 
             tsdr_param = {"time_fault_inject_time_index": cfg.time.fault_inject_time_index}
-            tsdr_param.update({f"step1_{k}": v for k, v in OmegaConf.to_container(cfg.step1, resolve=True).items()})
-            tsdr_param.update({f"step2_{k}": v for k, v in OmegaConf.to_container(cfg.step2, resolve=True).items()})
+            pycfg_step1 = cast(dict[str, Any], OmegaConf.to_container(cfg.step1, resolve=True))
+            pycfg_step2 = cast(dict[str, Any], OmegaConf.to_container(cfg.step2, resolve=True))
+            tsdr_param.update({f"step1_{k}": v for k, v in pycfg_step1.items()})
+            tsdr_param.update({f"step2_{k}": v for k, v in pycfg_step2.items()})
             reducer = tsdr.Tsdr(cfg.step1.model_name, **tsdr_param)
             tsdr_stat, clustering_info, anomaly_points = reducer.run(
                 X=record.data_df,
@@ -433,9 +435,9 @@ def main(cfg: DictConfig) -> None:
     }
 
     # Hydra parameters are passed to the Neptune.ai run object
-    pycfg_step1 = OmegaConf.to_container(cfg.step1, resolve=True)
+    pycfg_step1 = cast(dict[str, Any], OmegaConf.to_container(cfg.step1, resolve=True))
     params.update({f"step1_{k}": v for k, v in pycfg_step1.items()})
-    pycfg_step2 = OmegaConf.to_container(cfg.step2, resolve=True)
+    pycfg_step2 = cast(dict[str, Any], OmegaConf.to_container(cfg.step2, resolve=True))
     params.update({f"step2_{k}": v for k, v in pycfg_step2.items()})
 
     run["parameters"] = params

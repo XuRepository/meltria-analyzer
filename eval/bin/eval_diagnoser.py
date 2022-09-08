@@ -6,7 +6,7 @@ from concurrent import futures
 from functools import reduce
 from multiprocessing import cpu_count
 from operator import add
-from typing import Any
+from typing import Any, cast
 
 import holoviews as hv
 import hydra
@@ -18,6 +18,7 @@ from bokeh.embed import file_html
 from bokeh.resources import CDN
 from neptune.new.integrations.python_logger import NeptuneHandler
 from omegaconf import DictConfig, OmegaConf
+from pandas.core.groupby.generic import DataFrameGroupBy
 
 import diagnoser.metric_node as mn
 import meltria.loader as meltria_loader
@@ -106,7 +107,7 @@ def create_figure_of_time_series_lines(
     G: nx.DiGraph,
     record: DatasetRecord,
     width_and_height: tuple[int, int],
-):
+) -> Any:
     hv_curves = []
     for node in G.nodes:
         series = series_df[node.label]
@@ -133,8 +134,8 @@ def create_figure_of_time_series_lines(
     )
 
 
-def hv_render_html(figure, record, suffix):
-    return file_html(hv.render(hv.Store.loads(figure)), CDN, f"{record.chaos_case_full()}: {suffix}")
+def hv_render_html(figure, record, suffix) -> str:
+    return cast(str, file_html(hv.render(hv.Store.loads(figure)), CDN, f"{record.chaos_case_full()}: {suffix}"))
 
 
 def log_causal_graph(
@@ -191,7 +192,7 @@ def log_causal_graph(
 def eval_diagnoser(run: neptune.Run, cfg: DictConfig) -> None:
     dataset_generator = meltria_loader.load_dataset_as_generator(
         cfg.metrics_files,
-        OmegaConf.to_container(cfg.target_metric_types, resolve=True),
+        cast(dict[str, bool], OmegaConf.to_container(cfg.target_metric_types, resolve=True)),
         cfg.time.num_datapoints,
     )
     logger.info(">> Loading dataset")
@@ -202,10 +203,10 @@ def eval_diagnoser(run: neptune.Run, cfg: DictConfig) -> None:
         for record in records:
             logger.info(f">> Running tsdr {record.chaos_case_file()} ...")
 
-            tsdr_param = {f"step1_{k}": v for k, v in OmegaConf.to_container(cfg.tsdr.step1, resolve=True).items()}
-            tsdr_param.update(
-                {f"step2_{k}": v for k, v in OmegaConf.to_container(cfg.tsdr.step2, resolve=True).items()}
-            )
+            cfg_step1 = cast(dict[str, Any], OmegaConf.to_container(cfg.tsdr.step1, resolve=True))
+            cfg_step2 = cast(dict[str, Any], OmegaConf.to_container(cfg.tsdr.step2, resolve=True))
+            tsdr_param = {f"step1_{k}": v for k, v in cfg_step1.items()}
+            tsdr_param.update({f"step2_{k}": v for k, v in cfg_step2.items()})
             reducer = tsdr.Tsdr(cfg.tsdr.step1.model_name, **tsdr_param)
             tsdr_stat, _, _ = reducer.run(X=record.data_df, pk=record.pk, max_workers=cpu_count())
             reduced_df: pd.DataFrame = tsdr_stat[-1][0]
@@ -273,7 +274,7 @@ def eval_diagnoser(run: neptune.Run, cfg: DictConfig) -> None:
     run["scores"]["accuracy"] = tests_df["accurate"].agg(lambda x: sum(x) / len(x))
     run["scores/building_graph_elapsed_sec"] = tests_df["building_graph_elapsed_sec"].mean()
 
-    def agg_score(df) -> pd.DataFrame:
+    def agg_score(df: pd.DataFrame | DataFrameGroupBy) -> pd.DataFrame:
         return df.agg(
             tp=("accurate", "sum"),
             accuracy=("accurate", lambda x: sum(x) / len(x)),

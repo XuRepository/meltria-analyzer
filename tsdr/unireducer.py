@@ -1,6 +1,6 @@
 import warnings
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import banpei
 import numpy as np
@@ -101,7 +101,7 @@ def cv_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeriesReductionResu
 def unit_root_based_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeriesReductionResult:
     regression: str = kwargs.get("step1_unit_root_regression", "c")
     maxlag: int = kwargs.get("step1_unit_root_max_lags", None)
-    autolag = kwargs.get("step1_unit_root_autolag", None)
+    autolag: str | None = kwargs.get("step1_unit_root_autolag", None)
 
     if kwargs.get("step1_pre_cv", False):
         if detect_with_cv(series, **kwargs):
@@ -109,7 +109,7 @@ def unit_root_based_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeries
 
     def log_or_nothing(x: np.ndarray) -> np.ndarray:
         if kwargs.get("step1_take_log", False):
-            return np.log1p(x)
+            return cast(np.ndarray, np.log1p(x))
         return x
 
     pvalue: float = 0.0
@@ -320,7 +320,7 @@ def residual_integral_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeri
     if max_rss < kwargs["step1_residual_integral_threshold"]:
         return UnivariateSeriesReductionResult(series, has_kept=False)
 
-    change_start_time = 0
+    change_start_time: int = 0
     if kwargs["step1_residual_integral_change_start_point"]:
         # step2: detect change start time and out-sample errors
         with warnings.catch_warnings():
@@ -328,7 +328,7 @@ def residual_integral_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeri
             algo: rpt.Binseg = rpt.Binseg(model="normal").fit(series)
         bkp: int = algo.predict(n_bkps=1)[0]
         max_rss, max_rss_range = residual_integral_max(series, bkp=bkp)
-        change_start_time: int = max_rss_range[0][0]
+        change_start_time = max_rss_range[0][0]
 
     return UnivariateSeriesReductionResult(
         series,
@@ -341,13 +341,14 @@ def residual_integral_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeri
 def two_samp_test_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeriesReductionResult:
     alpha: float = kwargs["step1_two_samp_test_alpha"]
     train_x, test_x = np.split(series, 2)
+    pval: float
     match method := kwargs["step1_two_samp_test_method"]:
         case "ks":
-            pval: float = scipy.stats.ks_2samp(train_x, test_x).pvalue
+            pval = scipy.stats.ks_2samp(train_x, test_x).pvalue
         case "ad":
-            pval: float = scipy.stats.anderson_ksamp([train_x, test_x])[2]
+            pval = scipy.stats.anderson_ksamp([train_x, test_x])[2]
         case "es":
-            pval: float = scipy.stats.epps_singleton_2samp(train_x, test_x)[1]
+            pval = scipy.stats.epps_singleton_2samp(train_x, test_x)[1]
         case _:
             raise ValueError(f"Unknown two-sample test method {method}")
     if pval <= alpha:
@@ -363,12 +364,12 @@ def smooth_with_ma(x: np.ndarray, **kwargs: Any) -> np.ndarray:
 def smooth_with_binner(x: np.ndarray, **kwargs: Any) -> np.ndarray:
     """Smooth time series with binner method."""
     w: int = kwargs.get("step1_smoother_binner_window_size", 2)
-    smoother = BinnerSmoother(n_knots=int(x.size / w), copy=True)
+    smoother: BinnerSmoother = BinnerSmoother(n_knots=int(x.size / w), copy=True)
     smoother.smooth(x)
-    return smoother.smooth_data[0]
+    return cast(np.ndarray, smoother.smooth_data[0])
 
 
-def has_variation(x: np.ndarray, cv_threshold) -> bool:
+def has_variation(x: np.ndarray, cv_threshold: float) -> bool:
     mean = x.mean()
     std = x.std()
     if mean == 0.0:

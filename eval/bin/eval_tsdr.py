@@ -27,7 +27,7 @@ from eval.validation import check_valid_dataset
 from meltria.loader import DatasetRecord
 from tsdr import tsdr
 
-hv.extension("bokeh")
+hv.extension("bokeh")  # type: ignore
 
 
 # see https://docs.neptune.ai/api-reference/integrations/python-logger
@@ -114,7 +114,7 @@ class TimeSeriesPlotter:
         if len(figures) == 0:
             return ""
         final_fig = reduce(add, figures)
-        return file_html(hv.render(final_fig), CDN, record.chaos_case_full())
+        return cast(str, file_html(hv.render(final_fig), CDN, record.chaos_case_full()))
 
     @classmethod
     def get_html_of_non_clustered_series_plots(
@@ -175,7 +175,7 @@ class TimeSeriesPlotter:
             else:
                 ap = np.array([(p[0], vals[p[0]]) for p in points])
                 hv_curves.append(line * hv.Points(ap).opts(color="red", size=8, marker="x"))
-        return hv.Overlay(hv_curves).opts(
+        return hv.Overlay(hv_curves).opts(  # type: ignore
             title=title,
             tools=["hover", "tap"],
             width=width_and_height[0],
@@ -196,85 +196,96 @@ def eval_tsdr_a_record(
     cfg: DictConfig,
     ts_plotter: TimeSeriesPlotter,
 ) -> tuple[list[dict[str, Any]], list[dict[str, str]], dict[str, str]]:
+    labbeling = cast(dict[str, Any], OmegaConf.to_container(cfg.labbeling, resolve=True))
+    fault_inject_time_index = cast(int, cfg.time.fault_inject_time_index)
     # check any True of all causal paths
     valid_dataset_ok: bool | None = None
     if cfg.disable_dataset_validation:
         logger.info(f">> Skip validation of dataset {record.chaos_case_full()} ...")
     else:
         logger.info(f">> Validating dataset {record.chaos_case_full()} ...")
-        valid_dataset_ok = check_valid_dataset(
-            record,
-            cast(dict[str, Any], OmegaConf.to_container(cfg.labbeling, resolve=True)),
-            cfg.time.fault_inject_time_index,
-        )
+        valid_dataset_ok = check_valid_dataset(record, labbeling, fault_inject_time_index)
 
     ts_plotter.log_plots_as_html(record)
 
     logger.info(f">> Running tsdr {record.chaos_case_full()} ...")
 
-    tsdr_param = {'time_fault_inject_time_index': cfg.time.fault_inject_time_index}
+    tsdr_param = {"time_fault_inject_time_index": cfg.time.fault_inject_time_index}
     pycfg_step1 = cast(dict[str, Any], OmegaConf.to_container(cfg.step1, resolve=True))
     pycfg_step2 = cast(dict[str, Any], OmegaConf.to_container(cfg.step2, resolve=True))
-    tsdr_param.update({f'step1_{k}': v for k, v in pycfg_step1.items()})
-    tsdr_param.update({f'step2_{k}': v for k, v in pycfg_step2.items()})
+    tsdr_param.update({f"step1_{k}": v for k, v in pycfg_step1.items()})
+    tsdr_param.update({f"step2_{k}": v for k, v in pycfg_step2.items()})
     reducer = tsdr.Tsdr(cfg.step1.model_name, **tsdr_param)
     tsdr_stat, clustering_info, anomaly_points = reducer.run(
-        X=record.data_df, pk=record.pk, max_workers=cpu_count(),
+        X=record.data_df,
+        pk=record.pk,
+        max_workers=cpu_count(),
     )
 
-    # evaluate and upload the result of tsdr
+    logger.info(f">> Evaluating tsdr {record.chaos_case_full()} ...")
 
     tests_items: list[dict[str, Any]] = []
     # skip the first item of tsdr_stat because it
     for i, (reduced_df, stat_df, elapsed_time) in enumerate(tsdr_stat[1:], start=1):
         ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
-            pk=record.pk, metrics=list(reduced_df.columns), chaos_type=record.chaos_type(), chaos_comp=record.chaos_comp(),
+            pk=record.pk,
+            metrics=list(reduced_df.columns),
+            chaos_type=record.chaos_type(),
+            chaos_comp=record.chaos_comp(),
         )
         num_series_by_type: dict[str, int] = {}
         for metric_type, ok in cfg.target_metric_types.items():
             if not ok:
                 continue
-            num_series_by_type[f"num_series/{metric_type}/raw"] = tsdr_stat[0][1].loc[metric_type]['count'].sum()
-            num_series_by_type[f"num_series/{metric_type}/filtered"] = tsdr_stat[1][1].loc[metric_type]['count'].sum()
-            num_series_by_type[f"num_series/{metric_type}/reduced"] = stat_df.loc[metric_type]['count'].sum()
-        tests_items.append({
-            'chaos_type': record.chaos_type(),
-            'chaos_comp': record.chaos_comp(),
-            'metrics_file': record.basename_of_metrics_file(),
-            'step': f"step{i}",
-            'valid_dataset_ok': valid_dataset_ok,
-            'ok': ok,
-            'num_series/total/raw': tsdr_stat[0][1]['count'].sum(),  # raw
-            'num_series/total/filtered': tsdr_stat[1][1]['count'].sum(),  # after step0
-            'num_series/total/reduced': stat_df['count'].sum(),  # after step{i}
-            **num_series_by_type,
-            'elapsed_time': elapsed_time,
-            'found_metrics': ','.join(found_metrics),
-            'grafana_dashboard_url': record.grafana_dashboard_url(),
-        })
+            num_series_by_type[f"num_series/{metric_type}/raw"] = tsdr_stat[0][1].loc[metric_type]["count"].sum()
+            num_series_by_type[f"num_series/{metric_type}/filtered"] = tsdr_stat[1][1].loc[metric_type]["count"].sum()
+            num_series_by_type[f"num_series/{metric_type}/reduced"] = stat_df.loc[metric_type]["count"].sum()
+        tests_items.append(
+            {
+                "chaos_type": record.chaos_type(),
+                "chaos_comp": record.chaos_comp(),
+                "metrics_file": record.basename_of_metrics_file(),
+                "step": f"step{i}",
+                "valid_dataset_ok": valid_dataset_ok,
+                "ok": ok,
+                **label_scores,
+                "num_series/total/raw": tsdr_stat[0][1]["count"].sum(),  # raw
+                "num_series/total/filtered": tsdr_stat[1][1]["count"].sum(),  # after step0
+                "num_series/total/reduced": stat_df["count"].sum(),  # after step{i}
+                **num_series_by_type,
+                "elapsed_time": elapsed_time,
+                "found_metrics": ",".join(found_metrics),
+                "grafana_dashboard_url": record.grafana_dashboard_url(),
+            }
+        )
 
     clustering_items: list[dict[str, str]] = []
     for representative_metric, sub_metrics in clustering_info.items():
-        clustering_items.append({
-            'chaos_type': record.chaos_type(),
-            'chaos_comp': record.chaos_comp(),
-            'metrics_file': record.basename_of_metrics_file(),
-            'representative_metric': representative_metric,
-            'sub_metrics': ','.join(sub_metrics),
-        })
+        clustering_items.append(
+            {
+                "chaos_type": record.chaos_type(),
+                "chaos_comp": record.chaos_comp(),
+                "metrics_file": record.basename_of_metrics_file(),
+                "representative_metric": representative_metric,
+                "sub_metrics": ",".join(sub_metrics),
+            }
+        )
 
     rep_metrics: list[str] = list(clustering_info.keys())
     post_clustered_reduced_df = tsdr_stat[-1][0]  # the last item pf tsdr_stat should be clustered result.
     non_clustered_reduced_df: pd.DataFrame = post_clustered_reduced_df.drop(columns=rep_metrics)
     non_clustered_item: dict[str, str] = {
-        'chaos_type': record.chaos_type(),
-        'chaos_comp': record.chaos_comp(),
-        'metrics_file': record.basename_of_metrics_file(),
-        'non_clustered_metrics': ','.join(non_clustered_reduced_df.columns),
+        "chaos_type": record.chaos_type(),
+        "chaos_comp": record.chaos_comp(),
+        "metrics_file": record.basename_of_metrics_file(),
+        "non_clustered_metrics": ",".join(non_clustered_reduced_df.columns),
     }
 
     ts_plotter.log_clustering_plots_as_html(
-        clustering_info, non_clustered_reduced_df, record, anomaly_points,
+        clustering_info,
+        non_clustered_reduced_df,
+        record,
+        anomaly_points,
     )
 
     return tests_items, clustering_items, non_clustered_item
@@ -376,7 +387,7 @@ def save_scores(
         scores_by_chaos_comp,
         scores_by_chaos_type_and_comp,
     ]:
-        with pd.option_context("display.max_rows", None, "display.max_columns", None):
+        with pd.option_context("display.max_rows", None, "display.max_columns", None):  # type: ignore
             logger.info("\n" + df.to_string())
 
 

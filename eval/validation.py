@@ -69,8 +69,6 @@ def validate_data_record(
     validation_results: list[dict[str, Any]] = []
     for i, (gt_route, gt_route_matcher) in enumerate(gt_metrics_routes):
         res = validate_route(record, i, gt_route, gt_route_matcher, labbeling, fault_inject_time_index)
-        if res is None:
-            continue
         validation_results.extend(res)
     if not validation_results:
         return None

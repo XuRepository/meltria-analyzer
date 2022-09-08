@@ -5,6 +5,7 @@ import os
 from concurrent import futures
 from dataclasses import dataclass
 from functools import reduce
+from itertools import combinations, product
 from multiprocessing import cpu_count
 from operator import add
 from typing import Any, cast
@@ -20,10 +21,11 @@ from bokeh.embed import file_html
 from bokeh.resources import CDN
 from neptune.new.integrations.python_logger import NeptuneHandler
 from omegaconf import DictConfig, OmegaConf
+from sklearn.metrics import accuracy_score, precision_score, recall_score
 
 import meltria.loader as meltria_loader
 from eval import groundtruth
-from eval.validation import check_valid_dataset
+from eval.validation import check_valid_dataset, detect_with_n_sigma_rule
 from meltria.loader import DatasetRecord
 from tsdr import tsdr
 
@@ -191,6 +193,37 @@ class TimeSeriesPlotter:
         )
 
 
+def calculate_performance_metrics_based_labeling(
+    data_df: pd.DataFrame,
+    tsdr_data_df: pd.DataFrame,  # data after reduction
+    labbeling: dict[str, Any],
+    fi_time: int,
+) -> dict[str, float]:
+    """Calculate accuracy of anomaly points."""
+
+    scores: dict[str, float] = {}
+    tsdr_data_df = tsdr_data_df.sort_index(axis=1)
+    data_df = data_df.sort_index(axis=1)
+    full_cols: list[str] = data_df.columns.to_list()
+    for n_sigma in labbeling["n_sigma_rule"]["n_sigmas"]:
+        y_true: np.ndarray = data_df.apply(
+            lambda X: detect_with_n_sigma_rule(X, test_start_time=fi_time, sigma_threshold=n_sigma).size > 0
+        ).to_numpy()
+
+        y_pred: np.ndarray = np.full_like(y_true, fill_value=False)
+        last_pos: int = 0
+        for col in tsdr_data_df.columns:
+            if (pos := full_cols[last_pos:].index(col)) == -1:
+                raise ValueError(f"Column {col} not found in ground truth")
+            y_pred[last_pos + pos] = True
+            last_pos = pos
+
+        scores[f"sigma={n_sigma}/accuracy"] = cast(float, accuracy_score(y_true, y_pred))
+        scores[f"sigma={n_sigma}/precision"] = cast(float, precision_score(y_true, y_pred))
+        scores[f"sigma={n_sigma}/recall"] = cast(float, recall_score(y_true, y_pred))
+    return scores
+
+
 def eval_tsdr_a_record(
     record: DatasetRecord,
     cfg: DictConfig,
@@ -233,6 +266,9 @@ def eval_tsdr_a_record(
             chaos_type=record.chaos_type(),
             chaos_comp=record.chaos_comp(),
         )
+        perf_metrics = calculate_performance_metrics_based_labeling(
+            tsdr_stat[1][0], reduced_df, labbeling, fault_inject_time_index
+        )
         num_series_by_type: dict[str, int] = {}
         for metric_type, ok in cfg.target_metric_types.items():
             if not ok:
@@ -248,7 +284,7 @@ def eval_tsdr_a_record(
                 "step": f"step{i}",
                 "valid_dataset_ok": valid_dataset_ok,
                 "ok": ok,
-                **label_scores,
+                **perf_metrics,
                 "num_series/total/raw": tsdr_stat[0][1]["count"].sum(),  # raw
                 "num_series/total/filtered": tsdr_stat[1][1]["count"].sum(),  # after step0
                 "num_series/total/reduced": stat_df["count"].sum(),  # after step{i}
@@ -297,6 +333,7 @@ def save_scores(
     clustering: list[dict[str, Any]],
     non_clustered: list[dict[str, Any]],
     target_metric_types: dict[str, bool],
+    labbeling: dict[str, dict[str, Any]],
 ) -> None:
     clustering_df = pd.DataFrame(clustering).set_index(
         [
@@ -322,6 +359,10 @@ def save_scores(
         fn = int((~x["ok"]).sum())
         rate = 1 - x["num_series/total/reduced"] / x["num_series/total/filtered"]
         valid: pd.Series = x["valid_dataset_ok"]
+        metrics: dict[str, float] = {
+            f"metrics/sigma={n}/{m}": x[f"sigma={n}/{m}"].mean()
+            for n, m in product(labbeling["n_sigma_rule"]["n_sigmas"], ("accuracy", "precision", "recall"))
+        }
         num_series_items: dict[str, str] = {}
         for metric_type, ok in target_metric_types.items():
             if not ok:
@@ -338,6 +379,7 @@ def save_scores(
             "tp": tp,
             "fn": fn,
             "accuracy": tp / (tp + fn),
+            **metrics,
             "num_series/total": "/".join(
                 [
                     f"{int(x['num_series/total/reduced'].mean())}",
@@ -418,7 +460,8 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig) -> None:
 
             del record  # reduce memory usage
 
-    save_scores(run, tests_items, clustering_items, non_clustered_items, cfg.target_metric_types)
+    labbeling = cast(dict[str, Any], OmegaConf.to_container(cfg.labbeling, resolve=True))
+    save_scores(run, tests_items, clustering_items, non_clustered_items, cfg.target_metric_types, labbeling)
 
 
 @hydra.main(version_base="1.2", config_path="../conf/tsdr", config_name="config")

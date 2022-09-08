@@ -38,10 +38,15 @@ types-tabulate = "^0.8.11"
 joblib = "^1.1.0"
 pandarallel = "^1.6.3"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 flake8 = "^5.0.4"
 mypy = "^0.971"
 autopep8 = "^1.7.0"
+pysen = "^0.10.2"
+black = "^22.8.0"
+isort = "^5.10.1"
+
+[tool.poetry.group.test.dependencies]
 pytest = "^6.2.4"
 pytest-cov = "^2.12.1"
 

@@ -22,14 +22,14 @@ class MetricNode:
     # label should be like 'c-orders_cpu_usage_seconds_total'
     def __init__(self, label: str) -> None:
         self.label = label
-        self.comp, self.base_name = label.split('-', maxsplit=1)[1].split('_', maxsplit=1)
-        if label.startswith('c-'):
+        self.comp, self.base_name = label.split("-", maxsplit=1)[1].split("_", maxsplit=1)
+        if label.startswith("c-"):
             self.comp_type = MetricType.CONTAINER
-        elif label.startswith('s-'):
+        elif label.startswith("s-"):
             self.comp_type = MetricType.SERVICE
-        elif label.startswith('n-'):
+        elif label.startswith("n-"):
             self.comp_type = MetricType.NODE
-        elif label.startswith('m-'):
+        elif label.startswith("m-"):
             self.comp_type = MetricType.MIDDLEWARE
         else:
             raise ValueError(f"no prefix: {label}")
@@ -99,13 +99,13 @@ class MetricNodes(object):
         return ret
 
     def __str__(self) -> str:
-        return ','.join([n.label for n in self.nodes])
+        return ",".join([n.label for n in self.nodes])
 
     def __repr__(self) -> str:
         return self.__str__()
 
     def liststr(self) -> str:
-        return '[' + ','.join([n.label for n in self.nodes]) + ']'
+        return "[" + ",".join([n.label for n in self.nodes]) + "]"
 
     def node_to_label(self) -> dict[MetricNode, str]:
         return {n: n.label for n in self.nodes}

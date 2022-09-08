@@ -8,29 +8,59 @@ from meltria.priorknowledge.priorknowledge import new_knowledge
 
 def test_build_subgraph_of_removal_edges():
     metrics = [
-        's-front-end_latency', 's-orders_latency', 'c-orders_sockets', 'c-orders-db_cpu_usage_seconds_total',
-        's-user_latency', 'c-user_sockets', 'c-user_cpu_usage_seconds_total', 'c-user-db_cpu_usage_seconds_total',
-        'n-gke-test-default-pool-66a015a8-9pw7_cpu_seconds_total',
-        'n-gke-test-default-pool-1dda290g-n10b_cpu_seconds_total',
+        "s-front-end_latency",
+        "s-orders_latency",
+        "c-orders_sockets",
+        "c-orders-db_cpu_usage_seconds_total",
+        "s-user_latency",
+        "c-user_sockets",
+        "c-user_cpu_usage_seconds_total",
+        "c-user-db_cpu_usage_seconds_total",
+        "n-gke-test-default-pool-66a015a8-9pw7_cpu_seconds_total",
+        "n-gke-test-default-pool-1dda290g-n10b_cpu_seconds_total",
     ]
     nodes: mn.MetricNodes = mn.MetricNodes({i: mn.MetricNode(v) for i, v in enumerate(metrics)})
-    pk = new_knowledge('sock-shop', {'nodes-containers': {
-        'gke-test-default-pool-66a015a8-9pw7': ['user', 'front-end', 'orders-db'],
-        'gke-test-default-pool-1dda290g-n10b': ['user-db', 'orders'],
-    }})
+    pk = new_knowledge(
+        "sock-shop",
+        {
+            "nodes-containers": {
+                "gke-test-default-pool-66a015a8-9pw7": [
+                    "user",
+                    "front-end",
+                    "orders-db",
+                ],
+                "gke-test-default-pool-1dda290g-n10b": ["user-db", "orders"],
+            }
+        },
+    )
     RG: nx.Graph = diag.build_subgraph_of_removal_edges(nodes, pk)
     expected = [
-        ('c-orders_sockets', 'c-user-db_cpu_usage_seconds_total'),
-        ('c-orders_sockets', 'n-gke-test-default-pool-66a015a8-9pw7_cpu_seconds_total'),
-        ('c-user-db_cpu_usage_seconds_total', 'c-orders-db_cpu_usage_seconds_total'),
-        ('c-orders-db_cpu_usage_seconds_total', 'c-user_sockets'),
-        ('c-orders-db_cpu_usage_seconds_total', 'c-user_cpu_usage_seconds_total'),
-        ('c-user-db_cpu_usage_seconds_total', 'n-gke-test-default-pool-66a015a8-9pw7_cpu_seconds_total'),
-        ('n-gke-test-default-pool-1dda290g-n10b_cpu_seconds_total', 'c-orders-db_cpu_usage_seconds_total'),
-        ('n-gke-test-default-pool-1dda290g-n10b_cpu_seconds_total', 'c-user_cpu_usage_seconds_total'),
-        ('n-gke-test-default-pool-1dda290g-n10b_cpu_seconds_total', 'c-user_sockets'),
-        ('n-gke-test-default-pool-1dda290g-n10b_cpu_seconds_total', 'n-gke-test-default-pool-66a015a8-9pw7_cpu_seconds_total'),
-        ('s-front-end_latency', 'n-gke-test-default-pool-1dda290g-n10b_cpu_seconds_total'),
+        ("c-orders_sockets", "c-user-db_cpu_usage_seconds_total"),
+        ("c-orders_sockets", "n-gke-test-default-pool-66a015a8-9pw7_cpu_seconds_total"),
+        ("c-user-db_cpu_usage_seconds_total", "c-orders-db_cpu_usage_seconds_total"),
+        ("c-orders-db_cpu_usage_seconds_total", "c-user_sockets"),
+        ("c-orders-db_cpu_usage_seconds_total", "c-user_cpu_usage_seconds_total"),
+        (
+            "c-user-db_cpu_usage_seconds_total",
+            "n-gke-test-default-pool-66a015a8-9pw7_cpu_seconds_total",
+        ),
+        (
+            "n-gke-test-default-pool-1dda290g-n10b_cpu_seconds_total",
+            "c-orders-db_cpu_usage_seconds_total",
+        ),
+        (
+            "n-gke-test-default-pool-1dda290g-n10b_cpu_seconds_total",
+            "c-user_cpu_usage_seconds_total",
+        ),
+        ("n-gke-test-default-pool-1dda290g-n10b_cpu_seconds_total", "c-user_sockets"),
+        (
+            "n-gke-test-default-pool-1dda290g-n10b_cpu_seconds_total",
+            "n-gke-test-default-pool-66a015a8-9pw7_cpu_seconds_total",
+        ),
+        (
+            "s-front-end_latency",
+            "n-gke-test-default-pool-1dda290g-n10b_cpu_seconds_total",
+        ),
     ]
     assert sorted([(u.label, v.label) for (u, v) in list(RG.edges)]) == sorted(expected)
 
@@ -39,7 +69,7 @@ def test_build_subgraph_of_removal_edges():
     "case,input,expected",
     [
         (
-            'hieralchy01: reverse single direction edge',
+            "hieralchy01: reverse single direction edge",
             [
                 ("s-user_latency", "s-front-end_latency"),
                 ("s-user_latency", "c-user_cpu_usage_seconds_total"),  # wrong
@@ -50,7 +80,7 @@ def test_build_subgraph_of_removal_edges():
             ],
         ),
         (
-            'hieralchy02: determine bi-direction edge',
+            "hieralchy02: determine bi-direction edge",
             [
                 ("s-user_latency", "s-front-end_latency"),
                 ("s-user_latency", "c-user_cpu_usage_seconds_total"),
@@ -62,7 +92,7 @@ def test_build_subgraph_of_removal_edges():
             ],
         ),
         (
-            'nwcall01: service to service',
+            "nwcall01: service to service",
             [
                 ("s-user_latency", "s-front-end_latency"),
                 ("s-front-end_latency", "s-user_latency"),  # wrong
@@ -74,67 +104,105 @@ def test_build_subgraph_of_removal_edges():
             ],
         ),
         (
-            'nwcall02: container to container',
+            "nwcall02: container to container",
             [
-                ("c-user_cpu_usage_seconds_total", "c-user-db_cpu_usage_seconds_total"),  # wrong
+                (
+                    "c-user_cpu_usage_seconds_total",
+                    "c-user-db_cpu_usage_seconds_total",
+                ),  # wrong
                 ("c-user_cpu_usage_seconds_total", "s-user_latency"),
             ],
             [
-                ("c-user-db_cpu_usage_seconds_total", "c-user_cpu_usage_seconds_total", {}),
+                (
+                    "c-user-db_cpu_usage_seconds_total",
+                    "c-user_cpu_usage_seconds_total",
+                    {},
+                ),
                 ("c-user_cpu_usage_seconds_total", "s-user_latency", {}),
             ],
-        ), (
-            'nwcall03: service to container',
+        ),
+        (
+            "nwcall03: service to container",
             [
                 ("s-user_latency", "c-user_cpu_usage_seconds_total"),  # wrong
             ],
             [
                 ("c-user_cpu_usage_seconds_total", "s-user_latency", {}),
             ],
-        ), (
-            'nwcall04: container to service',
+        ),
+        (
+            "nwcall04: container to service",
             [
                 ("c-orders_cpu_usage_seconds_total", "s-user_latency"),  # wrong
             ],
             [
                 ("s-user_latency", "c-orders_cpu_usage_seconds_total", {}),
             ],
-        ), (
-            'nwcall05: container to container or service to service in the same container or service',
+        ),
+        (
+            "nwcall05: container to container or service to service in the same container or service",
             [
                 ("s-user_throughput", "s-user_latency"),  # wrong
                 ("c-user_cpu_usage_seconds_total", "s-user_latency"),
-                ("c-user_cpu_usage_seconds_total", "c-user_memory_working_set_bytes"),  # wrong
+                (
+                    "c-user_cpu_usage_seconds_total",
+                    "c-user_memory_working_set_bytes",
+                ),  # wrong
             ],
             [
                 ("s-user_throughput", "s-user_latency", {}),
                 ("s-user_latency", "s-user_throughput", {}),
                 ("c-user_cpu_usage_seconds_total", "s-user_latency", {}),
-                ("c-user_cpu_usage_seconds_total", "c-user_memory_working_set_bytes", {}),
-                ("c-user_memory_working_set_bytes", "c-user_cpu_usage_seconds_total", {}),
+                (
+                    "c-user_cpu_usage_seconds_total",
+                    "c-user_memory_working_set_bytes",
+                    {},
+                ),
+                (
+                    "c-user_memory_working_set_bytes",
+                    "c-user_cpu_usage_seconds_total",
+                    {},
+                ),
             ],
-        ), (
-            'hybrid01: mixed hieralchy and nwcall',
+        ),
+        (
+            "hybrid01: mixed hieralchy and nwcall",
             [
                 ("s-user_latency", "s-front-end_latency"),
                 ("s-user_latency", "c-user_cpu_usage_seconds_total"),  # wrong
-                ("c-user_cpu_usage_seconds_total", "c-user-db_cpu_usage_seconds_total"),  # wrong
+                (
+                    "c-user_cpu_usage_seconds_total",
+                    "c-user-db_cpu_usage_seconds_total",
+                ),  # wrong
                 ("c-user_cpu_usage_seconds_total", "s-user_latency"),
             ],
             [
                 ("s-user_latency", "s-front-end_latency", {}),
                 ("c-user_cpu_usage_seconds_total", "s-user_latency", {}),
-                ("c-user-db_cpu_usage_seconds_total", "c-user_cpu_usage_seconds_total", {}),
+                (
+                    "c-user-db_cpu_usage_seconds_total",
+                    "c-user_cpu_usage_seconds_total",
+                    {},
+                ),
             ],
-        )
+        ),
     ],
-    ids=['hieralchy01', 'hieralchy02', 'nwcall01', 'nwcall02', 'nwcall03', 'nwcall04', 'nwcall05', 'hybrid01'],
+    ids=[
+        "hieralchy01",
+        "hieralchy02",
+        "nwcall01",
+        "nwcall02",
+        "nwcall03",
+        "nwcall04",
+        "nwcall05",
+        "hybrid01",
+    ],
 )
 def test_fix_edge_directions_in_causal_graph(case, input, expected):
     G = nx.DiGraph()
     paths = [(mn.MetricNode(u), mn.MetricNode(v)) for u, v in input]
     G.add_edges_from(paths)
-    pk = new_knowledge('sock-shop', {'nodes-containers': {}})
+    pk = new_knowledge("sock-shop", {"nodes-containers": {}})
     got = diag.fix_edge_directions_in_causal_graph(G, pk)
     assert sorted([(u.label, v.label, {}) for u, v in got.edges]) == sorted(expected)
 
@@ -161,7 +229,7 @@ def test_fix_edge_directions_in_causal_graph(case, input, expected):
                         ("c-orders_sockets", "s-orders_latency", {}),
                         ("c-orders-db_sockets", "c-orders_sockets", {}),
                     ],
-                ]
+                ],
             ),
         ),
     ],
@@ -169,7 +237,7 @@ def test_fix_edge_directions_in_causal_graph(case, input, expected):
 def test_find_connected_subgraphs(input, expected):
     G = nx.DiGraph()
     G.add_edges_from([(mn.MetricNode(u), mn.MetricNode(v)) for u, v in input])
-    pk = new_knowledge('sock-shop', {'nodes-containers': {}})
+    pk = new_knowledge("sock-shop", {"nodes-containers": {}})
     root_contained_subgs, root_uncontained_subgs = diag.find_connected_subgraphs(G, pk.get_root_metrics())
 
     assert sorted([(u.label, v.label, {}) for u, v in root_contained_subgs[0].edges]) == sorted(expected[0][0])

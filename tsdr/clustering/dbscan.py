@@ -9,15 +9,15 @@ from sklearn.neighbors import NearestNeighbors
 
 def pearsonr_dist(X, Y, **kwargs):
     r = scipy.stats.pearsonr(X, Y)[0]
-    return 1-r
+    return 1 - r
 
 
 def learn_clusters(
     X: np.ndarray,
-    dist_func: str | Callable = 'pearsonr',
+    dist_func: str | Callable = "pearsonr",
     min_pts: int = 2,
 ) -> tuple[np.ndarray, np.ndarray]:
-    if dist_func == 'pearsonr':
+    if dist_func == "pearsonr":
         dist_func = pearsonr_dist
 
     if len(X) <= 2:
@@ -26,12 +26,14 @@ def learn_clusters(
 
     nn_fit = NearestNeighbors(n_neighbors=min_pts, metric=dist_func).fit(X)
     distances = nn_fit.kneighbors()[0]
-    dist_square_matrix: scipy.sparse.csr_matrix = nn_fit.radius_neighbors_graph(mode='distance', sort_results=True)
+    dist_square_matrix: scipy.sparse.csr_matrix = nn_fit.radius_neighbors_graph(mode="distance", sort_results=True)
 
-    eps = max(distances.flatten())/4  # see DBSherlock paper
+    eps = max(distances.flatten()) / 4  # see DBSherlock paper
 
     labels = sklearn.cluster.DBSCAN(
-        eps=eps, min_samples=min_pts, metric='precomputed',
+        eps=eps,
+        min_samples=min_pts,
+        metric="precomputed",
     ).fit_predict(dist_square_matrix)
 
     return labels, dist_square_matrix.toarray()

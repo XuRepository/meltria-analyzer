@@ -18,8 +18,8 @@ def residual_integral(x: np.ndarray, bkp: int = 0) -> tuple[np.ndarray, np.ndarr
         errors = ols.resid / std
     else:
         train_x, test_x = np.split(x, [bkp])
-        ols = OLS(train_x, add_constant(np.arange(1, train_x.size+1))).fit()
-        test_pred = ols.predict(exog=add_constant(np.arange(train_x.size+1, x.size+1)))
+        ols = OLS(train_x, add_constant(np.arange(1, train_x.size + 1))).fit()
+        test_pred = ols.predict(exog=add_constant(np.arange(train_x.size + 1, x.size + 1)))
         pred_x = np.append(ols.predict(), test_pred)
         errors = (test_pred - test_x) / (pred_x - x).std()
 
@@ -34,5 +34,5 @@ def residual_integral_max(x: np.ndarray, bkp: int = 0) -> tuple[float, list[tupl
     max_rss_start: int = 0 if max_rss_sec_idx == 0 else np.sum([sec.size for sec in secs[:max_rss_sec_idx]])
     max_rss_start += bkp
     max_rss: float = rsses[max_rss_sec_idx]
-    max_rss_sec: list[tuple[int, float]] = [(max_rss_start+i, v) for i, v in enumerate(secs[max_rss_sec_idx])]
+    max_rss_sec: list[tuple[int, float]] = [(max_rss_start + i, v) for i, v in enumerate(secs[max_rss_sec_idx])]
     return max_rss, max_rss_sec

@@ -8,10 +8,8 @@ from meltria import loader
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--metrics-file",
-                        help="metrics JSON file")
-    parser.add_argument('series_names',
-                        help='the list of series')
+    parser.add_argument("--metrics-file", help="metrics JSON file")
+    parser.add_argument("series_names", help="the list of series")
     args = parser.parse_args()
 
     metrics, _, _ = loader.read_metrics_json(args.metrics_file)
@@ -21,5 +19,5 @@ def main():
     pprint(series_by_name, compact=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

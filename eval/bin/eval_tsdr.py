@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from functools import reduce
 from multiprocessing import cpu_count
 from operator import add
-from typing import Any
+from typing import Any, cast
 
 import holoviews as hv
 import hydra
@@ -27,11 +27,11 @@ from eval.validation import check_valid_dataset
 from meltria.loader import DatasetRecord
 from tsdr import tsdr
 
-hv.extension('bokeh')
+hv.extension("bokeh")
 
 
 # see https://docs.neptune.ai/api-reference/integrations/python-logger
-logger = logging.getLogger('root_experiment')
+logger = logging.getLogger("root_experiment")
 logger.setLevel(logging.INFO)
 
 
@@ -42,17 +42,19 @@ class TimeSeriesPlotter:
     logger: logging.Logger
 
     def log_plots_as_html(self, record: DatasetRecord) -> None:
-        """ Upload found_metrics plot images to neptune.ai.
-        """
+        """Upload found_metrics plot images to neptune.ai."""
         if not self.enable_upload_plots:
             return
         self.logger.info(f">> Uploading plot figures of {record.chaos_case_file()} ...")
         if (gtdf := record.ground_truth_metrics_frame()) is None:
             return
         html = self.generate_html_time_series(
-            record, gtdf, title=f'Chart of time series metrics {record.chaos_case_full()}')
+            record,
+            gtdf,
+            title=f"Chart of time series metrics {record.chaos_case_full()}",
+        )
         self.run[f"dataset/figures/{record.chaos_case_full()}"].upload(
-            neptune.types.File.from_content(html, extension='html'),
+            neptune.types.File.from_content(html, extension="html"),
         )
 
     def log_clustering_plots_as_html(
@@ -62,8 +64,7 @@ class TimeSeriesPlotter:
         record: DatasetRecord,
         anomaly_points: dict[str, np.ndarray],
     ) -> None:
-        """ Upload clustered time series plots to neptune.ai.
-        """
+        """Upload clustered time series plots to neptune.ai."""
         if not self.enable_upload_plots:
             return
 
@@ -88,7 +89,7 @@ class TimeSeriesPlotter:
                 neptune_path: str = future_list[future]
                 html: str = future.result()
                 self.run[neptune_path].upload(
-                    neptune.types.File.from_content(html, extension='html'),
+                    neptune.types.File.from_content(html, extension="html"),
                 )
 
     @classmethod
@@ -98,8 +99,7 @@ class TimeSeriesPlotter:
         record: DatasetRecord,
         anomaly_points: dict[str, np.ndarray],
     ) -> str:
-        """ Upload clustered time series plots to neptune.ai.
-        """
+        """Upload clustered time series plots to neptune.ai."""
         logger.info(f">> Uploading clustering plots of {record.chaos_case_file()} ...")
         figures: list[hv.Overlay] = []
         for rep_metric, sub_metrics in clustering_info.items():
@@ -107,12 +107,12 @@ class TimeSeriesPlotter:
             fig: hv.Overlay = cls.generate_figure_time_series(
                 data=record.data_df[clustered_metrics],
                 anomaly_points=anomaly_points,
-                title=f'Chart of time series metrics {record.chaos_case_full()} / rep:{rep_metric}',
+                title=f"Chart of time series metrics {record.chaos_case_full()} / rep:{rep_metric}",
                 width_and_height=(800, 400),
             )
             figures.append(fig)
         if len(figures) == 0:
-            return ''
+            return ""
         final_fig = reduce(add, figures)
         return file_html(hv.render(final_fig), CDN, record.chaos_case_full())
 
@@ -123,23 +123,22 @@ class TimeSeriesPlotter:
         non_clustered_reduced_df: pd.DataFrame,
         anomaly_points: dict[str, np.ndarray],
     ) -> str:
-        """ Upload non-clustered time series plots to neptune.ai.
-        """
+        """Upload non-clustered time series plots to neptune.ai."""
         logger.info(f">> Uploading non-clustered plots of {record.chaos_case_file()} ...")
         if len(non_clustered_reduced_df.columns) == 0:
-            return ''
+            return ""
 
         figures: list[hv.Overlay] = []
         for service, metrics in record.pk.group_metrics_by_service(list(non_clustered_reduced_df.columns)).items():
             fig: hv.Overlay = cls.generate_figure_time_series(
                 data=non_clustered_reduced_df[metrics],
                 anomaly_points=anomaly_points,
-                title=f'Chart of time series metrics {record.chaos_case_full()} / {service} [no clustered]',
+                title=f"Chart of time series metrics {record.chaos_case_full()} / {service} [no clustered]",
                 width_and_height=(800, 400),
             )
             figures.append(fig)
         final_fig = reduce(add, figures)
-        return file_html(hv.render(final_fig), CDN, record.chaos_case_full())
+        return cast(str, file_html(hv.render(final_fig), CDN, record.chaos_case_full()))
 
     @classmethod
     def generate_html_time_series(
@@ -150,7 +149,7 @@ class TimeSeriesPlotter:
         anomaly_points: dict[str, np.ndarray] = {},
     ) -> str:
         fig = cls.generate_figure_time_series(data, title=title, anomaly_points=anomaly_points)
-        return file_html(hv.render(fig), CDN, record.chaos_case_full())
+        return cast(str, file_html(hv.render(fig), CDN, record.chaos_case_full()))
 
     @classmethod
     def generate_figure_time_series(
@@ -163,25 +162,32 @@ class TimeSeriesPlotter:
         hv_curves = []
         for column in data.columns:
             vals: np.ndarray = scipy.stats.zscore(data[column].to_numpy())
-            df = pd.DataFrame(data={
-                'x': np.arange(vals.size),
-                'y': vals,
-                'label': column,  # to show label with hovertool
-            })
-            line = hv.Curve(df, label=column).opts(tools=['hover', 'tap'])
+            df = pd.DataFrame(
+                data={
+                    "x": np.arange(vals.size),
+                    "y": vals,
+                    "label": column,  # to show label with hovertool
+                }
+            )
+            line = hv.Curve(df, label=column).opts(tools=["hover", "tap"])
             if (points := anomaly_points.get(column)) is None:
                 hv_curves.append(line)
             else:
                 ap = np.array([(p[0], vals[p[0]]) for p in points])
-                hv_curves.append(line * hv.Points(ap).opts(color='red', size=8, marker='x'))
+                hv_curves.append(line * hv.Points(ap).opts(color="red", size=8, marker="x"))
         return hv.Overlay(hv_curves).opts(
             title=title,
-            tools=['hover', 'tap'],
-            width=width_and_height[0], height=width_and_height[1],
-            xlabel='time', ylabel='zscore',
-            fontsize={'legend': 8},
-            show_grid=True, legend_limit=100,
-            show_legend=True, legend_position='right', legend_muted=True,
+            tools=["hover", "tap"],
+            width=width_and_height[0],
+            height=width_and_height[1],
+            xlabel="time",
+            ylabel="zscore",
+            fontsize={"legend": 8},
+            show_grid=True,
+            legend_limit=100,
+            show_legend=True,
+            legend_position="right",
+            legend_muted=True,
         )
 
 
@@ -198,7 +204,7 @@ def eval_tsdr_a_record(
         logger.info(f">> Validating dataset {record.chaos_case_full()} ...")
         valid_dataset_ok = check_valid_dataset(
             record,
-            OmegaConf.to_container(cfg.labbeling, resolve=True),
+            cast(dict[str, Any], OmegaConf.to_container(cfg.labbeling, resolve=True)),
             cfg.time.fault_inject_time_index,
         )
 
@@ -207,8 +213,10 @@ def eval_tsdr_a_record(
     logger.info(f">> Running tsdr {record.chaos_case_full()} ...")
 
     tsdr_param = {'time_fault_inject_time_index': cfg.time.fault_inject_time_index}
-    tsdr_param.update({f'step1_{k}': v for k, v in OmegaConf.to_container(cfg.step1, resolve=True).items()})
-    tsdr_param.update({f'step2_{k}': v for k, v in OmegaConf.to_container(cfg.step2, resolve=True).items()})
+    pycfg_step1 = cast(dict[str, Any], OmegaConf.to_container(cfg.step1, resolve=True))
+    pycfg_step2 = cast(dict[str, Any], OmegaConf.to_container(cfg.step2, resolve=True))
+    tsdr_param.update({f'step1_{k}': v for k, v in pycfg_step1.items()})
+    tsdr_param.update({f'step2_{k}': v for k, v in pycfg_step2.items()})
     reducer = tsdr.Tsdr(cfg.step1.model_name, **tsdr_param)
     tsdr_stat, clustering_info, anomaly_points = reducer.run(
         X=record.data_df, pk=record.pk, max_workers=cpu_count(),
@@ -274,77 +282,105 @@ def eval_tsdr_a_record(
 
 def save_scores(
     run: neptune.Run,
-    tests: list[dict[str, Any]], clustering: list[dict[str, Any]], non_clustered: list[dict[str, Any]],
-    target_metric_types: dict[str, bool]
+    tests: list[dict[str, Any]],
+    clustering: list[dict[str, Any]],
+    non_clustered: list[dict[str, Any]],
+    target_metric_types: dict[str, bool],
 ) -> None:
     clustering_df = pd.DataFrame(clustering).set_index(
-        ['chaos_type', 'chaos_comp', 'metrics_file', 'representative_metric', 'sub_metrics'])
-    non_clustered_df = pd.DataFrame(non_clustered).set_index(['chaos_type', 'chaos_comp', 'metrics_file'])
+        [
+            "chaos_type",
+            "chaos_comp",
+            "metrics_file",
+            "representative_metric",
+            "sub_metrics",
+        ]
+    )
+    non_clustered_df = pd.DataFrame(non_clustered).set_index(["chaos_type", "chaos_comp", "metrics_file"])
     tests_df = pd.DataFrame(tests).set_index(
-        ['chaos_type', 'chaos_comp', 'metrics_file', 'grafana_dashboard_url', 'step'])
+        ["chaos_type", "chaos_comp", "metrics_file", "grafana_dashboard_url", "step"]
+    )
 
-    run['tests/clustering/clustered_table'].upload(neptune.types.File.as_html(clustering_df))
-    run['tests/clustering/non_clustered_table'].upload(neptune.types.File.as_html(non_clustered_df))
+    run["tests/clustering/clustered_table"].upload(neptune.types.File.as_html(clustering_df))
+    run["tests/clustering/non_clustered_table"].upload(neptune.types.File.as_html(non_clustered_df))
 
-    run['scores/summary'].upload(neptune.types.File.as_html(tests_df))
+    run["scores/summary"].upload(neptune.types.File.as_html(tests_df))
 
     def agg_score(x: pd.DataFrame) -> pd.Series:
-        tp = int(x['ok'].sum())
-        fn = int((~x['ok']).sum())
-        rate = (1 - x['num_series/total/reduced'] / x['num_series/total/filtered'])
-        valid: pd.Series = x['valid_dataset_ok']
+        tp = int(x["ok"].sum())
+        fn = int((~x["ok"]).sum())
+        rate = 1 - x["num_series/total/reduced"] / x["num_series/total/filtered"]
+        valid: pd.Series = x["valid_dataset_ok"]
         num_series_items: dict[str, str] = {}
         for metric_type, ok in target_metric_types.items():
             if not ok:
                 continue
-            num_series_items[f'num_series/{metric_type}'] = '/'.join([
-                f"{int(x[f'num_series/{metric_type}/reduced'].mean())}",
-                f"{int(x[f'num_series/{metric_type}/filtered'].mean())}",
-                f"{int(x[f'num_series/{metric_type}/raw'].mean())}",
-            ])
+            num_series_items[f"num_series/{metric_type}"] = "/".join(
+                [
+                    f"{int(x[f'num_series/{metric_type}/reduced'].mean())}",
+                    f"{int(x[f'num_series/{metric_type}/filtered'].mean())}",
+                    f"{int(x[f'num_series/{metric_type}/raw'].mean())}",
+                ]
+            )
         d = {
-            'data_validity': int(valid.sum()) / valid.size if valid.notnull().any() else np.NaN,
-            'tp': tp,
-            'fn': fn,
-            'accuracy': tp / (tp + fn),
-            'num_series/total': '/'.join([
-                f"{int(x['num_series/total/reduced'].mean())}",
-                f"{int(x['num_series/total/filtered'].mean())}",
-                f"{int(x['num_series/total/raw'].mean())}",
-            ]),
+            "data_validity": int(valid.sum()) / valid.size if valid.notnull().any() else np.NaN,
+            "tp": tp,
+            "fn": fn,
+            "accuracy": tp / (tp + fn),
+            "num_series/total": "/".join(
+                [
+                    f"{int(x['num_series/total/reduced'].mean())}",
+                    f"{int(x['num_series/total/filtered'].mean())}",
+                    f"{int(x['num_series/total/raw'].mean())}",
+                ]
+            ),
             **num_series_items,
-            'reduction_rate_mean': rate.mean(),
-            'reduction_rate_max': rate.max(),
-            'reduction_rate_min': rate.min(),
-            'elapsed_time': x['elapsed_time'].mean(),
-            'elapsed_time_max': x['elapsed_time'].max(),
-            'elapsed_time_min': x['elapsed_time'].min(),
+            "reduction_rate_mean": rate.mean(),
+            "reduction_rate_max": rate.max(),
+            "reduction_rate_min": rate.min(),
+            "elapsed_time": x["elapsed_time"].mean(),
+            "elapsed_time_max": x["elapsed_time"].max(),
+            "elapsed_time_min": x["elapsed_time"].min(),
         }
         return pd.Series(d)
 
-    scores_by_step = tests_df.groupby('step').apply(agg_score).reset_index().set_index('step')
-    scores_by_chaos_type = tests_df.groupby(
-        ['chaos_type', 'step']).apply(agg_score).reset_index().set_index(['chaos_type', 'step'])
-    scores_by_chaos_comp = tests_df.groupby(
-        ['chaos_comp', 'step']).apply(agg_score).reset_index().set_index(['chaos_comp', 'step'])
-    scores_by_chaos_type_and_comp = tests_df.groupby(
-        ['chaos_type', 'chaos_comp', 'step'],
-    ).apply(agg_score).reset_index().set_index(['chaos_type', 'chaos_comp', 'step'])
-    total_scores: pd.Series = scores_by_step.loc['step2']
-    for col in ['elapsed_time', 'elapsed_time_max', 'elapsed_time_min']:
-        total_scores[col] = scores_by_step.loc['step1'][col] + scores_by_step.loc['step2'][col]
+    scores_by_step = tests_df.groupby("step").apply(agg_score).reset_index().set_index("step")
+    scores_by_chaos_type = (
+        tests_df.groupby(["chaos_type", "step"]).apply(agg_score).reset_index().set_index(["chaos_type", "step"])
+    )
+    scores_by_chaos_comp = (
+        tests_df.groupby(["chaos_comp", "step"]).apply(agg_score).reset_index().set_index(["chaos_comp", "step"])
+    )
+    scores_by_chaos_type_and_comp = (
+        tests_df.groupby(
+            ["chaos_type", "chaos_comp", "step"],
+        )
+        .apply(agg_score)
+        .reset_index()
+        .set_index(["chaos_type", "chaos_comp", "step"])
+    )
+    total_scores: pd.Series = scores_by_step.loc["step2"]
+    for col in ["elapsed_time", "elapsed_time_max", "elapsed_time_min"]:
+        total_scores[col] = scores_by_step.loc["step1"][col] + scores_by_step.loc["step2"][col]
 
-    run['scores'] = total_scores.to_dict()
-    run['scores/summary_by_step'].upload(neptune.types.File.as_html(scores_by_step))
-    run['scores/summary_by_chaos_type'].upload(neptune.types.File.as_html(scores_by_chaos_type))
-    run['scores/summary_by_chaos_comp'].upload(neptune.types.File.as_html(scores_by_chaos_comp))
-    run['scores/summary_by_chaos_type_and_chaos_comp'].upload(neptune.types.File.as_html(scores_by_chaos_type_and_comp))
-    for df in [scores_by_step, scores_by_chaos_type, scores_by_chaos_comp, scores_by_chaos_type_and_comp]:
-        with pd.option_context('display.max_rows', None, 'display.max_columns', None):
-            logger.info("\n"+df.to_string())
+    run["scores"] = total_scores.to_dict()
+    run["scores/summary_by_step"].upload(neptune.types.File.as_html(scores_by_step))
+    run["scores/summary_by_chaos_type"].upload(neptune.types.File.as_html(scores_by_chaos_type))
+    run["scores/summary_by_chaos_comp"].upload(neptune.types.File.as_html(scores_by_chaos_comp))
+    run["scores/summary_by_chaos_type_and_chaos_comp"].upload(
+        neptune.types.File.as_html(scores_by_chaos_type_and_comp)
+    )
+    for df in [
+        scores_by_step,
+        scores_by_chaos_type,
+        scores_by_chaos_comp,
+        scores_by_chaos_type_and_comp,
+    ]:
+        with pd.option_context("display.max_rows", None, "display.max_columns", None):
+            logger.info("\n" + df.to_string())
 
 
-def eval_tsdr(run: neptune.Run, cfg: DictConfig):
+def eval_tsdr(run: neptune.Run, cfg: DictConfig) -> None:
     ts_plotter: TimeSeriesPlotter = TimeSeriesPlotter(
         run=run,
         enable_upload_plots=cfg.upload_plots,
@@ -353,7 +389,7 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
 
     dataset_generator = meltria_loader.load_dataset_as_generator(
         cfg.metrics_files,
-        OmegaConf.to_container(cfg.target_metric_types, resolve=True),
+        cast(dict[str, bool], OmegaConf.to_container(cfg.target_metric_types, resolve=True)),
         cfg.time.num_datapoints,
     )
     logger.info("Loading metrics files")
@@ -374,32 +410,32 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig):
     save_scores(run, tests_items, clustering_items, non_clustered_items, cfg.target_metric_types)
 
 
-@hydra.main(version_base="1.2", config_path='../conf/tsdr', config_name='config')
+@hydra.main(version_base="1.2", config_path="../conf/tsdr", config_name="config")
 def main(cfg: DictConfig) -> None:
-    logging.basicConfig(format='%(asctime)s %(levelname)s:%(message)s', level=logging.INFO)
+    logging.basicConfig(format="%(asctime)s %(levelname)s:%(message)s", level=logging.INFO)
 
     # Setup neptune.ai client
     run: neptune.Run = neptune.init(
-        project=os.environ['TSDR_NEPTUNE_PROJECT'],
-        api_token=os.environ['TSDR_NEPTUNE_API_TOKEN'],
+        project=os.environ["TSDR_NEPTUNE_PROJECT"],
+        api_token=os.environ["TSDR_NEPTUNE_API_TOKEN"],
         mode=cfg.neptune.mode,
     )
     npt_handler = NeptuneHandler(run=run)
     logger.addHandler(npt_handler)
 
-    run['dataset/id'] = cfg.dataset_id
-    run['dataset/num_metrics_files'] = len(cfg.metrics_files)
+    run["dataset/id"] = cfg.dataset_id
+    run["dataset/num_metrics_files"] = len(cfg.metrics_files)
     params = {
-        'target_metric_types': OmegaConf.to_container(cfg.target_metric_types, resolve=True),
+        "target_metric_types": OmegaConf.to_container(cfg.target_metric_types, resolve=True),
     }
 
     # Hydra parameters are passed to the Neptune.ai run object
-    pycfg_step1 = OmegaConf.to_container(cfg.step1, resolve=True)
-    params.update({f'step1_{k}': v for k, v in pycfg_step1.items()})
-    pycfg_step2 = OmegaConf.to_container(cfg.step2, resolve=True)
-    params.update({f'step2_{k}': v for k, v in pycfg_step2.items()})
+    pycfg_step1 = cast(dict[str, Any], OmegaConf.to_container(cfg.step1, resolve=True))
+    params.update({f"step1_{k}": v for k, v in pycfg_step1.items()})
+    pycfg_step2 = cast(dict[str, Any], OmegaConf.to_container(cfg.step2, resolve=True))
+    params.update({f"step2_{k}": v for k, v in pycfg_step2.items()})
 
-    run['parameters'] = params
+    run["parameters"] = params
     run.wait()  # sync parameters for 'async' neptune mode
 
     logger.info(OmegaConf.to_yaml(cfg))
@@ -409,5 +445,5 @@ def main(cfg: DictConfig) -> None:
     run.stop()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

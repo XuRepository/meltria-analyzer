@@ -3,7 +3,7 @@ from scipy import stats
 
 
 def ci_test_pearsonr(dm: np.ndarray, x: int, y: int, s: set[int], **kwargs):
-    assert 'corr_matrix' in kwargs
+    assert "corr_matrix" in kwargs
     # cm: np.ndarray = kwargs['corr_matrix']
     s = list(s)
     if len(s) == 0:

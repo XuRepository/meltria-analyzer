@@ -269,7 +269,6 @@ def eval_tsdr_a_record(
     logger.info(f">> Evaluating tsdr {record.chaos_case_full()} ...")
 
     filtered_df: pd.DataFrame = tsdr_stat[1][0]  # simple filtered-out data
-    ground_truth_labels: pd.DataFrame = prepare_ground_truth_labels(filtered_df, labbeling, fault_inject_time_index)
     tests_items: list[dict[str, Any]] = []
     perf_metrics_dfs: list[pd.DataFrame] = []
     # skip the first item of tsdr_stat because it
@@ -305,6 +304,10 @@ def eval_tsdr_a_record(
             }
         )
 
+    # Instrument performance metrics
+    ground_truth_labels: pd.DataFrame = prepare_ground_truth_labels(filtered_df, labbeling, fault_inject_time_index)
+    # only step1 and step2
+    for i, reduced_df in enumerate(tsdr_stat[1:3][0], start=1):
         perf_metrics_df = calculate_performance_metrics_based_labeling(ground_truth_labels, reduced_df)
         perf_metrics_df["chaos_type"] = record.chaos_type()
         perf_metrics_df["chaos_comp"] = record.chaos_comp()

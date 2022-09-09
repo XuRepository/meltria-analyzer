@@ -192,23 +192,28 @@ class TimeSeriesPlotter:
         )
 
 
+def prepare_ground_truth_labels(data_df: pd.DataFrame, labbeling: dict[str, Any], fi_time: int) -> pd.DataFrame:
+    """Prepare ground truth labels for anomaly detection."""
+    gt_labels: dict[int, pd.Series] = {}
+    for n_sigma in labbeling["n_sigma_rule"]["n_sigmas"]:
+        gt_labels[n_sigma] = data_df.apply(
+            lambda X: detect_with_n_sigma_rule(X, test_start_time=fi_time, sigma_threshold=n_sigma).size > 0
+        ).astype(bool)
+    return pd.DataFrame.from_dict(gt_labels, orient="index")
+
+
 def calculate_performance_metrics_based_labeling(
-    data_df: pd.DataFrame,
+    ground_truth_labels: pd.DataFrame,
     tsdr_data_df: pd.DataFrame,  # data after reduction
-    labbeling: dict[str, Any],
-    fi_time: int,
 ) -> pd.DataFrame:
     """Calculate accuracy of anomaly points."""
 
     scores: list[tuple[int, float, float, float]] = []
     tsdr_data_df = tsdr_data_df.sort_index(axis=1)
-    data_df = data_df.sort_index(axis=1)
-    full_cols: list[str] = data_df.columns.to_list()
-    for n_sigma in labbeling["n_sigma_rule"]["n_sigmas"]:
-        y_true: np.ndarray = data_df.apply(
-            lambda X: detect_with_n_sigma_rule(X, test_start_time=fi_time, sigma_threshold=n_sigma).size > 0
-        ).to_numpy()
-
+    gt_labels = ground_truth_labels.sort_index(axis=1)
+    full_cols: list[str] = gt_labels.columns.to_list()
+    for n_sigma, row in gt_labels.iterrows():
+        y_true: np.ndarray = row.to_numpy()
         y_pred: np.ndarray = np.full_like(y_true, fill_value=False)
         last_pos: int = 0
         for col in tsdr_data_df.columns:
@@ -219,7 +224,7 @@ def calculate_performance_metrics_based_labeling(
 
         scores.append(
             (
-                n_sigma,
+                int(cast(int, n_sigma)),
                 cast(float, accuracy_score(y_true, y_pred)),
                 cast(float, precision_score(y_true, y_pred)),
                 cast(float, recall_score(y_true, y_pred)),
@@ -261,6 +266,8 @@ def eval_tsdr_a_record(
 
     logger.info(f">> Evaluating tsdr {record.chaos_case_full()} ...")
 
+    filtered_df: pd.DataFrame = tsdr_stat[1][0]  # simple filtered-out data
+    ground_truth_labels: pd.DataFrame = prepare_ground_truth_labels(filtered_df, labbeling, fault_inject_time_index)
     tests_items: list[dict[str, Any]] = []
     perf_metrics_dfs: list[pd.DataFrame] = []
     # skip the first item of tsdr_stat because it
@@ -296,12 +303,7 @@ def eval_tsdr_a_record(
             }
         )
 
-        perf_metrics_df = calculate_performance_metrics_based_labeling(
-            tsdr_stat[1][0],
-            reduced_df,
-            labbeling,
-            fault_inject_time_index,
-        )
+        perf_metrics_df = calculate_performance_metrics_based_labeling(ground_truth_labels, reduced_df)
         perf_metrics_df["chaos_type"] = record.chaos_type()
         perf_metrics_df["chaos_comp"] = record.chaos_comp()
         perf_metrics_df["metrics_file"] = record.basename_of_metrics_file()

@@ -20,6 +20,7 @@ from bokeh.embed import file_html
 from bokeh.resources import CDN
 from neptune.new.integrations.python_logger import NeptuneHandler
 from omegaconf import DictConfig, OmegaConf
+from pandarallel import pandarallel
 from sklearn.metrics import accuracy_score, precision_score, recall_score
 
 import meltria.loader as meltria_loader
@@ -28,6 +29,7 @@ from eval.validation import check_valid_dataset, detect_with_n_sigma_rule
 from meltria.loader import DatasetRecord
 from tsdr import tsdr
 
+pandarallel.initialize(progress_bar=False)
 hv.extension("bokeh")  # type: ignore
 
 
@@ -196,7 +198,7 @@ def prepare_ground_truth_labels(data_df: pd.DataFrame, labbeling: dict[str, Any]
     """Prepare ground truth labels for anomaly detection."""
     gt_labels: dict[int, pd.Series] = {}
     for n_sigma in labbeling["n_sigma_rule"]["n_sigmas"]:
-        gt_labels[n_sigma] = data_df.apply(
+        gt_labels[n_sigma] = data_df.parallel_apply(
             lambda X: detect_with_n_sigma_rule(X, test_start_time=fi_time, sigma_threshold=n_sigma).size > 0
         ).astype(bool)
     return pd.DataFrame.from_dict(gt_labels, orient="index")

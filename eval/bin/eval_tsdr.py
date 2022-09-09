@@ -5,7 +5,6 @@ import os
 from concurrent import futures
 from dataclasses import dataclass
 from functools import reduce
-from itertools import combinations, product
 from multiprocessing import cpu_count
 from operator import add
 from typing import Any, cast
@@ -198,10 +197,10 @@ def calculate_performance_metrics_based_labeling(
     tsdr_data_df: pd.DataFrame,  # data after reduction
     labbeling: dict[str, Any],
     fi_time: int,
-) -> dict[str, float]:
+) -> pd.DataFrame:
     """Calculate accuracy of anomaly points."""
 
-    scores: dict[str, float] = {}
+    scores: list[tuple[int, float, float, float]] = []
     tsdr_data_df = tsdr_data_df.sort_index(axis=1)
     data_df = data_df.sort_index(axis=1)
     full_cols: list[str] = data_df.columns.to_list()
@@ -218,17 +217,22 @@ def calculate_performance_metrics_based_labeling(
             y_pred[last_pos + pos] = True
             last_pos = pos
 
-        scores[f"sigma={n_sigma}/accuracy"] = cast(float, accuracy_score(y_true, y_pred))
-        scores[f"sigma={n_sigma}/precision"] = cast(float, precision_score(y_true, y_pred))
-        scores[f"sigma={n_sigma}/recall"] = cast(float, recall_score(y_true, y_pred))
-    return scores
+        scores.append(
+            (
+                n_sigma,
+                cast(float, accuracy_score(y_true, y_pred)),
+                cast(float, precision_score(y_true, y_pred)),
+                cast(float, recall_score(y_true, y_pred)),
+            )
+        )
+    return pd.DataFrame(scores, columns=["n_sigma", "accuracy", "precision", "recall"]).set_index(["n_sigma"])
 
 
 def eval_tsdr_a_record(
     record: DatasetRecord,
     cfg: DictConfig,
     ts_plotter: TimeSeriesPlotter,
-) -> tuple[list[dict[str, Any]], list[dict[str, str]], dict[str, str]]:
+) -> tuple[list[dict[str, Any]], pd.DataFrame, list[dict[str, str]], dict[str, str]]:
     labbeling = cast(dict[str, Any], OmegaConf.to_container(cfg.labbeling, resolve=True))
     fault_inject_time_index = cast(int, cfg.time.fault_inject_time_index)
     # check any True of all causal paths
@@ -258,6 +262,7 @@ def eval_tsdr_a_record(
     logger.info(f">> Evaluating tsdr {record.chaos_case_full()} ...")
 
     tests_items: list[dict[str, Any]] = []
+    perf_metrics_dfs: list[pd.DataFrame] = []
     # skip the first item of tsdr_stat because it
     for i, (reduced_df, stat_df, elapsed_time) in enumerate(tsdr_stat[1:], start=1):
         ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
@@ -265,9 +270,6 @@ def eval_tsdr_a_record(
             metrics=list(reduced_df.columns),
             chaos_type=record.chaos_type(),
             chaos_comp=record.chaos_comp(),
-        )
-        perf_metrics = calculate_performance_metrics_based_labeling(
-            tsdr_stat[1][0], reduced_df, labbeling, fault_inject_time_index
         )
         num_series_by_type: dict[str, int] = {}
         for metric_type, ok in cfg.target_metric_types.items():
@@ -284,7 +286,6 @@ def eval_tsdr_a_record(
                 "step": f"step{i}",
                 "valid_dataset_ok": valid_dataset_ok,
                 "ok": ok,
-                **perf_metrics,
                 "num_series/total/raw": tsdr_stat[0][1]["count"].sum(),  # raw
                 "num_series/total/filtered": tsdr_stat[1][1]["count"].sum(),  # after step0
                 "num_series/total/reduced": stat_df["count"].sum(),  # after step{i}
@@ -294,6 +295,18 @@ def eval_tsdr_a_record(
                 "grafana_dashboard_url": record.grafana_dashboard_url(),
             }
         )
+
+        perf_metrics_df = calculate_performance_metrics_based_labeling(
+            tsdr_stat[1][0],
+            reduced_df,
+            labbeling,
+            fault_inject_time_index,
+        )
+        perf_metrics_df["chaos_type"] = record.chaos_type()
+        perf_metrics_df["chaos_comp"] = record.chaos_comp()
+        perf_metrics_df["metrics_file"] = record.basename_of_metrics_file()
+        perf_metrics_df["step"] = f"step{i}"
+        perf_metrics_dfs.append(perf_metrics_df)
 
     clustering_items: list[dict[str, str]] = []
     for representative_metric, sub_metrics in clustering_info.items():
@@ -324,16 +337,16 @@ def eval_tsdr_a_record(
         anomaly_points,
     )
 
-    return tests_items, clustering_items, non_clustered_item
+    return tests_items, pd.concat(perf_metrics_dfs, copy=False), clustering_items, non_clustered_item
 
 
 def save_scores(
     run: neptune.Run,
     tests: list[dict[str, Any]],
+    perf_metrics_df: pd.DataFrame,
     clustering: list[dict[str, Any]],
     non_clustered: list[dict[str, Any]],
     target_metric_types: dict[str, bool],
-    labbeling: dict[str, dict[str, Any]],
 ) -> None:
     clustering_df = pd.DataFrame(clustering).set_index(
         [
@@ -359,10 +372,6 @@ def save_scores(
         fn = int((~x["ok"]).sum())
         rate = 1 - x["num_series/total/reduced"] / x["num_series/total/filtered"]
         valid: pd.Series = x["valid_dataset_ok"]
-        metrics: dict[str, float] = {
-            f"metrics/sigma={n}/{m}": x[f"sigma={n}/{m}"].mean()
-            for n, m in product(labbeling["n_sigma_rule"]["n_sigmas"], ("accuracy", "precision", "recall"))
-        }
         num_series_items: dict[str, str] = {}
         for metric_type, ok in target_metric_types.items():
             if not ok:
@@ -379,7 +388,6 @@ def save_scores(
             "tp": tp,
             "fn": fn,
             "accuracy": tp / (tp + fn),
-            **metrics,
             "num_series/total": "/".join(
                 [
                     f"{int(x['num_series/total/reduced'].mean())}",
@@ -415,6 +423,12 @@ def save_scores(
     total_scores: pd.Series = scores_by_step.loc["step2"]
     for col in ["elapsed_time", "elapsed_time_max", "elapsed_time_min"]:
         total_scores[col] = scores_by_step.loc["step1"][col] + scores_by_step.loc["step2"][col]
+    perf_metrics = (
+        perf_metrics_df.groupby(["chaos_type", "chaos_comp", "step", "n_sigma"])
+        .agg(["mean", "max", "min"])
+        .reset_index()
+        .set_index(["chaos_type", "chaos_comp", "step", "n_sigma"])
+    )
 
     run["scores"] = total_scores.to_dict()
     run["scores/summary_by_step"].upload(neptune.types.File.as_html(scores_by_step))
@@ -423,11 +437,13 @@ def save_scores(
     run["scores/summary_by_chaos_type_and_chaos_comp"].upload(
         neptune.types.File.as_html(scores_by_chaos_type_and_comp)
     )
+    run["scores/perf_metrics"].upload(neptune.types.File.as_html(perf_metrics))
     for df in [
         scores_by_step,
         scores_by_chaos_type,
         scores_by_chaos_comp,
         scores_by_chaos_type_and_comp,
+        perf_metrics,
     ]:
         with pd.option_context("display.max_rows", None, "display.max_columns", None):  # type: ignore
             logger.info("\n" + df.to_string())
@@ -448,20 +464,30 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig) -> None:
     logger.info("Loading metrics files")
 
     clustering_items: list[dict[str, Any]] = []
+    performance_metrics_dfs: list[pd.DataFrame] = []
     non_clustered_items: list[dict[str, Any]] = []
     tests_items: list[dict[str, Any]] = []
 
     for records in dataset_generator:
         for record in records:
-            _tests_items, _clustering_items, _non_clustered_item = eval_tsdr_a_record(record, cfg, ts_plotter)
+            _tests_items, _performance_metrics_df, _clustering_items, _non_clustered_item = eval_tsdr_a_record(
+                record, cfg, ts_plotter
+            )
             tests_items.extend(_tests_items)
             clustering_items.extend(_clustering_items)
             non_clustered_items.append(_non_clustered_item)
+            performance_metrics_dfs.append(_performance_metrics_df)
 
             del record  # reduce memory usage
 
-    labbeling = cast(dict[str, Any], OmegaConf.to_container(cfg.labbeling, resolve=True))
-    save_scores(run, tests_items, clustering_items, non_clustered_items, cfg.target_metric_types, labbeling)
+    save_scores(
+        run,
+        tests_items,
+        pd.concat(performance_metrics_dfs, copy=False),
+        clustering_items,
+        non_clustered_items,
+        cfg.target_metric_types,
+    )
 
 
 @hydra.main(version_base="1.2", config_path="../conf/tsdr", config_name="config")

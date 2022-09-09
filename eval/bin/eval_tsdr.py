@@ -306,8 +306,8 @@ def eval_tsdr_a_record(
 
     # Instrument performance metrics
     ground_truth_labels: pd.DataFrame = prepare_ground_truth_labels(filtered_df, labbeling, fault_inject_time_index)
-    # only step1 and step2
-    for i, reduced_df in enumerate(tsdr_stat[1:3][0], start=1):
+    # only step2 and step3
+    for i, (reduced_df, _, _) in enumerate(tsdr_stat[2:4], start=2):
         perf_metrics_df = calculate_performance_metrics_based_labeling(ground_truth_labels, reduced_df)
         perf_metrics_df["chaos_type"] = record.chaos_type()
         perf_metrics_df["chaos_comp"] = record.chaos_comp()

@@ -31,7 +31,7 @@ class Tsdr:
     def __init__(
         self,
         univariate_series_func_or_name: Callable[[np.ndarray, Any], UnivariateSeriesReductionResult] | str,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         self.params = kwargs
         if callable(univariate_series_func_or_name):
@@ -94,7 +94,7 @@ class Tsdr:
         elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
         stat.append((reduced_series1, count_metrics(reduced_series1), elapsed_time))
 
-        if self.params["step1_residual_integral_change_start_point"]:
+        if self.params.get("step1_residual_integral_change_start_point", False):
             # step1.5
             start = time.time()
 

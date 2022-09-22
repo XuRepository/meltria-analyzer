@@ -45,21 +45,6 @@ class Tsdr:
     def univariate_series_func(self, series: np.ndarray, **kwargs: Any) -> UnivariateSeriesReductionResult:
         return unireducer.ar_based_ad_model(series, **kwargs)
 
-    def detect_failure_start_point(self, sli: np.ndarray, sigma_threshold=3) -> tuple[int, float]:
-        """Detect failure start point in SLO metrics.
-        The method uses outliter detection with 'robust z-score' and 3-sigma rule.
-        """
-        fi_time = self.params["time_fault_inject_time_index"]
-        train, test = np.split(sli, [fi_time])
-        coeff = scipy.stats.norm.ppf(0.75) - scipy.stats.norm.ppf(0.25)
-        iqr = np.quantile(train, 0.75) - np.quantile(train, 0.25)
-        niqr = iqr / coeff
-        median = np.median(train)
-        for i, v in enumerate(test):
-            if np.abs((v - median) / niqr) > sigma_threshold:
-                return (fi_time + i, v)
-        return (0, 0.0)
-
     def reduce_by_failure_detection_time(
         self,
         series: pd.DataFrame,

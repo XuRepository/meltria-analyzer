@@ -340,7 +340,11 @@ def residual_integral_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeri
 
 def two_samp_test_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeriesReductionResult:
     alpha: float = kwargs["step1_two_samp_test_alpha"]
-    train_x, test_x = np.split(series, 2)
+    seg_idx: int = kwargs["step1_two_samp_test_seg_idx"]
+    if seg_idx == 0:
+        train_x, test_x = np.split(series, 2)
+    else:
+        train_x, test_x = np.split(series, [seg_idx])
     pval: float
     match method := kwargs["step1_two_samp_test_method"]:
         case "ks":

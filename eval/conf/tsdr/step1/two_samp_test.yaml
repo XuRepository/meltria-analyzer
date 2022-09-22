@@ -1,3 +1,4 @@
 model_name: two_samp_test
 two_samp_test_method: 'ks' # 'ks' or 'ad' or 'es' or 'e-diagnosis'
 two_samp_test_alpha: 0.05
+two_samp_test_seg_idx: 0  # 0 means division at midpoint

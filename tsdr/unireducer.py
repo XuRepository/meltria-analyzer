@@ -349,6 +349,15 @@ def two_samp_test_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeriesRe
             pval = scipy.stats.anderson_ksamp([train_x, test_x])[2]
         case "es":
             pval = scipy.stats.epps_singleton_2samp(train_x, test_x)[1]
+        case "e-diagnosis":
+            pval = scipy.stats.permutation_test(
+                (train_x, test_x),
+                scipy.stats.energy_distance,
+                vectorized=False,
+                permutation_type="independent",
+                alternative="two-sided",
+                n_resamples=1999,  # default value 9999 is very slow.
+            ).pvalue
         case _:
             raise ValueError(f"Unknown two-sample test method {method}")
     if pval <= alpha:

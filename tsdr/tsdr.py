@@ -115,7 +115,7 @@ class Tsdr:
         match series_type := self.params["step2_clustering_series_type"]:
             case "raw":
                 df_before_clustering = reduced_series1.apply(scipy.stats.zscore)
-            case "anomaly_score", "binary_anomaly_score":
+            case "anomaly_score" | "binary_anomaly_score":
                 tmp_dict_to_df: dict[str, np.ndarray] = {}
                 for name, res in step1_results.items():
                     if res.has_kept:

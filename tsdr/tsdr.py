@@ -115,6 +115,8 @@ class Tsdr:
         match series_type := self.params["step2_clustering_series_type"]:
             case "raw":
                 df_before_clustering = reduced_series1.apply(scipy.stats.zscore)
+                # filter metrics including nan values after zscore
+                df_before_clustering = filter_out_no_change_metrics(df_before_clustering, parallel=(max_workers != 1))
             case "anomaly_score" | "binary_anomaly_score":
                 tmp_dict_to_df: dict[str, np.ndarray] = {}
                 for name, res in step1_results.items():
@@ -128,7 +130,7 @@ class Tsdr:
                 raise ValueError(f"step2_clustered_series_type is invalid {series_type}")
 
         reduced_series2, clustering_info = self.reduce_multivariate_series(
-            df_before_clustering.copy(),
+            df_before_clustering,
             pk,
             max_workers,
         )
@@ -204,11 +206,22 @@ class Tsdr:
                 else:
                     raise ValueError('dist_func must be "sbd" or "hamming"')
             elif method_name == "dbscan":
+                dist_type = kwargs["step2_dbscan_dist_type"]
+                dist_func: str | Callable
+                match dist_type:
+                    case "sbd":
+                        dist_func = sbd
+                    case "hamming":
+                        dist_func = hamming
+                    case _:
+                        dist_func = dist_type
+
                 future = executor.submit(
                     dbscan_clustering,
                     df,
-                    kwargs["step2_dbscan_dist_type"],
+                    dist_func,
                     kwargs["step2_dbscan_min_pts"],
+                    kwargs["step2_dbscan_algorithm"],
                     choice_method,
                 )
             else:
@@ -300,11 +313,17 @@ def hierarchical_clustering(
 
 def dbscan_clustering(
     target_df: pd.DataFrame,
-    dist_func: str,
+    dist_func: str | Callable,
     min_pts: int,
+    algorithm: str,
     choice_method: str = "medoid",
 ) -> tuple[dict[str, Any], list[str]]:
-    labels, dist_matrix = dbscan.learn_clusters(target_df.values.T, dist_func, min_pts)
+    labels, dist_matrix = dbscan.learn_clusters(
+        X=target_df.values.T,
+        dist_func=dist_func,
+        min_pts=min_pts,
+        algorithm=algorithm,
+    )
 
     cluster_dict: dict[int, list[int]] = {}
     for i, v in enumerate(labels):

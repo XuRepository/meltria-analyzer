@@ -1,5 +1,6 @@
 clustering_method_name: 'dbscan'
 dbscan_min_pts: 2  # should be >=2
-dbscan_dist_type: 'pearsonr' # 'pearsonr'
+dbscan_dist_type: 'sbd' # 'pearsonr' or 'sbd'
+dbscan_algorithm: 'hdbscan' # 'dbscan' or 'hdbscan'
 clustering_series_type: 'raw' # 'raw', 'anomaly_score' or 'binary_anomaly_score'
 clustering_choice_method: 'medoid'  # 'medoid' or 'maxsum'

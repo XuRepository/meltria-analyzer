@@ -347,7 +347,9 @@ def eval_tsdr_a_record(
         anomaly_points,
     )
 
-    return tests_items, pd.concat(perf_metrics_dfs, copy=False), clustering_items, non_clustered_item
+    perf_metrics_df = pd.concat(perf_metrics_dfs, copy=False) if len(perf_metrics_dfs) > 0 else pd.DataFrame()
+
+    return tests_items, perf_metrics_df, clustering_items, non_clustered_item
 
 
 def save_scores(
@@ -439,6 +441,8 @@ def save_scores(
         .agg(["mean", "max", "min"])
         .reset_index()
         .set_index(["chaos_type", "chaos_comp", "step", "n_sigma"])
+        if not perf_metrics_df.empty
+        else perf_metrics_df
     )
 
     run["scores"] = total_scores.to_dict()
@@ -457,6 +461,8 @@ def save_scores(
         scores_by_chaos_type_and_comp,
         perf_metrics,
     ]:
+        if df.empty:
+            continue
         with pd.option_context("display.max_rows", None, "display.max_columns", None):  # type: ignore
             logger.info("\n" + df.to_string())
 

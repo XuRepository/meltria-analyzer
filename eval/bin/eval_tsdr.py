@@ -427,9 +427,10 @@ def save_scores(
         .reset_index()
         .set_index(["chaos_type", "chaos_comp", "step"])
     )
-    total_scores: pd.Series = scores_by_step.loc["step2"]
+    total_scores: pd.Series = scores_by_step.iloc[-1, :]
     for col in ["elapsed_time", "elapsed_time_max", "elapsed_time_min"]:
-        total_scores[col] = scores_by_step.loc["step1"][col] + scores_by_step.loc["step2"][col]
+        total_scores[col] = scores_by_step[col].sum()
+
     perf_metrics = (
         perf_metrics_df.groupby(["chaos_type", "chaos_comp", "step", "n_sigma"])
         .agg(["mean", "max", "min"])
@@ -446,6 +447,7 @@ def save_scores(
     )
     run["scores/perf_metrics"].upload(neptune.types.File.as_html(perf_metrics))
     for df in [
+        total_scores,
         scores_by_step,
         scores_by_chaos_type,
         scores_by_chaos_comp,

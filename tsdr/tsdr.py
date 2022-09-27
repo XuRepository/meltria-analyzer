@@ -31,7 +31,7 @@ class Tsdr:
     def __init__(
         self,
         univariate_series_func_or_name: Callable[[np.ndarray, Any], UnivariateSeriesReductionResult] | str,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         self.params = kwargs
         if callable(univariate_series_func_or_name):
@@ -44,21 +44,6 @@ class Tsdr:
 
     def univariate_series_func(self, series: np.ndarray, **kwargs: Any) -> UnivariateSeriesReductionResult:
         return unireducer.ar_based_ad_model(series, **kwargs)
-
-    def detect_failure_start_point(self, sli: np.ndarray, sigma_threshold=3) -> tuple[int, float]:
-        """Detect failure start point in SLO metrics.
-        The method uses outliter detection with 'robust z-score' and 3-sigma rule.
-        """
-        fi_time = self.params["time_fault_inject_time_index"]
-        train, test = np.split(sli, [fi_time])
-        coeff = scipy.stats.norm.ppf(0.75) - scipy.stats.norm.ppf(0.25)
-        iqr = np.quantile(train, 0.75) - np.quantile(train, 0.25)
-        niqr = iqr / coeff
-        median = np.median(train)
-        for i, v in enumerate(test):
-            if np.abs((v - median) / niqr) > sigma_threshold:
-                return (fi_time + i, v)
-        return (0, 0.0)
 
     def reduce_by_failure_detection_time(
         self,
@@ -109,7 +94,7 @@ class Tsdr:
         elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
         stat.append((reduced_series1, count_metrics(reduced_series1), elapsed_time))
 
-        if self.params["step1_residual_integral_change_start_point"]:
+        if self.params.get("step1_residual_integral_change_start_point", False):
             # step1.5
             start = time.time()
 
@@ -130,7 +115,9 @@ class Tsdr:
         match series_type := self.params["step2_clustering_series_type"]:
             case "raw":
                 df_before_clustering = reduced_series1.apply(scipy.stats.zscore)
-            case "anomaly_score", "binary_anomaly_score":
+                # filter metrics including nan values after zscore
+                df_before_clustering = filter_out_no_change_metrics(df_before_clustering, parallel=(max_workers != 1))
+            case "anomaly_score" | "binary_anomaly_score":
                 tmp_dict_to_df: dict[str, np.ndarray] = {}
                 for name, res in step1_results.items():
                     if res.has_kept:
@@ -143,7 +130,7 @@ class Tsdr:
                 raise ValueError(f"step2_clustered_series_type is invalid {series_type}")
 
         reduced_series2, clustering_info = self.reduce_multivariate_series(
-            df_before_clustering.copy(),
+            df_before_clustering,
             pk,
             max_workers,
         )
@@ -219,11 +206,22 @@ class Tsdr:
                 else:
                     raise ValueError('dist_func must be "sbd" or "hamming"')
             elif method_name == "dbscan":
+                dist_type = kwargs["step2_dbscan_dist_type"]
+                dist_func: str | Callable
+                match dist_type:
+                    case "sbd":
+                        dist_func = sbd
+                    case "hamming":
+                        dist_func = hamming
+                    case _:
+                        dist_func = dist_type
+
                 future = executor.submit(
                     dbscan_clustering,
                     df,
-                    kwargs["step2_dbscan_dist_type"],
+                    dist_func,
                     kwargs["step2_dbscan_min_pts"],
+                    kwargs["step2_dbscan_algorithm"],
                     choice_method,
                 )
             else:
@@ -315,11 +313,17 @@ def hierarchical_clustering(
 
 def dbscan_clustering(
     target_df: pd.DataFrame,
-    dist_func: str,
+    dist_func: str | Callable,
     min_pts: int,
+    algorithm: str,
     choice_method: str = "medoid",
 ) -> tuple[dict[str, Any], list[str]]:
-    labels, dist_matrix = dbscan.learn_clusters(target_df.values.T, dist_func, min_pts)
+    labels, dist_matrix = dbscan.learn_clusters(
+        X=target_df.values.T,
+        dist_func=dist_func,
+        min_pts=min_pts,
+        algorithm=algorithm,
+    )
 
     cluster_dict: dict[int, list[int]] = {}
     for i, v in enumerate(labels):

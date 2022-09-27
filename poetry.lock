@@ -428,6 +428,21 @@ numpy = ">=1.12.0"
 scipy = ">=0.18.1"
 
 [[package]]
+name = "hdbscan"
+version = "0.8.28"
+description = "Clustering based on density with variable density clusters"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+cython = ">=0.27"
+joblib = ">=1.0"
+numpy = ">=1.20"
+scikit-learn = ">=0.20"
+scipy = ">=1.0"
+
+[[package]]
 name = "holoviews"
 version = "1.14.9"
 description = "Stop plotting your data - annotate your data and let it visualize itself."
@@ -1764,7 +1779,7 @@ test = ["websockets"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.10,<3.11"
-content-hash = "9546fd50b4745a92f425e70b8967e35ac3fc29922de6cc7c2ac18fa988654a92"
+content-hash = "8ed2cb54b8219e51240fcb955d7affa9ea5848f30715d2bc55484cf8bfd7d781"
 
 [metadata.files]
 antlr4-python3-runtime = [
@@ -2026,6 +2041,9 @@ GitPython = [
 ]
 gsq = [
     {file = "gsq-0.1.6.tar.gz", hash = "sha256:6c7954f1b08496f911b96d8db72d04d3f5ad4cb681585b759ff4c86711c7d90b"},
+]
+hdbscan = [
+    {file = "hdbscan-0.8.28.tar.gz", hash = "sha256:eedaf71f2f3bbedfc4c38da1ad4897454ce5ebd4792e1a689c979c2853edc05a"},
 ]
 holoviews = [
     {file = "holoviews-1.14.9-py2.py3-none-any.whl", hash = "sha256:eb9a8d7b0a01a14ae4ba6b6258479bef4012198f53938cfe9f2d74982e716038"},

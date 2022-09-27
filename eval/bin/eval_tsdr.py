@@ -20,14 +20,17 @@ from bokeh.embed import file_html
 from bokeh.resources import CDN
 from neptune.new.integrations.python_logger import NeptuneHandler
 from omegaconf import DictConfig, OmegaConf
+from pandarallel import pandarallel
+from sklearn.metrics import accuracy_score, precision_score, recall_score
 
 import meltria.loader as meltria_loader
 from eval import groundtruth
-from eval.validation import check_valid_dataset
+from eval.validation import check_valid_dataset, detect_with_n_sigma_rule
 from meltria.loader import DatasetRecord
 from tsdr import tsdr
 
-hv.extension("bokeh")
+pandarallel.initialize(progress_bar=False)
+hv.extension("bokeh")  # type: ignore
 
 
 # see https://docs.neptune.ai/api-reference/integrations/python-logger
@@ -114,7 +117,7 @@ class TimeSeriesPlotter:
         if len(figures) == 0:
             return ""
         final_fig = reduce(add, figures)
-        return file_html(hv.render(final_fig), CDN, record.chaos_case_full())
+        return cast(str, file_html(hv.render(final_fig), CDN, record.chaos_case_full()))
 
     @classmethod
     def get_html_of_non_clustered_series_plots(
@@ -175,7 +178,7 @@ class TimeSeriesPlotter:
             else:
                 ap = np.array([(p[0], vals[p[0]]) for p in points])
                 hv_curves.append(line * hv.Points(ap).opts(color="red", size=8, marker="x"))
-        return hv.Overlay(hv_curves).opts(
+        return hv.Overlay(hv_curves).opts(  # type: ignore
             title=title,
             tools=["hover", "tap"],
             width=width_and_height[0],
@@ -191,9 +194,163 @@ class TimeSeriesPlotter:
         )
 
 
+def prepare_ground_truth_labels(data_df: pd.DataFrame, labbeling: dict[str, Any], fi_time: int) -> pd.DataFrame:
+    """Prepare ground truth labels for anomaly detection."""
+    gt_labels: dict[int, pd.Series] = {}
+    for n_sigma in labbeling["n_sigma_rule"]["n_sigmas"]:
+        gt_labels[n_sigma] = data_df.parallel_apply(
+            lambda X: detect_with_n_sigma_rule(X, test_start_time=fi_time, sigma_threshold=n_sigma).size > 0
+        ).astype(bool)
+    return pd.DataFrame.from_dict(gt_labels, orient="index")
+
+
+def calculate_performance_metrics_based_labeling(
+    ground_truth_labels: pd.DataFrame,
+    tsdr_data_df: pd.DataFrame,  # data after reduction
+) -> pd.DataFrame:
+    """Calculate accuracy of anomaly points."""
+
+    scores: list[tuple[int, float, float, float]] = []
+    tsdr_data_df = tsdr_data_df.sort_index(axis=1)
+    gt_labels = ground_truth_labels.sort_index(axis=1)
+    full_cols: list[str] = gt_labels.columns.to_list()
+    for n_sigma, row in gt_labels.iterrows():
+        y_true: np.ndarray = row.to_numpy()
+        y_pred: np.ndarray = np.full_like(y_true, fill_value=False)
+        last_pos: int = 0
+        for col in tsdr_data_df.columns:
+            if (pos := full_cols[last_pos:].index(col)) == -1:
+                raise ValueError(f"Column {col} not found in ground truth")
+            y_pred[last_pos + pos] = True
+            last_pos = pos
+
+        scores.append(
+            (
+                int(cast(int, n_sigma)),
+                cast(float, accuracy_score(y_true, y_pred)),
+                cast(float, precision_score(y_true, y_pred)),
+                cast(float, recall_score(y_true, y_pred)),
+            )
+        )
+    return pd.DataFrame(scores, columns=["n_sigma", "accuracy", "precision", "recall"]).set_index(["n_sigma"])
+
+
+def eval_tsdr_a_record(
+    record: DatasetRecord,
+    cfg: DictConfig,
+    ts_plotter: TimeSeriesPlotter,
+) -> tuple[list[dict[str, Any]], pd.DataFrame, list[dict[str, str]], dict[str, str]]:
+    labbeling = cast(dict[str, Any], OmegaConf.to_container(cfg.labbeling, resolve=True))
+    fault_inject_time_index = cast(int, cfg.time.fault_inject_time_index)
+    # check any True of all causal paths
+    valid_dataset_ok: bool | None = None
+    if cfg.disable_dataset_validation:
+        logger.info(f">> Skip validation of dataset {record.chaos_case_full()} ...")
+    else:
+        logger.info(f">> Validating dataset {record.chaos_case_full()} ...")
+        valid_dataset_ok = check_valid_dataset(record, labbeling, fault_inject_time_index)
+
+    ts_plotter.log_plots_as_html(record)
+
+    logger.info(f">> Running tsdr {record.chaos_case_full()} ...")
+
+    tsdr_param = {"time_fault_inject_time_index": cfg.time.fault_inject_time_index}
+    pycfg_step1 = cast(dict[str, Any], OmegaConf.to_container(cfg.step1, resolve=True))
+    pycfg_step2 = cast(dict[str, Any], OmegaConf.to_container(cfg.step2, resolve=True))
+    tsdr_param.update({f"step1_{k}": v for k, v in pycfg_step1.items()})
+    tsdr_param.update({f"step2_{k}": v for k, v in pycfg_step2.items()})
+    reducer = tsdr.Tsdr(cfg.step1.model_name, **tsdr_param)
+    tsdr_stat, clustering_info, anomaly_points = reducer.run(
+        X=record.data_df,
+        pk=record.pk,
+        max_workers=cpu_count(),
+    )
+
+    logger.info(f">> Evaluating tsdr {record.chaos_case_full()} ...")
+
+    filtered_df: pd.DataFrame = tsdr_stat[1][0]  # simple filtered-out data
+    tests_items: list[dict[str, Any]] = []
+    perf_metrics_dfs: list[pd.DataFrame] = []
+    # skip the first item of tsdr_stat because it
+    for i, (reduced_df, stat_df, elapsed_time) in enumerate(tsdr_stat[1:], start=1):
+        ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
+            pk=record.pk,
+            metrics=list(reduced_df.columns),
+            chaos_type=record.chaos_type(),
+            chaos_comp=record.chaos_comp(),
+        )
+        num_series_by_type: dict[str, int] = {}
+        for metric_type, ok in cfg.target_metric_types.items():
+            if not ok:
+                continue
+            num_series_by_type[f"num_series/{metric_type}/raw"] = tsdr_stat[0][1].loc[metric_type]["count"].sum()
+            num_series_by_type[f"num_series/{metric_type}/filtered"] = tsdr_stat[1][1].loc[metric_type]["count"].sum()
+            num_series_by_type[f"num_series/{metric_type}/reduced"] = stat_df.loc[metric_type]["count"].sum()
+        tests_items.append(
+            {
+                "chaos_type": record.chaos_type(),
+                "chaos_comp": record.chaos_comp(),
+                "metrics_file": record.basename_of_metrics_file(),
+                "step": f"step{i}",
+                "valid_dataset_ok": valid_dataset_ok,
+                "ok": ok,
+                "num_series/total/raw": tsdr_stat[0][1]["count"].sum(),  # raw
+                "num_series/total/filtered": tsdr_stat[1][1]["count"].sum(),  # after step0
+                "num_series/total/reduced": stat_df["count"].sum(),  # after step{i}
+                **num_series_by_type,
+                "elapsed_time": elapsed_time,
+                "found_metrics": ",".join(found_metrics),
+                "grafana_dashboard_url": record.grafana_dashboard_url(),
+            }
+        )
+
+    # Instrument performance metrics
+    ground_truth_labels: pd.DataFrame = prepare_ground_truth_labels(filtered_df, labbeling, fault_inject_time_index)
+    # only step2 and step3
+    for i, (reduced_df, _, _) in enumerate(tsdr_stat[2:4], start=2):
+        perf_metrics_df = calculate_performance_metrics_based_labeling(ground_truth_labels, reduced_df)
+        perf_metrics_df["chaos_type"] = record.chaos_type()
+        perf_metrics_df["chaos_comp"] = record.chaos_comp()
+        perf_metrics_df["metrics_file"] = record.basename_of_metrics_file()
+        perf_metrics_df["step"] = f"step{i}"
+        perf_metrics_dfs.append(perf_metrics_df)
+
+    clustering_items: list[dict[str, str]] = []
+    for representative_metric, sub_metrics in clustering_info.items():
+        clustering_items.append(
+            {
+                "chaos_type": record.chaos_type(),
+                "chaos_comp": record.chaos_comp(),
+                "metrics_file": record.basename_of_metrics_file(),
+                "representative_metric": representative_metric,
+                "sub_metrics": ",".join(sub_metrics),
+            }
+        )
+
+    rep_metrics: list[str] = list(clustering_info.keys())
+    post_clustered_reduced_df = tsdr_stat[-1][0]  # the last item pf tsdr_stat should be clustered result.
+    non_clustered_reduced_df: pd.DataFrame = post_clustered_reduced_df.drop(columns=rep_metrics)
+    non_clustered_item: dict[str, str] = {
+        "chaos_type": record.chaos_type(),
+        "chaos_comp": record.chaos_comp(),
+        "metrics_file": record.basename_of_metrics_file(),
+        "non_clustered_metrics": ",".join(non_clustered_reduced_df.columns),
+    }
+
+    ts_plotter.log_clustering_plots_as_html(
+        clustering_info,
+        non_clustered_reduced_df,
+        record,
+        anomaly_points,
+    )
+
+    return tests_items, pd.concat(perf_metrics_dfs, copy=False), clustering_items, non_clustered_item
+
+
 def save_scores(
     run: neptune.Run,
     tests: list[dict[str, Any]],
+    perf_metrics_df: pd.DataFrame,
     clustering: list[dict[str, Any]],
     non_clustered: list[dict[str, Any]],
     target_metric_types: dict[str, bool],
@@ -274,6 +431,13 @@ def save_scores(
     for col in ["elapsed_time", "elapsed_time_max", "elapsed_time_min"]:
         total_scores[col] = scores_by_step[col].sum()
 
+    perf_metrics = (
+        perf_metrics_df.groupby(["chaos_type", "chaos_comp", "step", "n_sigma"])
+        .agg(["mean", "max", "min"])
+        .reset_index()
+        .set_index(["chaos_type", "chaos_comp", "step", "n_sigma"])
+    )
+
     run["scores"] = total_scores.to_dict()
     run["scores/summary_by_step"].upload(neptune.types.File.as_html(scores_by_step))
     run["scores/summary_by_chaos_type"].upload(neptune.types.File.as_html(scores_by_chaos_type))
@@ -281,14 +445,16 @@ def save_scores(
     run["scores/summary_by_chaos_type_and_chaos_comp"].upload(
         neptune.types.File.as_html(scores_by_chaos_type_and_comp)
     )
+    run["scores/perf_metrics"].upload(neptune.types.File.as_html(perf_metrics))
     for df in [
         total_scores,
         scores_by_step,
         scores_by_chaos_type,
         scores_by_chaos_comp,
         scores_by_chaos_type_and_comp,
+        perf_metrics,
     ]:
-        with pd.option_context("display.max_rows", None, "display.max_columns", None):
+        with pd.option_context("display.max_rows", None, "display.max_columns", None):  # type: ignore
             logger.info("\n" + df.to_string())
 
 
@@ -306,112 +472,29 @@ def eval_tsdr(run: neptune.Run, cfg: DictConfig) -> None:
     )
     logger.info("Loading metrics files")
 
-    clustering_records: list[dict[str, Any]] = []
-    non_clustered_records: list[dict[str, Any]] = []
-    tests_records: list[dict[str, Any]] = []
+    clustering_items: list[dict[str, Any]] = []
+    performance_metrics_dfs: list[pd.DataFrame] = []
+    non_clustered_items: list[dict[str, Any]] = []
+    tests_items: list[dict[str, Any]] = []
 
     for records in dataset_generator:
         for record in records:
-            # check any True of all causal paths
-            valid_dataset_ok: bool | None = None
-            if cfg.disable_dataset_validation:
-                logger.info(f">> Skip validation of dataset {record.chaos_case_full()} ...")
-            else:
-                logger.info(f">> Validating dataset {record.chaos_case_full()} ...")
-                valid_dataset_ok = check_valid_dataset(
-                    record,
-                    cast(dict[str, Any], OmegaConf.to_container(cfg.labbeling, resolve=True)),
-                    cfg.time.fault_inject_time_index,
-                )
-
-            ts_plotter.log_plots_as_html(record)
-
-            logger.info(f">> Running tsdr {record.chaos_case_full()} ...")
-
-            tsdr_param = {"time_fault_inject_time_index": cfg.time.fault_inject_time_index}
-            pycfg_step1 = cast(dict[str, Any], OmegaConf.to_container(cfg.step1, resolve=True))
-            pycfg_step2 = cast(dict[str, Any], OmegaConf.to_container(cfg.step2, resolve=True))
-            tsdr_param.update({f"step1_{k}": v for k, v in pycfg_step1.items()})
-            tsdr_param.update({f"step2_{k}": v for k, v in pycfg_step2.items()})
-            reducer = tsdr.Tsdr(cfg.step1.model_name, **tsdr_param)
-            tsdr_stat, clustering_info, anomaly_points = reducer.run(
-                X=record.data_df,
-                pk=record.pk,
-                max_workers=cpu_count(),
+            _tests_items, _performance_metrics_df, _clustering_items, _non_clustered_item = eval_tsdr_a_record(
+                record, cfg, ts_plotter
             )
-            # skip the first item of tsdr_stat because it
-            for i, (reduced_df, stat_df, elapsed_time) in enumerate(tsdr_stat[1:], start=1):
-                ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
-                    pk=record.pk,
-                    metrics=list(reduced_df.columns),
-                    chaos_type=record.chaos_type(),
-                    chaos_comp=record.chaos_comp(),
-                )
-                num_series_by_type: dict[str, int] = {}
-                for metric_type, ok in cfg.target_metric_types.items():
-                    if not ok:
-                        continue
-                    num_series_by_type[f"num_series/{metric_type}/raw"] = (
-                        tsdr_stat[0][1].loc[metric_type]["count"].sum()
-                    )
-                    num_series_by_type[f"num_series/{metric_type}/filtered"] = (
-                        tsdr_stat[1][1].loc[metric_type]["count"].sum()
-                    )
-                    num_series_by_type[f"num_series/{metric_type}/reduced"] = stat_df.loc[metric_type]["count"].sum()
-                tests_records.append(
-                    {
-                        "chaos_type": record.chaos_type(),
-                        "chaos_comp": record.chaos_comp(),
-                        "metrics_file": record.basename_of_metrics_file(),
-                        "step": f"step{i}",
-                        "valid_dataset_ok": valid_dataset_ok,
-                        "ok": ok,
-                        "num_series/total/raw": tsdr_stat[0][1]["count"].sum(),  # raw
-                        "num_series/total/filtered": tsdr_stat[1][1]["count"].sum(),  # after step0
-                        "num_series/total/reduced": stat_df["count"].sum(),  # after step{i}
-                        **num_series_by_type,
-                        "elapsed_time": elapsed_time,
-                        "found_metrics": ",".join(found_metrics),
-                        "grafana_dashboard_url": record.grafana_dashboard_url(),
-                    }
-                )
+            tests_items.extend(_tests_items)
+            clustering_items.extend(_clustering_items)
+            non_clustered_items.append(_non_clustered_item)
+            performance_metrics_dfs.append(_performance_metrics_df)
 
-            for representative_metric, sub_metrics in clustering_info.items():
-                clustering_records.append(
-                    {
-                        "chaos_type": record.chaos_type(),
-                        "chaos_comp": record.chaos_comp(),
-                        "metrics_file": record.basename_of_metrics_file(),
-                        "representative_metric": representative_metric,
-                        "sub_metrics": ",".join(sub_metrics),
-                    }
-                )
-
-            rep_metrics: list[str] = list(clustering_info.keys())
-            post_clustered_reduced_df = tsdr_stat[-1][0]  # the last item pf tsdr_stat should be clustered result.
-            non_clustered_reduced_df: pd.DataFrame = post_clustered_reduced_df.drop(columns=rep_metrics)
-            non_clustered_records.append(
-                {
-                    "chaos_type": record.chaos_type(),
-                    "chaos_comp": record.chaos_comp(),
-                    "metrics_file": record.basename_of_metrics_file(),
-                    "non_clustered_metrics": ",".join(non_clustered_reduced_df.columns),
-                }
-            )
-
-            ts_plotter.log_clustering_plots_as_html(
-                clustering_info,
-                non_clustered_reduced_df,
-                record,
-                anomaly_points,
-            )
-        del records  # reduce memory usage
+            del record  # reduce memory usage
 
     save_scores(
         run,
-        tests_records,
-        clustering_records,
-        non_clustered_records,
+        tests_items,
+        pd.concat(performance_metrics_dfs, copy=False),
+        clustering_items,
+        non_clustered_items,
         cfg.target_metric_types,
     )
 

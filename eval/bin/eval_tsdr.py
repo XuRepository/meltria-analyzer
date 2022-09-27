@@ -270,9 +270,9 @@ def save_scores(
         .reset_index()
         .set_index(["chaos_type", "chaos_comp", "step"])
     )
-    total_scores: pd.Series = scores_by_step.loc["step2"]
+    total_scores: pd.Series = scores_by_step.iloc[-1, :]
     for col in ["elapsed_time", "elapsed_time_max", "elapsed_time_min"]:
-        total_scores[col] = scores_by_step.loc["step1"][col] + scores_by_step.loc["step2"][col]
+        total_scores[col] = scores_by_step[col].sum()
 
     run["scores"] = total_scores.to_dict()
     run["scores/summary_by_step"].upload(neptune.types.File.as_html(scores_by_step))
@@ -282,6 +282,7 @@ def save_scores(
         neptune.types.File.as_html(scores_by_chaos_type_and_comp)
     )
     for df in [
+        total_scores,
         scores_by_step,
         scores_by_chaos_type,
         scores_by_chaos_comp,

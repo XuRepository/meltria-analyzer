@@ -271,7 +271,7 @@ def eval_tsdr_a_record(
     filtered_df: pd.DataFrame = tsdr_stat[1][0]  # simple filtered-out data
     tests_items: list[dict[str, Any]] = []
     perf_metrics_dfs: list[pd.DataFrame] = []
-    # skip the first item of tsdr_stat because it
+    # skip the first item of tsdr_stat because it is the original and raw data
     for i, (reduced_df, stat_df, elapsed_time) in enumerate(tsdr_stat[1:], start=1):
         ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
             pk=record.pk,

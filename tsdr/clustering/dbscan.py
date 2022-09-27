@@ -45,11 +45,7 @@ def learn_clusters(
             ).fit_predict(dist_square_matrix)
             return labels, dist_square_matrix.toarray()
         case "hdbscan":
-            if np.isnan(X).any():
-                print("raw data", X)
             distance_matrix = pairwise_distances(X, metric=dist_func, force_all_finite=False)
-            if np.isnan(distance_matrix).any():
-                print("dm", distance_matrix)
             clusterer = hdbscan.HDBSCAN(
                 min_cluster_size=2,
                 metric=dist_func,

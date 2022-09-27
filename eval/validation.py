@@ -70,7 +70,7 @@ def validate_data_record(
     for i, (gt_route, gt_route_matcher) in enumerate(gt_metrics_routes):
         res = validate_route(record, i, gt_route, gt_route_matcher, labbeling, fault_inject_time_index)
         validation_results.extend(res)
-    if not validation_results:
+    if len(validation_results) == 0:
         return None
     return pd.DataFrame(validation_results).set_index(
         ["chaos_type", "chaos_comp", "metrics_file", "route_no", "n_sigma"]

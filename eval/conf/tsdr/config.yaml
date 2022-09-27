@@ -19,3 +19,4 @@ labbeling:
   n_sigma_rule:
     n_sigmas: [2, 3]
 disable_dataset_validation: False
+enable_label_evaluation: False

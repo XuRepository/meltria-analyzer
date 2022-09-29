@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import warnings
 from collections import defaultdict
@@ -111,7 +112,7 @@ def load_dataset(
     )
     if records is None or len(records) < 1:
         raise ValueError("No metrics data loaded")
-    return records
+    return [r for r in records if r is not None]
 
 
 def read_metrics_file(
@@ -119,7 +120,7 @@ def read_metrics_file(
     target_metric_types: dict[str, bool],
     num_datapoints: int,
     interporate: bool = True,
-) -> DatasetRecord:
+) -> DatasetRecord | None:
     """Read metrics data file"""
     with open(data_file) as f:
         raw_data: dict[str, Any] = json.load(f)
@@ -154,7 +155,8 @@ def read_metrics_file(
                 warnings.simplefilter("ignore")
                 data_df.interpolate(method="akima", limit_direction="both", inplace=True)
         except:  # To cacth `dfitpack.error: (m>k) failed for hidden m: fpcurf0:m=3`
-            raise ValueError("calculating spline error") from None
+            logging.info(f"calculating spline error: {data_file}")
+            return None
     return DatasetRecord(data_df=data_df, pk=pk, metrics_file=data_file, meta=raw_data["meta"])
 
 

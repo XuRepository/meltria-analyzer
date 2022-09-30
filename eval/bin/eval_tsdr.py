@@ -280,8 +280,8 @@ def eval_tsdr_a_record(
             chaos_comp=record.chaos_comp(),
         )
         num_series_by_type: dict[str, int] = {}
-        for metric_type, ok in cfg.target_metric_types.items():
-            if not ok:
+        for metric_type, enable in cfg.target_metric_types.items():
+            if not enable:
                 continue
             num_series_by_type[f"num_series/{metric_type}/raw"] = tsdr_stat[0][1].loc[metric_type]["count"].sum()
             num_series_by_type[f"num_series/{metric_type}/filtered"] = tsdr_stat[1][1].loc[metric_type]["count"].sum()

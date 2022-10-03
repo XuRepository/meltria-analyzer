@@ -39,6 +39,7 @@ joblib = "^1.1.0"
 pandarallel = "^1.6.3"
 hdbscan = "^0.8.28"
 ipywidgets = "^8.0.2"
+jsonlines = "^3.1.0"
 
 [tool.poetry.group.dev.dependencies]
 flake8 = "^5.0.4"

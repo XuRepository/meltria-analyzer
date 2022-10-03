@@ -6,3 +6,4 @@
 .env.local
 .neptune
 /outputs
+/samples/**/

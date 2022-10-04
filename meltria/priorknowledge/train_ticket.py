@@ -1,3 +1,4 @@
+from functools import cache
 from typing import Final
 
 import networkx as nx
@@ -219,6 +220,32 @@ CONTAINER_CALL_DIGRAPH: Final[nx.DiGraph] = generate_container_call_graph()
 CONTAINER_CALL_GRAPH: Final[dict[str, list[str]]] = {
     n: list(nbr.keys()) for n, nbr in CONTAINER_CALL_DIGRAPH.adjacency()
 }
+
+
+@cache
+def generate_container_runtime() -> dict[str, str]:
+    ctnrs = list(CONTAINER_CALL_GRAPH.keys())
+    ctnr_to_runtime: dict[str, str] = {}
+    for ctnr in ctnrs:
+        if ctnr == "ts-ui-dashboard":
+            ctnr_to_runtime[ctnr] = "nginx"
+        elif ctnr == "rabbitmq":
+            ctnr_to_runtime[ctnr] = "rabbitmq"
+        elif ctnr == "ts-ticketinfo-service":
+            ctnr_to_runtime[ctnr] = "nodejs"
+        elif ctnr == "ts-news-service":
+            ctnr_to_runtime[ctnr] = "go"
+        elif ctnr == "ts-voucher-service":
+            ctnr_to_runtime[ctnr] = "python"
+        elif ctnr.endswith("-mongo"):
+            ctnr_to_runtime[ctnr] = "mongodb"
+        elif ctnr.endswith("-mysql"):
+            ctnr_to_runtime[ctnr] = "mysql"
+        elif ctnr.endswith("-service"):
+            ctnr_to_runtime[ctnr] = "jvm"
+        else:
+            assert False, f"unknown container: {ctnr}"
+    return ctnr_to_runtime
 
 
 SKIP_CONTAINERS: Final[list[str]] = []

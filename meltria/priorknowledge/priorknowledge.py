@@ -8,11 +8,12 @@ from meltria.priorknowledge import sock_shop, train_ticket
 
 
 class PriorKnowledge(ABC):
-    def __init__(self, mappings: dict[str, dict[str, list[str]]]) -> None:
+    def __init__(self, mappings: dict[str, dict[str, list[str]]], target_metric_types: dict[str, bool]) -> None:
         self.mappings = mappings  # mappings includes node to/from container mapping .
+        self.target_metric_types = target_metric_types
 
     @abstractmethod
-    def get_root_service(self):
+    def get_root_service(self) -> str:
         pass
 
     @abstractmethod
@@ -49,6 +50,10 @@ class PriorKnowledge(ABC):
 
     @abstractmethod
     def get_service_by_container(self, ctnr: str) -> str | None:
+        pass
+
+    @abstractmethod
+    def get_container_runtime(self, ctnr: str) -> str:
         pass
 
     @abstractmethod
@@ -104,6 +109,10 @@ class PriorKnowledge(ABC):
             groups[service].append(metric)
         return groups
 
+    def is_target_metric_type(self, metric_type: str) -> bool:
+        assert metric_type in self.target_metric_types, f"{metric_type} is not defined in target_metric_types"
+        return self.target_metric_types[metric_type]
+
     @staticmethod
     @cache
     def _generate_service_to_service_routes(
@@ -123,10 +132,10 @@ class PriorKnowledge(ABC):
 
 
 class SockShopKnowledge(PriorKnowledge):
-    def __init__(self, mappings: dict[str, dict[str, list[str]]]) -> None:
-        super().__init__(mappings)
+    def __init__(self, mappings: dict[str, dict[str, list[str]]], target_metric_types: dict[str, bool]) -> None:
+        super().__init__(mappings, target_metric_types)
 
-    def get_root_service(self):
+    def get_root_service(self) -> str:
         return sock_shop.ROOT_SERVICE
 
     def get_containers(self, skip: bool = False) -> list[str]:
@@ -160,6 +169,9 @@ class SockShopKnowledge(PriorKnowledge):
     def get_service_by_container(self, ctnr: str) -> str | None:
         return sock_shop.CONTAINER_TO_SERVICE.get(ctnr)
 
+    def get_container_runtime(self, ctnr: str) -> str:
+        return sock_shop.CONTAINER_TO_RUNTIME.get(ctnr)
+
     def get_skip_containers(self) -> list[str]:
         return sock_shop.SKIP_CONTAINERS
 
@@ -168,10 +180,10 @@ class SockShopKnowledge(PriorKnowledge):
 
 
 class TrainTicketKnowledge(PriorKnowledge):
-    def __init__(self, mappings: dict[str, dict[str, list[str]]]) -> None:
-        super().__init__(mappings)
+    def __init__(self, mappings: dict[str, dict[str, list[str]]], target_metric_types: dict[str, bool]) -> None:
+        super().__init__(mappings, target_metric_types)
 
-    def get_root_service(self):
+    def get_root_service(self) -> str:
         return train_ticket.ROOT_SERVICE
 
     def get_containers(self, skip: bool = False) -> list[str]:
@@ -208,16 +220,21 @@ class TrainTicketKnowledge(PriorKnowledge):
     def get_skip_containers(self) -> list[str]:
         return train_ticket.SKIP_CONTAINERS
 
+    def get_container_runtime(self, ctnr: str) -> str:
+        return train_ticket.generate_container_runtime()[ctnr]
+
     def get_diagnoser_target_data(self) -> dict[str, list[str]]:
         return train_ticket.DIAGNOSER_TARGET_DATA
 
 
-def new_knowledge(target_app: str, mappings: dict[str, dict[str, list[str]]]) -> PriorKnowledge:
+def new_knowledge(
+    target_app: str, target_metric_types: dict[str, bool], mappings: dict[str, dict[str, list[str]]]
+) -> PriorKnowledge:
     """Create new knowledge object for the given target app."""
     match target_app:
         case sock_shop.TARGET_APP_NAME:
-            return SockShopKnowledge(mappings)
+            return SockShopKnowledge(mappings, target_metric_types)
         case train_ticket.TARGET_APP_NAME:
-            return TrainTicketKnowledge(mappings)
+            return TrainTicketKnowledge(mappings, target_metric_types)
         case _:
             raise ValueError(f"{target_app} is invalid")

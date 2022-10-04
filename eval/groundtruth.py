@@ -6,31 +6,110 @@ from typing import Any, Final
 import networkx as nx
 
 import diagnoser.metric_node as mn
+from meltria.loader import METRIC_TYPE_CONTAINERS, METRIC_TYPE_MIDDLEWARES, METRIC_TYPE_SERVICES
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
 # TODO: define this by each target app.
-CHAOS_TO_CAUSE_METRIC_PATTERNS: Final[dict[str, list[str]]] = {
-    "pod-cpu-hog": [
-        "cpu_.+",
-        "threads",
-        "sockets",
-        "file_descriptors",
-        "processes",
-        "memory_cache",
-        "memory_mapped_file",
-    ],
-    "pod-memory-hog": [
-        "memory_.+",
-        "threads",
-        "sockets",
-        "file_descriptors",
-        "processes",
-        "fs_inodes_total",
-        "fs_limit_bytes",
-        "ulimits_soft",
-    ],
-    "pod-network-loss": ["network_.+"],
-    "pod-network-latency": ["network_.+"],
+CHAOS_TO_CAUSE_METRIC_PATTERNS: Final[dict[str, dict[str, list[str]]]] = {
+    "pod-cpu-hog": {
+        "container": [
+            "cpu_.+",
+            "threads",
+            "sockets",
+            "file_descriptors",
+            "processes",
+            "memory_cache",
+            "memory_mapped_file",
+        ],
+        "jvm": [
+            "java_lang_OperatingSystem_SystemCpuLoad",
+            "java_lang_OperatingSystem_ProcessCpuLoad",
+            "java_lang_OperatingSystem_ProcessCpuTime",
+        ],
+        "mongodb": [
+            "mongodb_sys_cpu_processes",
+            "mongodb_sys_cpu_procs_running",
+            "mongodb_sys_cpu_user_ms",
+            "mongodb_sys_cpu_idle_ms",
+            "mongodb_sys_cpu_ctxt",
+        ],
+    },
+    "pod-memory-hog": {
+        "container": [
+            "memory_.+",
+            "threads",
+            "sockets",
+            "file_descriptors",
+            "processes",
+            "fs_inodes_total",
+            "fs_limit_bytes",
+            "ulimits_soft",
+        ],
+        "jvm": [
+            "java_lang_Memory_HeapMemoryUsage_used",
+            "java_lang_Memory_HeapMemoryUsage_committed",
+            "java_lang_Memory_NonHeapMemoryUsage_used",
+            "java_lang_Memory_NonHeapMemoryUsage_committed",
+            "java_lang_MemoryPool_CollectionUsage_committed",
+            "java_lang_MemoryPool_CollectionUsage_used",
+            "java_lang_MemoryPool_Usage_used",
+            "java_lang_MemoryPool_PeakUsage_committed",
+            "java_lang_MemoryPool_Usage_committed",
+            "java_lang_MemoryPool_PeakUsage_used",
+            "java_lang_GarbageCollector_CollectionTime",
+            "java_lang_GarbageCollector_CollectionCount",
+            "java_lang_GarbageCollector_LastGcInfo_duration",
+            "java_lang_GarbageCollector_LastGcInfo_memoryUsageAfterGc_init",
+            "java_lang_GarbageCollector_LastGcInfo_memoryUsageAfterGc_committed",
+            "java_lang_GarbageCollector_LastGcInfo_memoryUsageAfterGc_used",
+            "java_lang_GarbageCollector_LastGcInfo_memoryUsageAfterGc_max",
+            "java_lang_GarbageCollector_LastGcInfo_memoryUsageBeforeGc_used",
+            "java_lang_GarbageCollector_LastGcInfo_memoryUsageBeforeGc_committed",
+            "java_lang_GarbageCollector_LastGcInfo_memoryUsageBeforeGc_init",
+            "java_lang_GarbageCollector_LastGcInfo_memoryUsageBeforeGc_max",
+            "java_lang_GarbageCollector_LastGcInfo_GcThreadCount",
+            "java_lang_GarbageCollector_LastGcInfo_startTime",
+            "java_lang_GarbageCollector_LastGcInfo_endTime",
+            "java_lang_OperatingSystem_SystemCpuLoad",
+            "java_lang_OperatingSystem_FreePhysicalMemorySize",
+            "java_nio_BufferPool_MemoryUsed",
+            "java_nio_BufferPool_TotalCapacity",
+            "java_nio_BufferPool_Count",
+        ],
+        "mongodb": [
+            "mongodb_sys_memory_Buffers_kb",
+            "mongodb_sys_memory_MemAvailable_kb",
+            "mongodb_sys_memory_MemFree_kb",
+            "mongodb_sys_memory_Active_kb",
+            "mongodb_sys_memory_Active_file_kb",
+        ],
+    },
+    "pod-network-loss": {
+        "container": [
+            "network_.+",
+        ],
+        "jvm": [],
+        "mongodb": [
+            "mongodb_ss_network_bytesIn",
+            "mongodb_ss_network_bytesOut",
+            "mongodb_ss_network_physicalBytesIn",
+            "mongodb_ss_network_physicalBytesOut",
+            "mongodb_ss_network_numRequests",
+        ],
+    },
+    "pod-network-latency": {
+        "container": [
+            "network_.+",
+        ],
+        "jvm": [],
+        "mongodb": [
+            "mongodb_ss_network_bytesIn",
+            "mongodb_ss_network_bytesOut",
+            "mongodb_ss_network_physicalBytesIn",
+            "mongodb_ss_network_physicalBytesOut",
+            "mongodb_ss_network_numRequests",
+        ],
+    },
 }
 
 
@@ -38,7 +117,7 @@ CHAOS_TO_CAUSE_METRIC_PATTERNS: Final[dict[str, list[str]]] = {
 def generate_tsdr_ground_truth(pk: PriorKnowledge) -> dict[str, Any]:
     """Generate ground truth for testing extracted metrics with tsdr based on call graph."""
     all_gt_routes: dict[str, dict[str, list[list[str]]]] = defaultdict(lambda: defaultdict(list))
-    for chaos, metric_patterns in CHAOS_TO_CAUSE_METRIC_PATTERNS.items():
+    for chaos, metric_patterns_by_runtime in CHAOS_TO_CAUSE_METRIC_PATTERNS.items():
         for ctnr in pk.get_containers(skip=True):
             routes: list[list[str]] = all_gt_routes[chaos][ctnr]
             cause_service: str = pk.get_service_by_container(ctnr)
@@ -47,14 +126,28 @@ def generate_tsdr_ground_truth(pk: PriorKnowledge) -> dict[str, Any]:
             # allow to match any of multiple routes
             for stos_route in stos_routes:
                 metrics_pattern_list: list[str] = []
+
                 # add cause metrics pattern
-                metrics_pattern_list.append(f"^c-{ctnr}_({'|'.join(metric_patterns)})$")
-                # NOTE: duplicate service metrics are not allowed in a route
-                service_metrics_pattern: str = f"^s-{cause_service}_.+$"
-                if service_metrics_pattern not in metrics_pattern_list:
-                    metrics_pattern_list.append(service_metrics_pattern)
-                if cause_service != pk.get_root_service():
-                    metrics_pattern_list.append(f"^s-({'|'.join(stos_route)})_.+")
+                if pk.is_target_metric_type(METRIC_TYPE_CONTAINERS):
+                    ctnr_metric_patterns: list[str] = metric_patterns_by_runtime["container"]
+                    metrics_pattern_list.append(f"^c-{ctnr}_({'|'.join(ctnr_metric_patterns)})$")
+
+                if pk.is_target_metric_type(METRIC_TYPE_MIDDLEWARES):
+                    runtime: str = pk.get_container_runtime(ctnr)
+                    middleware_metric_patterns: list[str] | None = metric_patterns_by_runtime.get(runtime)
+                    if middleware_metric_patterns is not None and len(middleware_metric_patterns) > 0:
+                        metrics_pattern_list.append(f"^m-{ctnr}_({'|'.join(middleware_metric_patterns)})$")
+
+                if pk.is_target_metric_type(METRIC_TYPE_SERVICES):
+                    # NOTE: duplicate service metrics are not allowed in a route
+                    service_metrics_pattern: str = f"^s-{cause_service}_.+$"
+                    if service_metrics_pattern not in metrics_pattern_list:
+                        metrics_pattern_list.append(service_metrics_pattern)
+                    if cause_service != pk.get_root_service():
+                        metrics_pattern_list.append(f"^s-({'|'.join(stos_route)})_.+")
+
+                # TODO: processing node metrics
+
                 routes.append(metrics_pattern_list)
     return all_gt_routes
 
@@ -117,12 +210,27 @@ def check_route(metrics: list[str], gt_route: list[str]) -> tuple[bool, list[str
 
 
 def check_cause_metrics(nodes: mn.MetricNodes, chaos_type: str, chaos_comp: str) -> tuple[bool, mn.MetricNodes]:
-    metric_patterns = CHAOS_TO_CAUSE_METRIC_PATTERNS[chaos_type]
     cause_metrics: list[mn.MetricNode] = []
     for node in nodes:
-        for pattern in metric_patterns:
-            if re.match(f"^c-{chaos_comp}_{pattern}$", node.label):
+        if node.is_container():
+            patterns = CHAOS_TO_CAUSE_METRIC_PATTERNS[chaos_type]["container"]
+            if re.match(f"^c-{chaos_comp}_({'|'.join(patterns)})$", node.label):
                 cause_metrics.append(node)
+        elif node.is_node():
+            patterns = CHAOS_TO_CAUSE_METRIC_PATTERNS[chaos_type]["node"]
+            if re.match(f"^n-{chaos_comp}_({'|'.join(patterns)})$", node.label):
+                cause_metrics.append(node)
+        elif node.is_middleware():
+            patterns = [
+                pattern
+                for runtime, patterns in CHAOS_TO_CAUSE_METRIC_PATTERNS[chaos_type].items()
+                if runtime not in ["container", "node"]
+                for pattern in patterns
+            ]
+            if re.match(f"^m-{chaos_comp}_({'|'.join(patterns)})$", node.label):
+                cause_metrics.append(node)
+        else:
+            assert False, f"Unknown metric node type: {node}"
     ret = mn.MetricNodes.from_list_of_metric_node(cause_metrics)
     if len(cause_metrics) > 0:
         return True, ret
@@ -137,7 +245,7 @@ def check_causal_graph(
 ) -> tuple[bool, list[mn.MetricNodes]]:
     """Check that the causal graph (G) has the accurate route."""
     call_graph: nx.DiGraph = G.reverse()  # for traverse starting from root node
-    cause_metric_exps: list[str] = CHAOS_TO_CAUSE_METRIC_PATTERNS[chaos_type]
+    cause_metric_exps: list[str] = CHAOS_TO_CAUSE_METRIC_PATTERNS[chaos_type]["container"]
     cause_metric_pattern: re.Pattern = re.compile(f"^c-{chaos_comp}_({'|'.join(cause_metric_exps)})$")
 
     match_routes: list[mn.MetricNodes] = []

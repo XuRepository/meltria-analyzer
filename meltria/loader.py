@@ -124,7 +124,7 @@ def read_metrics_file(
     """Read metrics data file"""
     with open(data_file) as f:
         raw_data: dict[str, Any] = json.load(f)
-    pk: PriorKnowledge = new_knowledge(raw_data["meta"]["target_app"], raw_data["mappings"])
+    pk: PriorKnowledge = new_knowledge(raw_data["meta"]["target_app"], target_metric_types, raw_data["mappings"])
     metrics_name_to_values: dict[str, np.ndarray] = {}
     for metric_type, enable in target_metric_types.items():
         if not enable:

@@ -95,6 +95,23 @@ SERVICE_CONTAINERS: Final[dict[str, list[str]]] = {
 
 CONTAINER_TO_SERVICE: Final[dict[str, str]] = {c: s for s, ctnrs in SERVICE_CONTAINERS.items() for c in ctnrs}
 
+CONTAINER_TO_RUNTIME: dict[str, str] = {
+    "carts": "jvm",
+    "carts-db": "mongodb",
+    "shipping": "jvm",
+    "payment": "jvm",
+    "front-end": "nodejs",
+    "user": "jvm",
+    "user-db": "mongodb",
+    "orders": "jvm",
+    "orders-db": "mongodb",
+    "catalogue": "go",
+    "catalogue-db": "mongodb",
+    "queue-master": "jvm",
+    "session-db": "mysql",
+    "rabbitmq": "rabbitmq",
+}
+
 SKIP_CONTAINERS: Final[list[str]] = ["queue-master", "rabbitmq", "session-db"]
 
 DIAGNOSER_TARGET_DATA: Final[dict[str, list[str]]] = {

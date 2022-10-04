@@ -157,7 +157,7 @@ SERVICE_CONTAINERS: Final[dict[str, list[str]]] = {
     "ts-admin-order": ["ts-admin-order-service"],
     "ts-admin-route": ["ts-admin-route-service"],
     "ts-admin-travel": ["ts-admin-travel-service"],
-    "ts-admin-user": ["ts-admin-user"],
+    "ts-admin-user": ["ts-admin-user-service"],
     "ts-assurance": ["ts-assurance-service", "ts-assurance-mongo"],
     "ts-auth": ["ts-auth-service", "ts-auth-mongo"],
     "ts-avatar": ["ts-avatar-service"],

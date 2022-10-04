@@ -6,6 +6,7 @@ from typing import Any, Final
 import networkx as nx
 
 import diagnoser.metric_node as mn
+from meltria.loader import METRIC_TYPE_CONTAINERS, METRIC_TYPE_MIDDLEWARES, METRIC_TYPE_SERVICES
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
 # TODO: define this by each target app.
@@ -127,20 +128,26 @@ def generate_tsdr_ground_truth(pk: PriorKnowledge) -> dict[str, Any]:
                 metrics_pattern_list: list[str] = []
 
                 # add cause metrics pattern
-                ctnr_metric_patterns: list[str] = metric_patterns_by_runtime["container"]
-                metrics_pattern_list.append(f"^c-{ctnr}_({'|'.join(ctnr_metric_patterns)})$")
+                if pk.is_target_metric_type(METRIC_TYPE_CONTAINERS):
+                    ctnr_metric_patterns: list[str] = metric_patterns_by_runtime["container"]
+                    metrics_pattern_list.append(f"^c-{ctnr}_({'|'.join(ctnr_metric_patterns)})$")
 
-                runtime: str = pk.get_container_runtime(ctnr)
-                middleware_metric_patterns: list[str] | None = metric_patterns_by_runtime.get(runtime)
-                if middleware_metric_patterns is not None and len(middleware_metric_patterns) > 0:
-                    metrics_pattern_list.append(f"^m-{ctnr}_({'|'.join(middleware_metric_patterns)})$")
+                if pk.is_target_metric_type(METRIC_TYPE_MIDDLEWARES):
+                    runtime: str = pk.get_container_runtime(ctnr)
+                    middleware_metric_patterns: list[str] | None = metric_patterns_by_runtime.get(runtime)
+                    if middleware_metric_patterns is not None and len(middleware_metric_patterns) > 0:
+                        metrics_pattern_list.append(f"^m-{ctnr}_({'|'.join(middleware_metric_patterns)})$")
 
-                # NOTE: duplicate service metrics are not allowed in a route
-                service_metrics_pattern: str = f"^s-{cause_service}_.+$"
-                if service_metrics_pattern not in metrics_pattern_list:
-                    metrics_pattern_list.append(service_metrics_pattern)
-                if cause_service != pk.get_root_service():
-                    metrics_pattern_list.append(f"^s-({'|'.join(stos_route)})_.+")
+                if pk.is_target_metric_type(METRIC_TYPE_SERVICES):
+                    # NOTE: duplicate service metrics are not allowed in a route
+                    service_metrics_pattern: str = f"^s-{cause_service}_.+$"
+                    if service_metrics_pattern not in metrics_pattern_list:
+                        metrics_pattern_list.append(service_metrics_pattern)
+                    if cause_service != pk.get_root_service():
+                        metrics_pattern_list.append(f"^s-({'|'.join(stos_route)})_.+")
+
+                # TODO: processing node metrics
+
                 routes.append(metrics_pattern_list)
     return all_gt_routes
 

@@ -13,13 +13,14 @@ from meltria.priorknowledge.priorknowledge import PriorKnowledge
 CHAOS_TO_CAUSE_METRIC_PATTERNS: Final[dict[str, dict[str, list[str]]]] = {
     "pod-cpu-hog": {
         "container": [
-            "cpu_.+",
+            "cpu_usage_seconds_total",
+            "cpu_user_seconds_total",
             "threads",
-            "sockets",
-            "file_descriptors",
+            # "sockets",
+            # "file_descriptors",
             "processes",
-            "memory_cache",
-            "memory_mapped_file",
+            # "memory_cache",
+            # "memory_mapped_file",
         ],
         "jvm": [
             "java_lang_OperatingSystem_SystemCpuLoad",
@@ -36,14 +37,17 @@ CHAOS_TO_CAUSE_METRIC_PATTERNS: Final[dict[str, dict[str, list[str]]]] = {
     },
     "pod-memory-hog": {
         "container": [
-            "memory_.+",
+            "memory_max_usage_byte",
+            "memory_rss",
+            "memory_usage_bytes",
+            "memory_working_set_bytes",
             "threads",
-            "sockets",
-            "file_descriptors",
+            # "sockets",
+            # "file_descriptors",
             "processes",
-            "fs_inodes_total",
-            "fs_limit_bytes",
-            "ulimits_soft",
+            # "fs_inodes_total",
+            # "fs_limit_bytes",
+            # "ulimits_soft",
         ],
         "jvm": [
             "java_lang_Memory_HeapMemoryUsage_used",
@@ -86,7 +90,10 @@ CHAOS_TO_CAUSE_METRIC_PATTERNS: Final[dict[str, dict[str, list[str]]]] = {
     },
     "pod-network-loss": {
         "container": [
-            "network_.+",
+            "network_receive_bytes_total",
+            "network_receive_packets_total",
+            "network_transmit_bytes_total",
+            "network_transmit_packets_total",
         ],
         "jvm": [],
         "mongodb": [
@@ -99,7 +106,10 @@ CHAOS_TO_CAUSE_METRIC_PATTERNS: Final[dict[str, dict[str, list[str]]]] = {
     },
     "pod-network-latency": {
         "container": [
-            "network_.+",
+            "network_receive_bytes_total",
+            "network_receive_packets_total",
+            "network_transmit_bytes_total",
+            "network_transmit_packets_total",
         ],
         "jvm": [],
         "mongodb": [

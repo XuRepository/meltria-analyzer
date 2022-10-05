@@ -6,7 +6,7 @@ from typing import Any, Final
 import networkx as nx
 
 import diagnoser.metric_node as mn
-from meltria.loader import METRIC_TYPE_CONTAINERS, METRIC_TYPE_MIDDLEWARES, METRIC_TYPE_SERVICES
+from meltria.metric_types import METRIC_TYPE_CONTAINERS, METRIC_TYPE_MIDDLEWARES, METRIC_TYPE_SERVICES
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
 # TODO: define this by each target app.

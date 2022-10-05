@@ -3,7 +3,24 @@ import pytest
 
 import diagnoser.metric_node as mn
 from diagnoser import diag
+from meltria.metric_types import (
+    METRIC_TYPE_CONTAINERS,
+    METRIC_TYPE_MIDDLEWARES,
+    METRIC_TYPE_NODES,
+    METRIC_TYPE_SERVICES,
+)
 from meltria.priorknowledge.priorknowledge import new_knowledge
+
+ss_pk_without_middlewares = new_knowledge(
+    "sock-shop",
+    {
+        METRIC_TYPE_CONTAINERS: True,
+        METRIC_TYPE_SERVICES: True,
+        METRIC_TYPE_MIDDLEWARES: False,
+        METRIC_TYPE_NODES: False,
+    },
+    {"node-containers": {}},
+)
 
 
 def test_build_subgraph_of_removal_edges():
@@ -22,6 +39,12 @@ def test_build_subgraph_of_removal_edges():
     nodes: mn.MetricNodes = mn.MetricNodes({i: mn.MetricNode(v) for i, v in enumerate(metrics)})
     pk = new_knowledge(
         "sock-shop",
+        {
+            METRIC_TYPE_CONTAINERS: True,
+            METRIC_TYPE_SERVICES: True,
+            METRIC_TYPE_MIDDLEWARES: False,
+            METRIC_TYPE_NODES: True,
+        },
         {
             "nodes-containers": {
                 "gke-test-default-pool-66a015a8-9pw7": [
@@ -202,8 +225,7 @@ def test_fix_edge_directions_in_causal_graph(case, input, expected):
     G = nx.DiGraph()
     paths = [(mn.MetricNode(u), mn.MetricNode(v)) for u, v in input]
     G.add_edges_from(paths)
-    pk = new_knowledge("sock-shop", {"nodes-containers": {}})
-    got = diag.fix_edge_directions_in_causal_graph(G, pk)
+    got = diag.fix_edge_directions_in_causal_graph(G, ss_pk_without_middlewares)
     assert sorted([(u.label, v.label, {}) for u, v in got.edges]) == sorted(expected)
 
 
@@ -237,8 +259,9 @@ def test_fix_edge_directions_in_causal_graph(case, input, expected):
 def test_find_connected_subgraphs(input, expected):
     G = nx.DiGraph()
     G.add_edges_from([(mn.MetricNode(u), mn.MetricNode(v)) for u, v in input])
-    pk = new_knowledge("sock-shop", {"nodes-containers": {}})
-    root_contained_subgs, root_uncontained_subgs = diag.find_connected_subgraphs(G, pk.get_root_metrics())
+    root_contained_subgs, root_uncontained_subgs = diag.find_connected_subgraphs(
+        G, ss_pk_without_middlewares.get_root_metrics()
+    )
 
     assert sorted([(u.label, v.label, {}) for u, v in root_contained_subgs[0].edges]) == sorted(expected[0][0])
     assert sorted([(u.label, v.label, {}) for u, v in root_uncontained_subgs[0].edges]) == sorted(expected[1][0])

@@ -48,7 +48,7 @@ CONTAINER_CALL_GRAPH: Final[dict[str, list[str]]] = {
     "front-end": ["orders", "carts", "user", "catalogue"],
     "catalogue": ["front-end", "catalogue-db"],
     "catalogue-db": ["catalogue"],
-    "orders": ["front-end", "orders-db", "carts", "user", "payement", "shipping"],
+    "orders": ["front-end", "orders-db", "carts", "user", "payment", "shipping"],
     "orders-db": ["orders"],
     "user": ["front-end", "user-db", "orders"],
     "user-db": ["user"],

@@ -36,6 +36,14 @@ class PriorKnowledge(ABC):
     def get_container_call_graph(self, ctnr: str) -> list[str]:
         pass
 
+    def get_container_neighbors_in_service(self, ctnr: str) -> list[str]:
+        neighbors: list[str] = []
+        service: str | None = self.get_service_by_container(ctnr)
+        for neighbor in self.get_container_call_graph(ctnr):
+            if service == self.get_service_by_container(neighbor):
+                neighbors.append(neighbor)
+        return neighbors
+
     @abstractmethod
     def get_service_routes(self, service: str) -> list[tuple[str, ...]]:
         pass
@@ -153,8 +161,10 @@ class SockShopKnowledge(PriorKnowledge):
     def get_container_call_digraph(self) -> nx.DiGraph:
         return sock_shop.CONTAINER_CALL_DIGRAPH
 
-    def get_container_call_graph(self, ctnr: str) -> list[str] | None:
-        return sock_shop.CONTAINER_CALL_GRAPH.get(ctnr)
+    def get_container_call_graph(self, ctnr: str) -> list[str]:
+        neighbors = sock_shop.CONTAINER_CALL_GRAPH.get(ctnr)
+        assert neighbors is not None, f"{ctnr} is not defined in container_call_graph"
+        return neighbors
 
     def get_service_routes(self, service: str) -> list[tuple[str, ...]]:
         routes = self._generate_service_to_service_routes(sock_shop.SERVICE_CALL_DIGRAPH, sock_shop.ROOT_SERVICE)
@@ -202,7 +212,9 @@ class TrainTicketKnowledge(PriorKnowledge):
         return train_ticket.CONTAINER_CALL_DIGRAPH
 
     def get_container_call_graph(self, ctnr: str) -> list[str]:
-        return train_ticket.CONTAINER_CALL_GRAPH[ctnr]
+        neighbors = train_ticket.CONTAINER_CALL_GRAPH.get(ctnr)
+        assert neighbors is not None, f"{ctnr} is not defined in container_call_graph"
+        return neighbors
 
     def get_service_routes(self, service: str) -> list[tuple[str, ...]]:
         routes = self._generate_service_to_service_routes(train_ticket.SERVICE_CALL_DIGRAPH, train_ticket.ROOT_SERVICE)

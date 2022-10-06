@@ -9,7 +9,7 @@ from meltria.metric_types import (
     METRIC_TYPE_NODES,
     METRIC_TYPE_SERVICES,
 )
-from meltria.priorknowledge.priorknowledge import new_knowledge
+from meltria.priorknowledge.priorknowledge import PriorKnowledge, new_knowledge
 
 ss_pk_without_middlewares = new_knowledge(
     "sock-shop",
@@ -51,6 +51,54 @@ ts_pk_with_middlewares = new_knowledge(
     },
     {"node-containers": {}},
 )
+
+
+@pytest.mark.parametrize(
+    "desc,pk,chaos_type,chaos_comp,expected",
+    [
+        (
+            "sockshop:correct01",
+            ss_pk_with_middlewares,
+            "pod-network-loss",
+            "user",
+            {
+                "user-db": (
+                    "db",
+                    [
+                        "mongodb_ss_opLatencies_latency",
+                        "mongodb_ss_opLatencies_ops",
+                        "mongodb_ss_network_bytesIn",
+                        "mongodb_ss_network_bytesOut",
+                        "mongodb_ss_network_physicalBytesIn",
+                        "mongodb_ss_network_physicalBytesOut",
+                        "mongodb_ss_network_numRequests",
+                    ],
+                )
+            },
+        ),
+        (
+            "sockshop:correct02",
+            ss_pk_with_middlewares,
+            "pod-memory-hog",
+            "user-db",
+            {
+                "user": (
+                    "web",
+                    [
+                        "Tomcat_.+_processingTime",
+                        "Tomcat_.+_requestProcessingTime",
+                    ],
+                ),
+            },
+        ),
+    ],
+    ids=["sockshop:correct01", "sockshop:correct02"],
+)
+def test_get_ground_truth_for_neighbors_in_service(
+    desc: str, pk: PriorKnowledge, chaos_type: str, chaos_comp: str, expected: dict[str, tuple[str, list[str]]]
+) -> None:
+    got = groundtruth.get_ground_truth_for_neighbors_in_service(pk, chaos_type, chaos_comp)
+    assert got == expected
 
 
 def test_select_ground_truth_metrics_in_routes() -> None:

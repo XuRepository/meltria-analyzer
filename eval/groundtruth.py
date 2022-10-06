@@ -156,12 +156,104 @@ CHAOS_TO_CAUSE_METRIC_PATTERNS: Final[dict[str, dict[tuple[str, str], list[str]]
     },
 }
 
+NEIGHBORS_METRIC_PATTERNS_IN_SERVICE: Final[dict[str, dict[tuple[tuple[str, str], tuple[str, str]], list[str]]]] = {
+    # (current component[role, runtime], neighbor component[role runtime]) -> list of neighbor metrics
+    "pod-cpu-hog": {
+        (("*", "container"), ("web", "jvm")): [
+            "Tomcat_.+_processingTime",
+            "Tomcat_.+_requestProcessingTime",
+        ],
+    },
+    "pod-memory-hog": {
+        (("*", "container"), ("web", "jvm")): [
+            "Tomcat_.+_processingTime",
+            "Tomcat_.+_requestProcessingTime",
+        ],
+        (("*", "container"), ("db", "mongodb")): [
+            "mongodb_ss_opLatencies_latency",
+            "mongodb_ss_opLatencies_ops",
+        ],
+    },
+    "pod-network-loss": {
+        (("*", "container"), ("*", "container")): [
+            "network_receive_bytes_total",
+            "network_receive_packets_total",
+            "network_transmit_bytes_total",
+            "network_transmit_packets_total",
+        ],
+        (("*", "container"), ("web", "jvm")): [
+            "Tomcat_.+_processingTime",
+            "Tomcat_.+_requestProcessingTime",
+            "Tomcat_.+_requestCount",
+            "Tomcat_.+_requestBytesReceived",
+            "Tomcat_.+_requestBytesSent",
+            "Tomcat_.+_bytesReceived",
+            "Tomcat_.+_bytesSent",
+        ],
+        (("*", "container"), ("db", "mongodb")): [
+            "mongodb_ss_opLatencies_latency",
+            "mongodb_ss_opLatencies_ops",
+            "mongodb_ss_network_bytesIn",
+            "mongodb_ss_network_bytesOut",
+            "mongodb_ss_network_physicalBytesIn",
+            "mongodb_ss_network_physicalBytesOut",
+            "mongodb_ss_network_numRequests",
+        ],
+    },
+    "pod-network-latency": {
+        (("*", "container"), ("*", "container")): [
+            "network_receive_bytes_total",
+            "network_receive_packets_total",
+            "network_transmit_bytes_total",
+            "network_transmit_packets_total",
+        ],
+        (("*", "container"), ("web", "jvm")): [
+            "Tomcat_.+_processingTime",
+            "Tomcat_.+_requestProcessingTime",
+            "Tomcat_.+_requestCount",
+            "Tomcat_.+_requestBytesReceived",
+            "Tomcat_.+_requestBytesSent",
+            "Tomcat_.+_bytesReceived",
+            "Tomcat_.+_bytesSent",
+        ],
+        (("*", "container"), ("db", "mongodb")): [
+            "mongodb_ss_opLatencies_latency",
+            "mongodb_ss_opLatencies_ops",
+            "mongodb_ss_network_bytesIn",
+            "mongodb_ss_network_bytesOut",
+            "mongodb_ss_network_physicalBytesIn",
+            "mongodb_ss_network_physicalBytesOut",
+            "mongodb_ss_network_numRequests",
+        ],
+    },
+}
+
+
+def get_ground_truth_for_neighbors_in_service(
+    pk: PriorKnowledge, chaos_type: str, ctnr: str
+) -> dict[str, tuple[str, list[str]]]:
+    role, runtime = pk.get_role_and_runtime_by_container(ctnr)
+    neighbors: list[str] = pk.get_container_neighbors_in_service(ctnr)
+    neighbor_metrics: dict[str, tuple[str, list[str]]] = {}
+    for neighbor in neighbors:
+        neighbor_role, neighbor_runtime = pk.get_role_and_runtime_by_container(neighbor)
+        for _runtime, _neighbor_runtime in [("container", runtime), ("container", neighbor_runtime)]:
+            for _role, _neighbor_role in [("*", "*"), (role, "*"), ("*", neighbor_role), (role, neighbor_role)]:
+                _metrics = NEIGHBORS_METRIC_PATTERNS_IN_SERVICE[chaos_type].get(
+                    ((_role, _runtime), (_neighbor_role, _neighbor_runtime)),
+                    [],
+                )
+                if len(_metrics) > 0:
+                    neighbor_metrics[neighbor] = (_neighbor_role, _metrics)
+    return neighbor_metrics
+
 
 @cache
 def generate_tsdr_ground_truth(pk: PriorKnowledge) -> dict[str, Any]:
     """Generate ground truth for testing extracted metrics with tsdr based on call graph."""
     all_gt_routes: dict[str, dict[str, list[list[str]]]] = defaultdict(lambda: defaultdict(list))
     for chaos, metric_patterns_by_runtime in CHAOS_TO_CAUSE_METRIC_PATTERNS.items():
+        # TODO: processing node metrics
         for ctnr in pk.get_containers(skip=True):
             routes: list[list[str]] = all_gt_routes[chaos][ctnr]
             cause_service: str = pk.get_service_by_container(ctnr)
@@ -194,7 +286,16 @@ def generate_tsdr_ground_truth(pk: PriorKnowledge) -> dict[str, Any]:
                     if cause_service != pk.get_root_service():
                         metrics_pattern_list.append(f"^s-({'|'.join(stos_route)})_.+")
 
-                # TODO: processing node metrics
+                # add neighbor metrics pattern
+                neighbor_metrics = get_ground_truth_for_neighbors_in_service(pk, chaos, ctnr)
+                for neighbor, (neighbor_runtime, neighbor_metrics) in neighbor_metrics.items():
+                    match neighbor_runtime:
+                        case "container":
+                            metrics_pattern_list.append(f"^c-{neighbor}_({'|'.join(neighbor_metrics)})$")
+                        case _:
+                            metrics_pattern_list.append(f"^m-{neighbor}_({'|'.join(neighbor_metrics)})$")
+
+                # add metrics pattern on fault propageted routes
 
                 routes.append(metrics_pattern_list)
     return all_gt_routes

@@ -291,9 +291,11 @@ def generate_tsdr_ground_truth(pk: PriorKnowledge) -> dict[str, Any]:
                 for neighbor, (neighbor_runtime, neighbor_metrics) in neighbor_metrics.items():
                     match neighbor_runtime:
                         case "container":
-                            metrics_pattern_list.append(f"^c-{neighbor}_({'|'.join(neighbor_metrics)})$")
+                            if pk.is_target_metric_type(METRIC_TYPE_CONTAINERS):
+                                metrics_pattern_list.append(f"^c-{neighbor}_({'|'.join(neighbor_metrics)})$")
                         case _:
-                            metrics_pattern_list.append(f"^m-{neighbor}_({'|'.join(neighbor_metrics)})$")
+                            if pk.is_target_metric_type(METRIC_TYPE_MIDDLEWARES):
+                                metrics_pattern_list.append(f"^m-{neighbor}_({'|'.join(neighbor_metrics)})$")
 
                 # add metrics pattern on fault propageted routes
 

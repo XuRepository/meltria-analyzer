@@ -13,13 +13,7 @@ import numpy as np
 import pandas as pd
 
 from eval import groundtruth
-from meltria.metric_types import (
-    METRIC_TYPE_CONTAINERS,
-    METRIC_TYPE_MAP,
-    METRIC_TYPE_MIDDLEWARES,
-    METRIC_TYPE_NODES,
-    METRIC_TYPE_SERVICES,
-)
+from meltria.metric_types import METRIC_TYPE_MAP, METRIC_TYPE_MIDDLEWARES, METRIC_TYPE_NODES, METRIC_TYPE_SERVICES
 from meltria.priorknowledge.priorknowledge import PriorKnowledge, new_knowledge
 
 

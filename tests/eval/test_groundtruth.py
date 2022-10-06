@@ -3,7 +3,12 @@ import pytest
 
 from diagnoser import metric_node as mn
 from eval import groundtruth
-from meltria.loader import METRIC_TYPE_CONTAINERS, METRIC_TYPE_MIDDLEWARES, METRIC_TYPE_NODES, METRIC_TYPE_SERVICES
+from meltria.metric_types import (
+    METRIC_TYPE_CONTAINERS,
+    METRIC_TYPE_MIDDLEWARES,
+    METRIC_TYPE_NODES,
+    METRIC_TYPE_SERVICES,
+)
 from meltria.priorknowledge.priorknowledge import new_knowledge
 
 ss_pk_without_middlewares = new_knowledge(

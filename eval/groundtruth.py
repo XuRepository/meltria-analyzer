@@ -287,8 +287,8 @@ def generate_tsdr_ground_truth(pk: PriorKnowledge) -> dict[str, Any]:
                         metrics_pattern_list.append(f"^s-({'|'.join(stos_route)})_.+")
 
                 # add neighbor metrics pattern
-                neighbor_metrics = get_ground_truth_for_neighbors_in_service(pk, chaos, ctnr)
-                for neighbor, (neighbor_runtime, neighbor_metrics) in neighbor_metrics.items():
+                neighbor_metrics_with_runtime = get_ground_truth_for_neighbors_in_service(pk, chaos, ctnr)
+                for neighbor, (neighbor_runtime, neighbor_metrics) in neighbor_metrics_with_runtime.items():
                     match neighbor_runtime:
                         case "container":
                             if pk.is_target_metric_type(METRIC_TYPE_CONTAINERS):

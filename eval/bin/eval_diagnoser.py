@@ -231,6 +231,7 @@ def eval_diagnoser(run: neptune.Run, cfg: DictConfig) -> None:
 
             # Check whether cause metrics exists in the causal graph
             _, found_cause_nodes = groundtruth.check_cause_metrics(
+                record.pk,
                 mn.MetricNodes.from_list_of_metric_node(list(causal_graph.nodes)),
                 record.chaos_type(),
                 record.chaos_comp(),

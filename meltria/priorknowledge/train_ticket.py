@@ -223,26 +223,27 @@ CONTAINER_CALL_GRAPH: Final[dict[str, list[str]]] = {
 
 
 @cache
-def generate_container_runtime() -> dict[str, str]:
+def generate_container_runtime() -> dict[str, tuple[str, str]]:
+    """Return a dict of container name to (role name, runtime name)"""
     ctnrs = list(CONTAINER_CALL_GRAPH.keys())
-    ctnr_to_runtime: dict[str, str] = {}
+    ctnr_to_runtime: dict[str, tuple[str, str]] = {}
     for ctnr in ctnrs:
         if ctnr == "ts-ui-dashboard":
-            ctnr_to_runtime[ctnr] = "nginx"
+            ctnr_to_runtime[ctnr] = ("proxy", "nginx")
         elif ctnr == "rabbitmq":
-            ctnr_to_runtime[ctnr] = "rabbitmq"
+            ctnr_to_runtime[ctnr] = ("mq", "rabbitmq")
         elif ctnr == "ts-ticketinfo-service":
-            ctnr_to_runtime[ctnr] = "nodejs"
+            ctnr_to_runtime[ctnr] = ("web", "nodejs")
         elif ctnr == "ts-news-service":
-            ctnr_to_runtime[ctnr] = "go"
+            ctnr_to_runtime[ctnr] = ("web", "go")
         elif ctnr == "ts-voucher-service":
-            ctnr_to_runtime[ctnr] = "python"
+            ctnr_to_runtime[ctnr] = ("web", "python")
         elif ctnr.endswith("-mongo"):
-            ctnr_to_runtime[ctnr] = "mongodb"
+            ctnr_to_runtime[ctnr] = ("db", "mongodb")
         elif ctnr.endswith("-mysql"):
-            ctnr_to_runtime[ctnr] = "mysql"
+            ctnr_to_runtime[ctnr] = ("db", "mysql")
         elif ctnr.endswith("-service"):
-            ctnr_to_runtime[ctnr] = "jvm"
+            ctnr_to_runtime[ctnr] = ("web", "jvm")
         else:
             assert False, f"unknown container: {ctnr}"
     return ctnr_to_runtime

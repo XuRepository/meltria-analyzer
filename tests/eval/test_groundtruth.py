@@ -55,8 +55,8 @@ ts_pk_with_middlewares = new_knowledge(
 
 def test_select_ground_truth_metrics_in_routes() -> None:
     metrics = [
-        "c-ts-station-service_cpu_system_seconds_total",
-        "c-ts-station-service_sockets",
+        "c-ts-station-service_cpu_usage_seconds_total",
+        "c-ts-station-service_cpu_user_seconds_total",
         "s-ts-station_request_duration_seconds",
         "s-ts-order_request_duration_seconds",
         "s-ts-ui-dashboard_requests_count",
@@ -68,16 +68,16 @@ def test_select_ground_truth_metrics_in_routes() -> None:
     )
     expected: list[list[str]] = [
         [
-            "c-ts-station-service_cpu_system_seconds_total",
-            "c-ts-station-service_sockets",
+            "c-ts-station-service_cpu_usage_seconds_total",
+            "c-ts-station-service_cpu_user_seconds_total",
             "s-ts-station_request_duration_seconds",
             "s-ts-ui-dashboard_requests_count",
             "s-ts-ui-dashboard_request_errors_count",
             "s-ts-ui-dashboard_request_duration_seconds",
         ],
         [
-            "c-ts-station-service_cpu_system_seconds_total",
-            "c-ts-station-service_sockets",
+            "c-ts-station-service_cpu_usage_seconds_total",
+            "c-ts-station-service_cpu_user_seconds_total",
             "s-ts-station_request_duration_seconds",
             "s-ts-order_request_duration_seconds",
             "s-ts-ui-dashboard_requests_count",

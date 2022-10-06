@@ -146,7 +146,7 @@ def generate_tsdr_ground_truth(pk: PriorKnowledge) -> dict[str, Any]:
                 # add cause metrics pattern
                 if pk.is_target_metric_type(METRIC_TYPE_CONTAINERS):
                     for _role in ["*", role]:
-                        ctnr_metric_patterns: list[str] = metric_patterns_by_runtime[(_role, "container")]
+                        ctnr_metric_patterns: list[str] | None = metric_patterns_by_runtime.get((_role, "container"))
                         if ctnr_metric_patterns is not None and len(ctnr_metric_patterns) > 0:
                             metrics_pattern_list.append(f"^c-{ctnr}_({'|'.join(ctnr_metric_patterns)})$")
 

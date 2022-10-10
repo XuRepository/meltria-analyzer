@@ -17,6 +17,10 @@ class PriorKnowledge(ABC):
         pass
 
     @abstractmethod
+    def get_root_container(self) -> str:
+        pass
+
+    @abstractmethod
     def get_containers(self, skip: bool = False) -> list[str]:
         pass
 
@@ -146,6 +150,9 @@ class SockShopKnowledge(PriorKnowledge):
     def get_root_service(self) -> str:
         return sock_shop.ROOT_SERVICE
 
+    def get_root_container(self) -> str:
+        return sock_shop.ROOT_CONTAINER
+
     def get_containers(self, skip: bool = False) -> list[str]:
         ctnrs = list(sock_shop.CONTAINER_CALL_GRAPH.keys())
         if skip:
@@ -195,6 +202,9 @@ class TrainTicketKnowledge(PriorKnowledge):
 
     def get_root_service(self) -> str:
         return train_ticket.ROOT_SERVICE
+
+    def get_root_container(self) -> str:
+        return train_ticket.ROOT_CONTAINER
 
     def get_containers(self, skip: bool = False) -> list[str]:
         ctnrs = list(train_ticket.CONTAINER_CALL_GRAPH.keys())

@@ -5,6 +5,7 @@ import networkx as nx
 TARGET_APP_NAME: Final[str] = "sock-shop"
 
 ROOT_SERVICE: Final[str] = "front-end"
+ROOT_CONTAINER: Final[str] = "front-end"
 ROOT_METRIC_LABELS: Final[tuple[str, str, str]] = (
     "s-front-end_latency",
     "s-front-end_throughput",

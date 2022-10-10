@@ -6,6 +6,7 @@ import networkx as nx
 TARGET_APP_NAME: Final[str] = "train-ticket"
 
 ROOT_SERVICE: Final[str] = "ts-ui-dashboard"
+ROOT_CONTAINER: Final[str] = "ts-ui-dashboard"
 ROOT_METRIC_LABELS: Final[tuple[str, str, str]] = (
     "s-ts-ui-dashboard_request_duration_seconds",
     "s-ts-ui-dashboard_requests_count",

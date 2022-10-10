@@ -282,64 +282,57 @@ def get_ground_truth_on_propagated_route(pk: PriorKnowledge, ctnr: str) -> dict[
 
 
 @cache
-def generate_tsdr_ground_truth(pk: PriorKnowledge) -> dict[str, Any]:
-    """Generate ground truth for testing extracted metrics with tsdr based on call graph."""
-    all_gt_routes: dict[str, dict[str, list[list[str]]]] = defaultdict(lambda: defaultdict(list))
-    for chaos, metric_patterns_by_runtime in CHAOS_TO_CAUSE_METRIC_PATTERNS.items():
-        # TODO: processing node metrics
-        for ctnr in pk.get_containers(skip=True):
-            routes: list[list[str]] = all_gt_routes[chaos][ctnr]
-            cause_service: str = pk.get_service_by_container(ctnr)
-            stos_routes: list[tuple[str, ...]] = pk.get_service_routes(cause_service)
-
-            # allow to match any of multiple routes
-            for stos_route in stos_routes:
-                metrics_pattern_list: list[str] = []
-
-                role, runtime = pk.get_role_and_runtime_by_container(ctnr)
-
-                # add cause metrics pattern
-                if pk.is_target_metric_type(METRIC_TYPE_CONTAINERS):
-                    for _role in ["*", role]:
-                        ctnr_metric_patterns: list[str] | None = metric_patterns_by_runtime.get((_role, "container"))
-                        if ctnr_metric_patterns is not None and len(ctnr_metric_patterns) > 0:
-                            metrics_pattern_list.append(f"^c-{ctnr}_({'|'.join(ctnr_metric_patterns)})$")
-
-                if pk.is_target_metric_type(METRIC_TYPE_MIDDLEWARES):
-                    for _role in ["*", role]:
-                        middleware_metric_patterns: list[str] | None = metric_patterns_by_runtime.get((_role, runtime))
-                        if middleware_metric_patterns is not None and len(middleware_metric_patterns) > 0:
-                            metrics_pattern_list.append(f"^m-{ctnr}_({'|'.join(middleware_metric_patterns)})$")
-
-                if pk.is_target_metric_type(METRIC_TYPE_SERVICES):
-                    # NOTE: duplicate service metrics are not allowed in a route
-                    service_metrics_pattern: str = f"^s-{cause_service}_.+$"
-                    if service_metrics_pattern not in metrics_pattern_list:
-                        metrics_pattern_list.append(service_metrics_pattern)
-                    if cause_service != pk.get_root_service():
-                        metrics_pattern_list.append(f"^s-({'|'.join(stos_route)})_.+")
-
-                # add neighbor metrics pattern
-                neighbor_metrics_with_runtime = get_ground_truth_for_neighbors_in_service(pk, chaos, ctnr)
-                # add metrics pattern on fault propageted routes
-                propagated_metrics_with_runtime = get_ground_truth_on_propagated_route(pk, ctnr)
-                for _metrics_with_runtime in [neighbor_metrics_with_runtime, propagated_metrics_with_runtime]:
-                    for _ctnr, (_runtime, _metrics) in _metrics_with_runtime.items():
-                        match _runtime:
-                            case "container":
-                                if pk.is_target_metric_type(METRIC_TYPE_CONTAINERS):
-                                    metrics_pattern_list.append(f"^c-{_ctnr}_({'|'.join(_metrics)})$")
-                            case _:
-                                if pk.is_target_metric_type(METRIC_TYPE_MIDDLEWARES):
-                                    metrics_pattern_list.append(f"^m-{_ctnr}_({'|'.join(_metrics)})$")
-
-                routes.append(metrics_pattern_list)
-
-    return all_gt_routes
-
-
 def get_tsdr_ground_truth(pk: PriorKnowledge, chaos_type: str, chaos_comp: str) -> list[list[str]]:
-    return generate_tsdr_ground_truth(pk)[chaos_type][chaos_comp]
+    """Get ground truth for testing extracted metrics with tsdr based on call graph."""
+    metric_patterns_by_runtime = CHAOS_TO_CAUSE_METRIC_PATTERNS[chaos_type]
+
+    routes: list[list[str]] = []
+    cause_service: str = pk.get_service_by_container(chaos_comp)
+    stos_routes: list[tuple[str, ...]] = pk.get_service_routes(cause_service)
+
+    # allow to match any of multiple routes
+    for stos_route in stos_routes:
+        metrics_pattern_list: list[str] = []
+
+        role, runtime = pk.get_role_and_runtime_by_container(chaos_comp)
+
+        # add cause metrics pattern
+        if pk.is_target_metric_type(METRIC_TYPE_CONTAINERS):
+            for _role in ["*", role]:
+                ctnr_metric_patterns: list[str] | None = metric_patterns_by_runtime.get((_role, "container"))
+                if ctnr_metric_patterns is not None and len(ctnr_metric_patterns) > 0:
+                    metrics_pattern_list.append(f"^c-{chaos_comp}_({'|'.join(ctnr_metric_patterns)})$")
+
+        if pk.is_target_metric_type(METRIC_TYPE_MIDDLEWARES):
+            for _role in ["*", role]:
+                middleware_metric_patterns: list[str] | None = metric_patterns_by_runtime.get((_role, runtime))
+                if middleware_metric_patterns is not None and len(middleware_metric_patterns) > 0:
+                    metrics_pattern_list.append(f"^m-{chaos_comp}_({'|'.join(middleware_metric_patterns)})$")
+
+        if pk.is_target_metric_type(METRIC_TYPE_SERVICES):
+            # NOTE: duplicate service metrics are not allowed in a route
+            service_metrics_pattern: str = f"^s-{cause_service}_.+$"
+            if service_metrics_pattern not in metrics_pattern_list:
+                metrics_pattern_list.append(service_metrics_pattern)
+            if cause_service != pk.get_root_service():
+                metrics_pattern_list.append(f"^s-({'|'.join(stos_route)})_.+")
+
+        # add neighbor metrics pattern
+        neighbor_metrics_with_runtime = get_ground_truth_for_neighbors_in_service(pk, chaos_type, chaos_comp)
+        # add metrics pattern on fault propageted routes
+        propagated_metrics_with_runtime = get_ground_truth_on_propagated_route(pk, chaos_comp)
+        for _metrics_with_runtime in [neighbor_metrics_with_runtime, propagated_metrics_with_runtime]:
+            for _ctnr, (_runtime, _metrics) in _metrics_with_runtime.items():
+                match _runtime:
+                    case "container":
+                        if pk.is_target_metric_type(METRIC_TYPE_CONTAINERS):
+                            metrics_pattern_list.append(f"^c-{_ctnr}_({'|'.join(_metrics)})$")
+                    case _:
+                        if pk.is_target_metric_type(METRIC_TYPE_MIDDLEWARES):
+                            metrics_pattern_list.append(f"^m-{_ctnr}_({'|'.join(_metrics)})$")
+
+        routes.append(metrics_pattern_list)
+    return routes
 
 
 def select_ground_truth_metrics_in_routes(

@@ -6,26 +6,15 @@ from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass
 from multiprocessing import cpu_count
-from typing import Any, Final
+from typing import Any
 
 import joblib
 import numpy as np
 import pandas as pd
 
 from eval import groundtruth
+from meltria.metric_types import METRIC_TYPE_MAP, METRIC_TYPE_MIDDLEWARES, METRIC_TYPE_NODES, METRIC_TYPE_SERVICES
 from meltria.priorknowledge.priorknowledge import PriorKnowledge, new_knowledge
-
-METRIC_TYPE_SERVICES: Final[str] = "services"
-METRIC_TYPE_CONTAINERS: Final[str] = "containers"
-METRIC_TYPE_NODES: Final[str] = "nodes"
-METRIC_TYPE_MIDDLEWARES: Final[str] = "middlewares"
-
-METRIC_TYPE_MAP: Final[list[tuple[str, str]]] = [
-    ("c-", METRIC_TYPE_CONTAINERS),
-    ("s-", METRIC_TYPE_SERVICES),
-    ("m-", METRIC_TYPE_MIDDLEWARES),
-    ("n-", METRIC_TYPE_NODES),
-]
 
 
 @dataclass

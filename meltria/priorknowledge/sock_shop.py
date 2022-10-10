@@ -5,6 +5,7 @@ import networkx as nx
 TARGET_APP_NAME: Final[str] = "sock-shop"
 
 ROOT_SERVICE: Final[str] = "front-end"
+ROOT_CONTAINER: Final[str] = "front-end"
 ROOT_METRIC_LABELS: Final[tuple[str, str, str]] = (
     "s-front-end_latency",
     "s-front-end_throughput",
@@ -48,7 +49,7 @@ CONTAINER_CALL_GRAPH: Final[dict[str, list[str]]] = {
     "front-end": ["orders", "carts", "user", "catalogue"],
     "catalogue": ["front-end", "catalogue-db"],
     "catalogue-db": ["catalogue"],
-    "orders": ["front-end", "orders-db", "carts", "user", "payement", "shipping"],
+    "orders": ["front-end", "orders-db", "carts", "user", "payment", "shipping"],
     "orders-db": ["orders"],
     "user": ["front-end", "user-db", "orders"],
     "user-db": ["user"],
@@ -95,21 +96,21 @@ SERVICE_CONTAINERS: Final[dict[str, list[str]]] = {
 
 CONTAINER_TO_SERVICE: Final[dict[str, str]] = {c: s for s, ctnrs in SERVICE_CONTAINERS.items() for c in ctnrs}
 
-CONTAINER_TO_RUNTIME: dict[str, str] = {
-    "carts": "jvm",
-    "carts-db": "mongodb",
-    "shipping": "jvm",
-    "payment": "jvm",
-    "front-end": "nodejs",
-    "user": "jvm",
-    "user-db": "mongodb",
-    "orders": "jvm",
-    "orders-db": "mongodb",
-    "catalogue": "go",
-    "catalogue-db": "mongodb",
-    "queue-master": "jvm",
-    "session-db": "mysql",
-    "rabbitmq": "rabbitmq",
+CONTAINER_TO_RUNTIME: dict[str, tuple[str, str]] = {
+    "carts": ("web", "jvm"),
+    "carts-db": ("db", "mongodb"),
+    "shipping": ("web", "jvm"),
+    "payment": ("web", "jvm"),
+    "front-end": ("web", "nodejs"),
+    "user": ("web", "jvm"),
+    "user-db": ("db", "mongodb"),
+    "orders": ("web", "jvm"),
+    "orders-db": ("db", "mongodb"),
+    "catalogue": ("web", "go"),
+    "catalogue-db": ("db", "mongodb"),
+    "queue-master": ("web", "jvm"),
+    "session-db": ("db", "mysql"),
+    "rabbitmq": ("mq", "rabbitmq"),
 }
 
 SKIP_CONTAINERS: Final[list[str]] = ["queue-master", "rabbitmq", "session-db"]

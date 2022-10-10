@@ -33,7 +33,7 @@ statsmodels = ">=0.11"
 name = "atomicwrites"
 version = "1.4.1"
 description = "Atomic file writes."
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
@@ -524,7 +524,7 @@ python-versions = ">=3.5"
 name = "iniconfig"
 version = "1.1.1"
 description = "iniconfig: brain-dead simple config-ini parsing"
-category = "dev"
+category = "main"
 optional = false
 python-versions = "*"
 
@@ -1205,7 +1205,7 @@ test = ["appdirs (==1.4.4)", "pytest (>=6)", "pytest-cov (>=2.7)", "pytest-mock 
 name = "pluggy"
 version = "1.0.0"
 description = "plugin and hook calling mechanisms for python"
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=3.6"
 
@@ -1435,7 +1435,7 @@ lint = ["black (>=19.10b0,<=20.8)", "click (<8.1.0)", "flake8 (>=3.7,<5)", "flak
 name = "pytest"
 version = "6.2.5"
 description = "pytest: simple powerful testing with Python"
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=3.6"
 
@@ -1467,6 +1467,17 @@ toml = "*"
 
 [package.extras]
 testing = ["fields", "hunter", "process-tests", "pytest-xdist", "six", "virtualenv"]
+
+[[package]]
+name = "pytest-unordered"
+version = "0.5.1"
+description = "Test equality of unordered collections in pytest"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+pytest = ">=6.0.0"
 
 [[package]]
 name = "python-dateutil"
@@ -1782,7 +1793,7 @@ python-versions = ">=3.6"
 name = "toml"
 version = "0.10.2"
 description = "Python Library for Tom's Obvious, Minimal Language"
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*"
 
@@ -1947,7 +1958,7 @@ python-versions = ">=3.7"
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.10,<3.11"
-content-hash = "dd2ec05a09efa91eb924bca4a93d70968ccfd585bd26962b6baeb6cce6be2c7b"
+content-hash = "95a89a193809c21cfeb21f8a3de73e7baa4bd140cff6fd9dc69107bdb0cf8158"
 
 [metadata.files]
 antlr4-python3-runtime = [
@@ -3035,6 +3046,10 @@ pytest = [
 pytest-cov = [
     {file = "pytest-cov-2.12.1.tar.gz", hash = "sha256:261ceeb8c227b726249b376b8526b600f38667ee314f910353fa318caa01f4d7"},
     {file = "pytest_cov-2.12.1-py2.py3-none-any.whl", hash = "sha256:261bb9e47e65bd099c89c3edf92972865210c36813f80ede5277dceb77a4a62a"},
+]
+pytest-unordered = [
+    {file = "pytest-unordered-0.5.1.tar.gz", hash = "sha256:d9fa66c5640112bd608f13be6ae32b9d6915d74740f50420aa8eb2771d2b6f62"},
+    {file = "pytest_unordered-0.5.1-py3-none-any.whl", hash = "sha256:3f19d6aa2309a5bb474b392ca22a8d8f161f2da2cf66f5b1e0b49ae3c10bf6c2"},
 ]
 python-dateutil = [
     {file = "python-dateutil-2.8.2.tar.gz", hash = "sha256:0123cacc1627ae19ddf3c27a5de5bd67ee4586fbdd6440d9748f8abb483d3e86"},

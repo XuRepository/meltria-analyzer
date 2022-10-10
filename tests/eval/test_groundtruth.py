@@ -1,5 +1,6 @@
 import networkx as nx
 import pytest
+from pytest_unordered import unordered
 
 from diagnoser import metric_node as mn
 from eval import groundtruth
@@ -63,7 +64,7 @@ ts_pk_with_middlewares = new_knowledge(
             "user",
             {
                 "user-db": (
-                    "db",
+                    "mongodb",
                     [
                         "mongodb_ss_opLatencies_latency",
                         "mongodb_ss_opLatencies_ops",
@@ -83,7 +84,7 @@ ts_pk_with_middlewares = new_knowledge(
             "user-db",
             {
                 "user": (
-                    "web",
+                    "jvm",
                     [
                         "Tomcat_.+_processingTime",
                         "Tomcat_.+_requestProcessingTime",
@@ -133,17 +134,19 @@ def test_select_ground_truth_metrics_in_routes() -> None:
             "s-ts-ui-dashboard_request_duration_seconds",
         ],
     ]
-    assert [r[0] for r in routes] == expected
+    assert [unordered(r[0]) for r in routes] == unordered(expected)
 
 
 def test_check_tsdr_ground_truth_by_route() -> None:
     metrics = [
         "c-user-db_cpu_usage_seconds_total",
         "c-user-db_cpu_user_seconds_total",
-        "c-user-db_network_receive_bytes",
+        "c-user-db_network_receive_bytes_total",
         "s-user_latency",
         "c-orders_cpu_usage_seconds_total",
+        # "c-orders_network_receive_bytes_total",
         "s-orders_latency",
+        "c-front-end_network_receive_packets_total",
         "s-front-end_latency",
     ]
     ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
@@ -154,10 +157,12 @@ def test_check_tsdr_ground_truth_by_route() -> None:
         "c-user-db_cpu_usage_seconds_total",
         "c-user-db_cpu_user_seconds_total",
         "s-user_latency",
+        # "c-orders_network_receive_bytes_total",
         "s-orders_latency",
+        "c-front-end_network_receive_packets_total",
         "s-front-end_latency",
     ]
-    assert found_metrics == expected
+    assert found_metrics == unordered(expected)
 
     # without orders
     metrics = [
@@ -165,6 +170,7 @@ def test_check_tsdr_ground_truth_by_route() -> None:
         "c-user-db_cpu_user_seconds_total",
         "c-user-db_network_receive_bytes",
         "s-user_latency",
+        "c-front-end_network_receive_packets_total",
         "s-front-end_latency",
     ]
     ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
@@ -175,9 +181,10 @@ def test_check_tsdr_ground_truth_by_route() -> None:
         "c-user-db_cpu_usage_seconds_total",
         "c-user-db_cpu_user_seconds_total",
         "s-user_latency",
+        "c-front-end_network_receive_packets_total",
         "s-front-end_latency",
     ]
-    assert found_metrics == expected
+    assert found_metrics == unordered(expected)
 
     # not match
     metrics = [
@@ -195,7 +202,7 @@ def test_check_tsdr_ground_truth_by_route() -> None:
         "c-user-db_cpu_user_seconds_total",
         "s-user_latency",
     ]
-    assert found_metrics == expected
+    assert found_metrics == unordered(expected)
 
     # only front-end
     metrics = [
@@ -213,7 +220,7 @@ def test_check_tsdr_ground_truth_by_route() -> None:
         "c-front-end_cpu_user_seconds_total",
         "s-front-end_latency",
     ]
-    assert found_metrics == expected
+    assert found_metrics == unordered(expected)
 
     # with middlewares
     metrics = [
@@ -224,7 +231,10 @@ def test_check_tsdr_ground_truth_by_route() -> None:
         "m-user_Tomcat_RequestProcessor_requestProcessingTime",
         "s-user_latency",
         "c-orders_cpu_usage_seconds_total",
+        "c-orders_network_transmit_bytes_total",
+        "m-orders_Tomcat_RequestProcessor_requestCount",
         "s-orders_latency",
+        "c-front-end_network_transmit_bytes_total",
         "s-front-end_latency",
     ]
     ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
@@ -237,10 +247,12 @@ def test_check_tsdr_ground_truth_by_route() -> None:
         "m-user-db_mongodb_sys_cpu_idle_ms",
         "m-user_Tomcat_RequestProcessor_requestProcessingTime",
         "s-user_latency",
+        "m-orders_Tomcat_RequestProcessor_requestCount",
         "s-orders_latency",
+        "c-front-end_network_transmit_bytes_total",
         "s-front-end_latency",
     ]
-    assert found_metrics == expected
+    assert found_metrics == unordered(expected)
 
     # no input of middleware metrics with middlewares
     metrics = [
@@ -261,7 +273,7 @@ def test_check_tsdr_ground_truth_by_route() -> None:
         "s-orders_latency",
         "s-front-end_latency",
     ]
-    assert found_metrics == expected
+    assert found_metrics == unordered(expected)
 
 
 def test_check_tsdr_ground_truth_by_route_train_ticket() -> None:
@@ -271,7 +283,9 @@ def test_check_tsdr_ground_truth_by_route_train_ticket() -> None:
         "c-ts-food_mongo_network_receive_bytes",
         "s-ts-food_request_duration_seconds",
         "c-ts-preserve_cpu_usage_seconds_total",
+        "c-ts-preserve_network_transmit_bytes_total",
         "s-ts-preserve_request_duration_seconds",
+        "c-ts-ui-dashboard_network_transmit_bytes_total",
         "s-ts-ui-dashboard_request_duration_seconds",
     ]
     ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
@@ -283,9 +297,10 @@ def test_check_tsdr_ground_truth_by_route_train_ticket() -> None:
         "c-ts-food-mongo_cpu_user_seconds_total",
         "s-ts-food_request_duration_seconds",
         "s-ts-preserve_request_duration_seconds",
+        "c-ts-ui-dashboard_network_transmit_bytes_total",
         "s-ts-ui-dashboard_request_duration_seconds",
     ]
-    assert found_metrics == expected
+    assert found_metrics == unordered(expected)
 
 
 @pytest.mark.parametrize(

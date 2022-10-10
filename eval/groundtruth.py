@@ -299,14 +299,14 @@ def get_tsdr_ground_truth(pk: PriorKnowledge, chaos_type: str, chaos_comp: str) 
         # add cause metrics pattern
         if pk.is_target_metric_type(METRIC_TYPE_CONTAINERS):
             for _role in ["*", role]:
-                ctnr_metric_patterns: list[str] | None = metric_patterns_by_runtime.get((_role, "container"))
-                if ctnr_metric_patterns is not None and len(ctnr_metric_patterns) > 0:
+                ctnr_metric_patterns: list[str] = metric_patterns_by_runtime.get((_role, "container"), [])
+                if len(ctnr_metric_patterns) > 0:
                     metrics_pattern_list.append(f"^c-{chaos_comp}_({'|'.join(ctnr_metric_patterns)})$")
 
         if pk.is_target_metric_type(METRIC_TYPE_MIDDLEWARES):
             for _role in ["*", role]:
-                middleware_metric_patterns: list[str] | None = metric_patterns_by_runtime.get((_role, runtime))
-                if middleware_metric_patterns is not None and len(middleware_metric_patterns) > 0:
+                middleware_metric_patterns: list[str] = metric_patterns_by_runtime.get((_role, runtime), [])
+                if len(middleware_metric_patterns) > 0:
                     metrics_pattern_list.append(f"^m-{chaos_comp}_({'|'.join(middleware_metric_patterns)})$")
 
         if pk.is_target_metric_type(METRIC_TYPE_SERVICES):

@@ -57,11 +57,11 @@ class PriorKnowledge(ABC):
         pass
 
     @abstractmethod
-    def get_service_containers(self, service: str) -> list[str] | None:
+    def get_service_containers(self, service: str) -> list[str]:
         pass
 
     @abstractmethod
-    def get_service_by_container(self, ctnr: str) -> str | None:
+    def get_service_by_container(self, ctnr: str) -> str:
         pass
 
     @abstractmethod
@@ -76,7 +76,7 @@ class PriorKnowledge(ABC):
     def get_diagnoser_target_data(self) -> dict[str, list[str]]:
         pass
 
-    def get_nodes_to_containers(self) -> dict[str, list[str]] | None:
+    def get_nodes_to_containers(self) -> dict[str, list[str]]:
         """Example
         "nodes-containers": {
             "gke-train-ticket-01-default-pool-1db6151d-0fxo": [
@@ -94,7 +94,7 @@ class PriorKnowledge(ABC):
         return self.mappings.get("nodes-containers")
 
     def get_nodes(self) -> list[str]:
-        return self.get_nodes_to_containers().keys()
+        return list(self.get_nodes_to_containers().keys())
 
     def get_nodes_to_containers_graph(self) -> nx.Graph:
         G: nx.Graph = nx.Graph()  # Here, a node means a host running containers.
@@ -169,9 +169,8 @@ class SockShopKnowledge(PriorKnowledge):
         return sock_shop.CONTAINER_CALL_DIGRAPH
 
     def get_container_call_graph(self, ctnr: str) -> list[str]:
-        neighbors = sock_shop.CONTAINER_CALL_GRAPH.get(ctnr)
-        assert neighbors is not None, f"{ctnr} is not defined in container_call_graph"
-        return neighbors
+        assert ctnr in sock_shop.CONTAINER_CALL_GRAPH, f"{ctnr} is not defined in container_call_graph"
+        return sock_shop.CONTAINER_CALL_GRAPH[ctnr]
 
     def get_service_routes(self, service: str) -> list[tuple[str, ...]]:
         routes = self._generate_service_to_service_routes(sock_shop.SERVICE_CALL_DIGRAPH, sock_shop.ROOT_SERVICE)
@@ -180,13 +179,16 @@ class SockShopKnowledge(PriorKnowledge):
     def get_containers_of_service(self) -> dict[str, list[str]]:
         return sock_shop.SERVICE_CONTAINERS
 
-    def get_service_containers(self, service: str) -> list[str] | None:
-        return sock_shop.SERVICE_CONTAINERS.get(service)
+    def get_service_containers(self, service: str) -> list[str]:
+        assert service in sock_shop.SERVICE_CONTAINERS, f"{service} is not defined in service_containers"
+        return sock_shop.SERVICE_CONTAINERS[service]
 
-    def get_service_by_container(self, ctnr: str) -> str | None:
-        return sock_shop.CONTAINER_TO_SERVICE.get(ctnr)
+    def get_service_by_container(self, ctnr: str) -> str:
+        assert ctnr in sock_shop.CONTAINER_TO_SERVICE, f"{ctnr} is not defined in container_service"
+        return sock_shop.CONTAINER_TO_SERVICE[ctnr]
 
     def get_role_and_runtime_by_container(self, ctnr: str) -> tuple[str, str]:
+        assert ctnr in sock_shop.CONTAINER_TO_RUNTIME, f"{ctnr} is not defined in container_role_runtime"
         return sock_shop.CONTAINER_TO_RUNTIME[ctnr]
 
     def get_skip_containers(self) -> list[str]:
@@ -222,28 +224,32 @@ class TrainTicketKnowledge(PriorKnowledge):
         return train_ticket.CONTAINER_CALL_DIGRAPH
 
     def get_container_call_graph(self, ctnr: str) -> list[str]:
-        neighbors = train_ticket.CONTAINER_CALL_GRAPH.get(ctnr)
-        assert neighbors is not None, f"{ctnr} is not defined in container_call_graph"
-        return neighbors
+        assert ctnr in train_ticket.CONTAINER_CALL_GRAPH, f"{ctnr} is not defined in container_call_graph"
+        return train_ticket.CONTAINER_CALL_GRAPH[ctnr]
 
     def get_service_routes(self, service: str) -> list[tuple[str, ...]]:
         routes = self._generate_service_to_service_routes(train_ticket.SERVICE_CALL_DIGRAPH, train_ticket.ROOT_SERVICE)
+        assert service in routes, f"{service} is not defined in service_call_graph"
         return routes[service]
 
     def get_containers_of_service(self) -> dict[str, list[str]]:
         return train_ticket.SERVICE_CONTAINERS
 
-    def get_service_containers(self, service: str) -> list[str] | None:
-        return train_ticket.SERVICE_CONTAINERS.get(service)
+    def get_service_containers(self, service: str) -> list[str]:
+        assert service in train_ticket.SERVICE_CONTAINERS, f"{service} is not defined in service_containers"
+        return train_ticket.SERVICE_CONTAINERS[service]
 
-    def get_service_by_container(self, ctnr: str) -> str | None:
-        return train_ticket.CONTAINER_TO_SERVICE.get(ctnr)
+    def get_service_by_container(self, ctnr: str) -> str:
+        assert ctnr in train_ticket.CONTAINER_TO_SERVICE, f"{ctnr} is not defined in container_service"
+        return train_ticket.CONTAINER_TO_SERVICE[ctnr]
 
     def get_skip_containers(self) -> list[str]:
         return train_ticket.SKIP_CONTAINERS
 
     def get_role_and_runtime_by_container(self, ctnr: str) -> tuple[str, str]:
-        return train_ticket.generate_container_runtime()[ctnr]
+        ctnr_runtime = train_ticket.generate_container_runtime()
+        assert ctnr in ctnr_runtime, f"{ctnr} is not defined in container_runtime"
+        return ctnr_runtime[ctnr]
 
     def get_diagnoser_target_data(self) -> dict[str, list[str]]:
         return train_ticket.DIAGNOSER_TARGET_DATA

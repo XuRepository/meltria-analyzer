@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import warnings
 from collections import defaultdict
 from collections.abc import Iterator
@@ -107,6 +108,29 @@ def load_dataset(
     return [r for r in records if r is not None]
 
 
+JVM_TOMCAT_PATTERN: re.Pattern = re.compile(
+    "^Tomcat_.+_requestCount|maxTime|processingTime|errorCount|[b|B]ytesSent|[b|B]ytesReceived$"
+)
+
+JVM_OS_PATTERN: re.Pattern = re.compile("^java_lang_OperatingSystem_.+_ProcessCpuTime$")
+
+JVM_JAVA_PATTERN: re.Pattern = re.compile("^java_lang_.+(Time|time)$")
+
+
+def _diff_jvm_counter_metrics(metric_name: str, ts: np.ndarray) -> np.ndarray:
+    """Calculate the difference of JVM counter metrics.
+    JVM counter metrics are increasing monotonically, so the difference between two consecutive values is the actual value.
+    FIXME: This is a temporary solution, and the actual value should be calculated in prometheus fetcher.
+    """
+    new_ts: np.ndarray
+    if JVM_JAVA_PATTERN.match(metric_name) or JVM_OS_PATTERN.match(metric_name) or JVM_TOMCAT_PATTERN.match(metric_name):
+        diff = np.diff(ts)
+        new_ts = np.insert(diff, 0, ts[0])
+    else:
+        new_ts = ts
+    return new_ts
+
+
 def read_metrics_file(
     data_file: str,
     target_metric_types: dict[str, bool],
@@ -137,9 +161,13 @@ def read_metrics_file(
                 if target_name in pk.get_skip_containers():
                     continue
                 metric_name = "{}-{}_{}".format(metric_type[0], target_name, metric_name)
-                metrics_name_to_values[metric_name] = np.array(metric["values"], dtype=np.float64,)[
+                ts = np.array(metric["values"], dtype=np.float64,)[
                     :, 1
                 ][-num_datapoints:]
+                if metric_type == METRIC_TYPE_MIDDLEWARES:
+                    if pk.get_role_and_runtime_by_container(target_name) == ("web", "jvm"):
+                        ts = _diff_jvm_counter_metrics(metric_name, ts)
+                metrics_name_to_values[metric_name] = ts
     data_df = pd.DataFrame(metrics_name_to_values).round(4)
     if interporate:
         try:

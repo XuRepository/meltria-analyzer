@@ -23,8 +23,11 @@ class DatasetRecord:
 
     data_df: pd.DataFrame
     pk: PriorKnowledge
-    meta: dict[str, Any]
+    meta: dict[str, str]
     metrics_file: str  # path of metrics file eg. '2021-12-09-argowf-chaos-hg68n-carts-db_pod-cpu-hog_4.json'
+
+    def __hash__(self) -> int:
+        return hash(self.target_app() + self.chaos_case_full())
 
     def target_app(self) -> str:
         """target-application eg. 'train-ticket'"""

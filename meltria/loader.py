@@ -123,9 +123,13 @@ def _diff_jvm_counter_metrics(metric_name: str, ts: np.ndarray) -> np.ndarray:
     FIXME: This is a temporary solution, and the actual value should be calculated in prometheus fetcher.
     """
     new_ts: np.ndarray
-    if JVM_JAVA_PATTERN.match(metric_name) or JVM_OS_PATTERN.match(metric_name) or JVM_TOMCAT_PATTERN.match(metric_name):
+    if (
+        JVM_JAVA_PATTERN.match(metric_name)
+        or JVM_OS_PATTERN.match(metric_name)
+        or JVM_TOMCAT_PATTERN.match(metric_name)
+    ):
         diff = np.diff(ts)
-        new_ts = np.insert(diff, 0, ts[0])
+        new_ts = np.insert(diff, 0, diff[0])
     else:
         new_ts = ts
     return new_ts
@@ -160,13 +164,13 @@ def read_metrics_file(
                     target_name = target_name.removesuffix(";")
                 if target_name in pk.get_skip_containers():
                     continue
-                metric_name = "{}-{}_{}".format(metric_type[0], target_name, metric_name)
                 ts = np.array(metric["values"], dtype=np.float64,)[
                     :, 1
                 ][-num_datapoints:]
                 if metric_type == METRIC_TYPE_MIDDLEWARES:
                     if pk.get_role_and_runtime_by_container(target_name) == ("web", "jvm"):
                         ts = _diff_jvm_counter_metrics(metric_name, ts)
+                metric_name = "{}-{}_{}".format(metric_type[0], target_name, metric_name)
                 metrics_name_to_values[metric_name] = ts
     data_df = pd.DataFrame(metrics_name_to_values).round(4)
     if interporate:

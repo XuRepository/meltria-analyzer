@@ -7,8 +7,8 @@ target_metric_types:
   middlewares: True
 defaults:
   - _self_
-  - step1: ar_based_ad
-  - step2: hierarchy
+  - step1: residual_integral
+  - step2: dbscan
 upload_plots: false  # upload graph image to Neptune
 neptune:
   mode: debug

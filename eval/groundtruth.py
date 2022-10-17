@@ -1,8 +1,7 @@
 import re
-from collections import defaultdict
 from functools import cache
 from itertools import product
-from typing import Any, Final
+from typing import Final
 
 import networkx as nx
 
@@ -282,7 +281,17 @@ def get_ground_truth_on_propagated_route(pk: PriorKnowledge, ctnr: str) -> dict[
 
 
 @cache
-def get_tsdr_ground_truth(pk: PriorKnowledge, chaos_type: str, chaos_comp: str) -> list[list[str]]:
+def get_tsdr_ground_truth(
+    pk: PriorKnowledge,
+    chaos_type: str,
+    chaos_comp: str,
+    opts: dict[str, bool] = {
+        "cause_middleware": True,
+        "cause_service": True,
+        "neighbors_in_cause_service": True,
+        "propagated_route": False,
+    },
+) -> list[list[str]]:
     """Get ground truth for testing extracted metrics with tsdr based on call graph."""
     metric_patterns_by_runtime = CHAOS_TO_CAUSE_METRIC_PATTERNS[chaos_type]
 
@@ -303,13 +312,13 @@ def get_tsdr_ground_truth(pk: PriorKnowledge, chaos_type: str, chaos_comp: str) 
                 if len(ctnr_metric_patterns) > 0:
                     metrics_pattern_list.append(f"^c-{chaos_comp}_({'|'.join(ctnr_metric_patterns)})$")
 
-        if pk.is_target_metric_type(METRIC_TYPE_MIDDLEWARES):
+        if pk.is_target_metric_type(METRIC_TYPE_MIDDLEWARES) and opts["cause_middleware"]:
             for _role in ["*", role]:
                 middleware_metric_patterns: list[str] = metric_patterns_by_runtime.get((_role, runtime), [])
                 if len(middleware_metric_patterns) > 0:
                     metrics_pattern_list.append(f"^m-{chaos_comp}_({'|'.join(middleware_metric_patterns)})$")
 
-        if pk.is_target_metric_type(METRIC_TYPE_SERVICES):
+        if pk.is_target_metric_type(METRIC_TYPE_SERVICES) and opts["cause_service"]:
             # NOTE: duplicate service metrics are not allowed in a route
             service_metrics_pattern: str = f"^s-{cause_service}_.+$"
             if service_metrics_pattern not in metrics_pattern_list:
@@ -318,9 +327,15 @@ def get_tsdr_ground_truth(pk: PriorKnowledge, chaos_type: str, chaos_comp: str) 
                 metrics_pattern_list.append(f"^s-({'|'.join(stos_route)})_.+")
 
         # add neighbor metrics pattern
-        neighbor_metrics_with_runtime = get_ground_truth_for_neighbors_in_service(pk, chaos_type, chaos_comp)
+        neighbor_metrics_with_runtime = (
+            get_ground_truth_for_neighbors_in_service(pk, chaos_type, chaos_comp)
+            if opts["neighbors_in_cause_service"]
+            else {}
+        )
         # add metrics pattern on fault propageted routes
-        propagated_metrics_with_runtime = get_ground_truth_on_propagated_route(pk, chaos_comp)
+        propagated_metrics_with_runtime = (
+            get_ground_truth_on_propagated_route(pk, chaos_comp) if opts["propagated_route"] else {}
+        )
         for _metrics_with_runtime in [neighbor_metrics_with_runtime, propagated_metrics_with_runtime]:
             for _ctnr, (_runtime, _metrics) in _metrics_with_runtime.items():
                 match _runtime:
@@ -352,7 +367,10 @@ def select_ground_truth_metrics_in_routes(
 
 
 def check_tsdr_ground_truth_by_route(
-    pk: PriorKnowledge, metrics: list[str], chaos_type: str, chaos_comp: str
+    pk: PriorKnowledge,
+    metrics: list[str],
+    chaos_type: str,
+    chaos_comp: str,
 ) -> tuple[bool, list[str]]:
     gt_metrics_routes: list[list[str]] = get_tsdr_ground_truth(pk, chaos_type, chaos_comp)
     routes_ok: list[tuple[bool, list[str]]] = []

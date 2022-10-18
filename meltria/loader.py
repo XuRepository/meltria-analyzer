@@ -109,12 +109,13 @@ def load_dataset(
 
 
 JVM_TOMCAT_PATTERN: re.Pattern = re.compile(
-    "^Tomcat_.+_requestCount|maxTime|processingTime|errorCount|[b|B]ytesSent|[b|B]ytesReceived$"
+    r"^Tomcat_.+_(requestCount|maxTime|processingTime|requestProcessingTime|errorCount|[b|B]ytesSent|[b|B]ytesReceived)$"
 )
+JVM_OS_PATTERN: re.Pattern = re.compile(r"^java_lang_OperatingSystem_.+_ProcessCpuTime$")
+JVM_JAVA_PATTERN: re.Pattern = re.compile(r"^java_lang_.+[t|T]ime$")
 
-JVM_OS_PATTERN: re.Pattern = re.compile("^java_lang_OperatingSystem_.+_ProcessCpuTime$")
-
-JVM_JAVA_PATTERN: re.Pattern = re.compile("^java_lang_.+(Time|time)$")
+RANGE_VECTOR_DURATION = 60
+PER_MINUTE_NUM: int = int(RANGE_VECTOR_DURATION / 15) + 1
 
 
 def _diff_jvm_counter_metrics(metric_name: str, ts: np.ndarray) -> np.ndarray:
@@ -122,17 +123,19 @@ def _diff_jvm_counter_metrics(metric_name: str, ts: np.ndarray) -> np.ndarray:
     JVM counter metrics are increasing monotonically, so the difference between two consecutive values is the actual value.
     FIXME: This is a temporary solution, and the actual value should be calculated in prometheus fetcher.
     """
-    new_ts: np.ndarray
+    rate: np.ndarray
     if (
         JVM_JAVA_PATTERN.match(metric_name)
         or JVM_OS_PATTERN.match(metric_name)
         or JVM_TOMCAT_PATTERN.match(metric_name)
     ):
-        diff = np.diff(ts)
-        new_ts = np.insert(diff, 0, diff[0])
+        slides = np.lib.stride_tricks.sliding_window_view(ts, PER_MINUTE_NUM)
+        rate = (np.max(slides, axis=1).reshape(-1) - np.min(slides, axis=1).reshape(-1)) / RANGE_VECTOR_DURATION
+        for _ in range(PER_MINUTE_NUM - 1):
+            rate = np.insert(rate, 0, np.NaN)
     else:
-        new_ts = ts
-    return new_ts
+        rate = ts
+    return rate
 
 
 def read_metrics_file(

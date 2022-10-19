@@ -159,7 +159,7 @@ def test_check_tsdr_ground_truth_by_route() -> None:
         "s-user_latency",
         # "c-orders_network_receive_bytes_total",
         "s-orders_latency",
-        "c-front-end_network_receive_packets_total",
+        # "c-front-end_network_receive_packets_total",
         "s-front-end_latency",
     ]
     assert found_metrics == unordered(expected)
@@ -170,7 +170,7 @@ def test_check_tsdr_ground_truth_by_route() -> None:
         "c-user-db_cpu_user_seconds_total",
         "c-user-db_network_receive_bytes",
         "s-user_latency",
-        "c-front-end_network_receive_packets_total",
+        # "c-front-end_network_receive_packets_total",
         "s-front-end_latency",
     ]
     ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
@@ -181,7 +181,7 @@ def test_check_tsdr_ground_truth_by_route() -> None:
         "c-user-db_cpu_usage_seconds_total",
         "c-user-db_cpu_user_seconds_total",
         "s-user_latency",
-        "c-front-end_network_receive_packets_total",
+        # "c-front-end_network_receive_packets_total",
         "s-front-end_latency",
     ]
     assert found_metrics == unordered(expected)
@@ -231,10 +231,10 @@ def test_check_tsdr_ground_truth_by_route() -> None:
         "m-user_Tomcat_RequestProcessor_requestProcessingTime",
         "s-user_latency",
         "c-orders_cpu_usage_seconds_total",
-        "c-orders_network_transmit_bytes_total",
-        "m-orders_Tomcat_RequestProcessor_requestCount",
+        # "c-orders_network_transmit_bytes_total",
+        # "m-orders_Tomcat_RequestProcessor_requestCount",
         "s-orders_latency",
-        "c-front-end_network_transmit_bytes_total",
+        # "c-front-end_network_transmit_bytes_total",
         "s-front-end_latency",
     ]
     ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
@@ -247,9 +247,9 @@ def test_check_tsdr_ground_truth_by_route() -> None:
         "m-user-db_mongodb_sys_cpu_idle_ms",
         "m-user_Tomcat_RequestProcessor_requestProcessingTime",
         "s-user_latency",
-        "m-orders_Tomcat_RequestProcessor_requestCount",
+        # "m-orders_Tomcat_RequestProcessor_requestCount",
         "s-orders_latency",
-        "c-front-end_network_transmit_bytes_total",
+        # "c-front-end_network_transmit_bytes_total",
         "s-front-end_latency",
     ]
     assert found_metrics == unordered(expected)
@@ -283,9 +283,9 @@ def test_check_tsdr_ground_truth_by_route_train_ticket() -> None:
         "c-ts-food_mongo_network_receive_bytes",
         "s-ts-food_request_duration_seconds",
         "c-ts-preserve_cpu_usage_seconds_total",
-        "c-ts-preserve_network_transmit_bytes_total",
+        # "c-ts-preserve_network_transmit_bytes_total",
         "s-ts-preserve_request_duration_seconds",
-        "c-ts-ui-dashboard_network_transmit_bytes_total",
+        # "c-ts-ui-dashboard_network_transmit_bytes_total",
         "s-ts-ui-dashboard_request_duration_seconds",
     ]
     ok, found_metrics = groundtruth.check_tsdr_ground_truth_by_route(
@@ -297,7 +297,7 @@ def test_check_tsdr_ground_truth_by_route_train_ticket() -> None:
         "c-ts-food-mongo_cpu_user_seconds_total",
         "s-ts-food_request_duration_seconds",
         "s-ts-preserve_request_duration_seconds",
-        "c-ts-ui-dashboard_network_transmit_bytes_total",
+        # "c-ts-ui-dashboard_network_transmit_bytes_total",
         "s-ts-ui-dashboard_request_duration_seconds",
     ]
     assert found_metrics == unordered(expected)

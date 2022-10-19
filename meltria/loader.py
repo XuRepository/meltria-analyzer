@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import warnings
 from collections import defaultdict
 from collections.abc import Iterator
@@ -23,8 +24,11 @@ class DatasetRecord:
 
     data_df: pd.DataFrame
     pk: PriorKnowledge
-    meta: dict[str, Any]
+    meta: dict[str, str]
     metrics_file: str  # path of metrics file eg. '2021-12-09-argowf-chaos-hg68n-carts-db_pod-cpu-hog_4.json'
+
+    def __hash__(self) -> int:
+        return hash(self.target_app() + self.chaos_case_full())
 
     def target_app(self) -> str:
         """target-application eg. 'train-ticket'"""
@@ -104,6 +108,36 @@ def load_dataset(
     return [r for r in records if r is not None]
 
 
+JVM_TOMCAT_PATTERN: re.Pattern = re.compile(
+    r"^Tomcat_.+_(requestCount|maxTime|processingTime|requestProcessingTime|errorCount|[b|B]ytesSent|[b|B]ytesReceived)$"
+)
+JVM_OS_PATTERN: re.Pattern = re.compile(r"^java_lang_OperatingSystem_.+_ProcessCpuTime$")
+JVM_JAVA_PATTERN: re.Pattern = re.compile(r"^java_lang_.+[t|T]ime$")
+
+RANGE_VECTOR_DURATION = 60
+PER_MINUTE_NUM: int = int(RANGE_VECTOR_DURATION / 15) + 1
+
+
+def _diff_jvm_counter_metrics(metric_name: str, ts: np.ndarray) -> np.ndarray:
+    """Calculate the difference of JVM counter metrics.
+    JVM counter metrics are increasing monotonically, so the difference between two consecutive values is the actual value.
+    FIXME: This is a temporary solution, and the actual value should be calculated in prometheus fetcher.
+    """
+    rate: np.ndarray
+    if (
+        JVM_JAVA_PATTERN.match(metric_name)
+        or JVM_OS_PATTERN.match(metric_name)
+        or JVM_TOMCAT_PATTERN.match(metric_name)
+    ):
+        slides = np.lib.stride_tricks.sliding_window_view(ts, PER_MINUTE_NUM)
+        rate = (np.max(slides, axis=1).reshape(-1) - np.min(slides, axis=1).reshape(-1)) / RANGE_VECTOR_DURATION
+        for _ in range(PER_MINUTE_NUM - 1):
+            rate = np.insert(rate, 0, np.NaN)
+    else:
+        rate = ts
+    return rate
+
+
 def read_metrics_file(
     data_file: str,
     target_metric_types: dict[str, bool],
@@ -133,10 +167,14 @@ def read_metrics_file(
                     target_name = target_name.removesuffix(";")
                 if target_name in pk.get_skip_containers():
                     continue
-                metric_name = "{}-{}_{}".format(metric_type[0], target_name, metric_name)
-                metrics_name_to_values[metric_name] = np.array(metric["values"], dtype=np.float64,)[
+                ts = np.array(metric["values"], dtype=np.float64,)[
                     :, 1
                 ][-num_datapoints:]
+                if metric_type == METRIC_TYPE_MIDDLEWARES:
+                    if pk.get_role_and_runtime_by_container(target_name) == ("web", "jvm"):
+                        ts = _diff_jvm_counter_metrics(metric_name, ts)
+                metric_name = "{}-{}_{}".format(metric_type[0], target_name, metric_name)
+                metrics_name_to_values[metric_name] = ts
     data_df = pd.DataFrame(metrics_name_to_values).round(4)
     if interporate:
         try:

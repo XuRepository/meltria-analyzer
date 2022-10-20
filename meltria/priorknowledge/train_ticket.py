@@ -7,10 +7,12 @@ TARGET_APP_NAME: Final[str] = "train-ticket"
 
 ROOT_SERVICE: Final[str] = "ts-ui-dashboard"
 ROOT_CONTAINER: Final[str] = "ts-ui-dashboard"
-ROOT_METRIC_LABELS: Final[tuple[str, str, str]] = (
+ROOT_METRIC_LABELS: Final[tuple[str, ...]] = (
     "s-ts-ui-dashboard_request_duration_seconds",
     "s-ts-ui-dashboard_requests_count",
     "s-ts-ui-dashboard_requests_errors_count",
+    # FIXME: this is temporary solusion because the other 3 metrics are not available.
+    "m-ts-ui-dashboard_nginx_http_response_count_total",
 )
 
 SERVICE_CALL_DIGRAPH: Final[nx.DiGraph] = nx.DiGraph(
@@ -254,11 +256,7 @@ SKIP_CONTAINERS: Final[list[str]] = []
 
 DIAGNOSER_TARGET_DATA: Final[dict[str, list[str]]] = {
     "containers": [],  # all
-    "services": [
-        "request_duration_seconds",
-        "requests_count",
-        "requests_errors_counterrors",
-    ],
+    "services": [], # all
     "nodes": [],  # all
-    # "middlewares": "all"}
+    "middlewares": [],  # all
 }

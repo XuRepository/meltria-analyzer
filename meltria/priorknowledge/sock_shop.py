@@ -117,14 +117,13 @@ SKIP_CONTAINERS: Final[list[str]] = ["queue-master", "rabbitmq", "session-db"]
 
 DIAGNOSER_TARGET_DATA: Final[dict[str, list[str]]] = {
     "containers": [],  # all
-    "services": ["throughput", "latency", "errors"],
-    "nodes": [
-        "node_cpu_seconds_total",
-        "node_disk_io_now",
-        "node_filesystem_avail_bytes",
-        "node_memory_MemAvailable_bytes",
-        "node_network_receive_bytes_total",
-        "node_network_transmit_bytes_total",
-    ],
-    # "middlewares": "all"}
+    "services": [],  # all
+    "nodes": [],  # all
+        # "node_cpu_seconds_total",
+        # "node_disk_io_now",
+        # "node_filesystem_avail_bytes",
+        # "node_memory_MemAvailable_bytes",
+        # "node_network_receive_bytes_total",
+        # "node_network_transmit_bytes_total",
+    "middlewares": [],  # all
 }

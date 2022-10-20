@@ -20,16 +20,16 @@ def filter_by_target_metrics(data_df: pd.DataFrame, pk: PriorKnowledge) -> pd.Da
     """Filter by specified target metrics"""
     containers_df, services_df, nodes_df, middlewares_df = None, None, None, None
     target: dict[str, list[str]] = pk.get_diagnoser_target_data()
-    if "containers" in target:
+
+    if pk.target_metric_types["containers"]:
         containers_df = data_df.filter(regex=f"^c-.+({'|'.join(target['containers'])})$")
-    if "services" in target:
+    if pk.target_metric_types["services"]:
         services_df = data_df.filter(regex=f"^s-.+({'|'.join(target['services'])})$")
-    if "nodes" in target:
+    if pk.target_metric_types["nodes"]:
         nodes_df = data_df.filter(regex=f"^n-.+({'|'.join(target['nodes'])})$")
-    if "middlewares" in target:
-        # TODO: middleware
+    if pk.target_metric_types["middlewares"]:
         middlewares_df = data_df.filter(regex=f"^m-.+({'|'.join(target['middlewares'])})$")
-    return pd.concat([containers_df, services_df, nodes_df], axis=1)
+    return pd.concat([df for df in [containers_df, services_df, nodes_df, middlewares_df] if df is not None], axis=1)
 
 
 def build_subgraph_of_removal_edges(nodes: mn.MetricNodes, pk: PriorKnowledge) -> nx.Graph:
@@ -40,14 +40,15 @@ def build_subgraph_of_removal_edges(nodes: mn.MetricNodes, pk: PriorKnowledge) -
 
     G: nx.Graph = nx.Graph()
     for u, v in combinations(nodes, 2):
-        if u.is_container() and v.is_container():
+        # "container" and "middleware" is the same.
+        if (u.is_container() or u.is_middleware()) and (v.is_container() or v.is_middleware()):
             if u.comp == v.comp or ctnr_graph.has_edge(u.comp, v.comp):
                 continue
-        elif u.is_container() and v.is_service():
+        elif (u.is_container() or u.is_middleware()) and v.is_service():
             u_service: str = pk.get_service_by_container(u.comp)
             if u_service == v.comp or service_graph.has_edge(u_service, v.comp):
                 continue
-        elif u.is_service() and v.is_container():
+        elif u.is_service() and (v.is_container() or v.is_middleware()):
             v_service: str = pk.get_service_by_container(v.comp)
             if u.comp == v_service or service_graph.has_edge(u.comp, v_service):
                 continue
@@ -57,10 +58,10 @@ def build_subgraph_of_removal_edges(nodes: mn.MetricNodes, pk: PriorKnowledge) -
         elif u.is_node() and v.is_node():
             # each node has no connectivity.
             pass
-        elif u.is_node() and v.is_container():
+        elif u.is_node() and (v.is_container() or v.is_middleware()):
             if node_ctnr_graph.has_edge(u.comp, v.comp):
                 continue
-        elif u.is_container() and v.is_node():
+        elif (u.is_container() or v.is_middleware()) and v.is_node():
             if node_ctnr_graph.has_edge(u.comp, v.comp):
                 continue
         elif u.is_node() and v.is_service():
@@ -81,9 +82,8 @@ def build_subgraph_of_removal_edges(nodes: mn.MetricNodes, pk: PriorKnowledge) -
                     break
             if has_ctnr_on_node:
                 continue
-        # TODO: node and middleware metrics
         else:
-            raise ValueError(f"'{u}' or '{v}' has unexpected format")
+            raise ValueError(f"'{u}' and '{v}' is an unexpected pair")
         # use node number because 'pgmpy' package handles only graph nodes consisted with numpy array.
         G.add_edge(u, v)
     return G

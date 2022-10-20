@@ -214,7 +214,7 @@ def eval_diagnoser(run: neptune.Run, cfg: DictConfig) -> None:
             logger.info(f">> Running diagnosis of {record.chaos_case_file()} ...")
 
             try:
-                causal_graph, causal_subgraphs, stats = diag.run(
+                causal_graph, causal_subgraphs, stats = diag.build_causal_graph(
                     reduced_df,
                     record.pk,
                     **{

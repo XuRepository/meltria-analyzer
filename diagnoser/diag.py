@@ -244,14 +244,14 @@ def remove_nodes_subgraph_uncontained_root(G: nx.DiGraph, root_labels: tuple[str
     return G
 
 
-def run(
+def build_causal_graph(
     dataset: pd.DataFrame,
     pk: PriorKnowledge,
-    **kwargs,
-) -> tuple[nx.DiGraph, tuple[list[nx.DiGraph], list[nx.DiGraph]], dict[str, Any]]:
-    dataset = filter_by_target_metrics(dataset, pk)
-    if not any(label in dataset.columns for label in pk.get_root_metrics()):
-        raise ValueError(f"dataset has no root metric node: {pk.get_root_metrics()}")
+    **kwargs: Any,
+) -> tuple[nx.Graph, tuple[list[nx.Graph], list[nx.Graph]], dict[str, Any]]:
+    # dataset = filter_by_target_metrics(dataset, pk)
+    # if not any(label in dataset.columns for label in pk.get_root_metrics()):
+    #     raise ValueError(f"dataset has no root metric node: {pk.get_root_metrics()}")
 
     building_graph_start: float = time.time()
 

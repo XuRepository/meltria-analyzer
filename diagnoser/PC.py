@@ -305,18 +305,22 @@ class PC(StructureEstimator):
                     ):
                         # If a conditioning set exists remove the edge, store the
                         # separating set and move on to finding conditioning set for next edge.
-                        if ci_test(
+                        _, p_val = ci_test(
                             u,
                             v,
                             separating_set,
                             data=self.data,
+                            boolean=False,
                             independencies=self.independencies,
                             significance_level=significance_level,
                             **kwargs,
-                        ):
+                        )
+                        if p_val >= significance_level:
                             separating_sets[frozenset((u, v))] = separating_set
                             graph.remove_edge(u, v)
                             break
+                        else:
+                            graph[u][v]["weight"] = p_val
 
             elif variant == "parallel":
                 neighbors = {node: set(graph[node]) for node in graph.nodes()}
@@ -326,25 +330,28 @@ class PC(StructureEstimator):
                         combinations(set(graph.neighbors(u)) - set([v]), lim_neighbors),
                         combinations(set(graph.neighbors(v)) - set([u]), lim_neighbors),
                     ):
-                        if ci_test(
+                        _, p_val = ci_test(
                             u,
                             v,
                             separating_set,
                             data=self.data,
+                            boolean=False,
                             independencies=self.independencies,
                             significance_level=significance_level,
                             **kwargs,
-                        ):
-                            return (u, v), separating_set
+                        )
+                        return p_val >= significance_level, (u, v), separating_set, p_val
 
-                results = Parallel(n_jobs=n_jobs, prefer="threads")(
+                results = Parallel(n_jobs=n_jobs, prefer="loky")(
                     delayed(_parallel_fun)(u, v) for (u, v) in graph.edges()
                 )
                 for result in results:
-                    if result is not None:
-                        (u, v), sep_set = result
+                    cut_edge, (u, v), sep_set, p_val = result
+                    if cut_edge:
                         graph.remove_edge(u, v)
                         separating_sets[frozenset((u, v))] = sep_set
+                    else:
+                        graph[u][v]["weight"] = p_val
 
             else:
                 raise ValueError(f"variant must be one of (orig, stable, parallel). Got: {variant}")

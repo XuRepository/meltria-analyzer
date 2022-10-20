@@ -175,7 +175,8 @@ def build_causal_graph_with_pcalg(
     pc_citest_alpha: float,
     pc_variant: str = "",
     pc_citest: str = "fisher-z",
-) -> nx.DiGraph:
+    disable_orientation: bool = False,
+) -> nx.Graph:
     """
     Build causal graph with PC algorithm.
     """
@@ -190,9 +191,12 @@ def build_causal_graph_with_pcalg(
         init_graph=init_g,
         method=pc_variant,
     )
-    DG: nx.DiGraph = pcalg.estimate_cpdag(skel_graph=G, sep_set=sep_set)
-    DG = nx.relabel_nodes(DG, mapping=nodes.num_to_node)
-    return fix_edge_directions_in_causal_graph(DG, pk)
+    if disable_orientation:
+        G = pcalg.estimate_cpdag(skel_graph=G, sep_set=sep_set)
+        G = nx.relabel_nodes(G, mapping=nodes.num_to_node)
+        return fix_edge_directions_in_causal_graph(G, pk)
+    else:
+        return nx.relabel_nodes(G, mapping=nodes.num_to_node)
 
 
 def build_causal_graphs_with_pgmpy(
@@ -201,22 +205,29 @@ def build_causal_graphs_with_pgmpy(
     pc_citest_alpha: float,
     pc_variant: str = "orig",
     pc_citest: str = "fisher-z",
-) -> nx.DiGraph:
+    disable_orientation: bool = False,
+) -> nx.Graph:
     c = estimators.PC(data=df)
     ci_test = fisher_z if pc_citest == "fisher-z" else pc_citest
-    G: nx.DiGraph = c.estimate(
+    result = c.estimate(
         variant=pc_variant,
         ci_test=ci_test,
         significance_level=pc_citest_alpha,
-        return_type="pdag",
+        return_type="skeleton" if disable_orientation else "pdag",
     )
-    return fix_edge_directions_in_causal_graph(G, pk)
+    G: nx.Graph
+    if disable_orientation:
+        G, _sep_set = result
+    else:
+        G = result
+        G = fix_edge_directions_in_causal_graph(G, pk)
+    return G
 
 
-def find_connected_subgraphs(G: nx.DiGraph, root_labels: tuple[str, ...]) -> tuple[list[nx.DiGraph], list[nx.DiGraph]]:
+def find_connected_subgraphs(G: nx.Graph, root_labels: tuple[str, ...]) -> tuple[list[nx.Graph], list[nx.Graph]]:
     """Find subgraphs connected components."""
-    root_contained_subg: list[nx.DiGraph] = []
-    root_uncontained_subg: list[nx.DiGraph] = []
+    root_contained_subg: list[nx.Graph] = []
+    root_uncontained_subg: list[nx.Graph] = []
     root_nodes = [mn.MetricNode(root) for root in root_labels]
     for c in nx.connected_components(G.to_undirected()):
         subg = G.subgraph(c).copy()
@@ -227,7 +238,7 @@ def find_connected_subgraphs(G: nx.DiGraph, root_labels: tuple[str, ...]) -> tup
     return root_contained_subg, root_uncontained_subg
 
 
-def remove_nodes_subgraph_uncontained_root(G: nx.DiGraph, root_labels: tuple[str, ...]) -> nx.DiGraph:
+def remove_nodes_subgraph_uncontained_root(G: nx.Graph, root_labels: tuple[str, ...]) -> nx.Graph:
     """Find graphs containing root metric node."""
     remove_nodes = []
     UG: nx.Graph = G.to_undirected()
@@ -267,6 +278,7 @@ def build_causal_graph(
             pc_variant=kwargs["pc_variant"],
             pc_citest=kwargs["pc_citest"],
             pc_citest_alpha=kwargs["pc_citest_alpha"],
+            disable_orientation=kwargs["disable_orientation"],
         )
     elif pc_library == "pgmpy":
         G = build_causal_graphs_with_pgmpy(
@@ -275,6 +287,7 @@ def build_causal_graph(
             pc_variant=kwargs["pc_variant"],
             pc_citest=kwargs["pc_citest"],
             pc_citest_alpha=kwargs["pc_citest_alpha"],
+            disable_orientation=kwargs["disable_orientation"],
         )
     else:
         raise ValueError(f"pc_library should be pcalg or pgmpy ({pc_library})")
@@ -290,7 +303,7 @@ def build_causal_graph(
         "causal_graph_nodes_num": G.number_of_nodes(),
         "causal_graph_edges_num": G.number_of_edges(),
         "causal_graph_density": nx.density(G),
-        "causal_graph_flow_hierarchy": nx.flow_hierarchy(G),
+        "causal_graph_flow_hierarchy": nx.flow_hierarchy(G) if G.is_directed() else np.nan,
         "building_graph_elapsed_sec": building_graph_elapsed,
     }
     return G, (root_contained_graphs, root_uncontained_graphs), stats

@@ -17,10 +17,7 @@ def fisher_z(X, Y, Z, data, boolean=True, **kwargs):
     zs = zstat(X, Y, Z, data, n)
     p_val = 2.0 * stats.norm.sf(np.absolute(zs))
     if boolean:
-        if p_val >= kwargs["significance_level"]:
-            return True
-        else:
-            return False
+        return p_val >= kwargs["significance_level"]
     else:
         return zs, p_val
 

@@ -5,8 +5,6 @@ from typing import Any
 import networkx as nx
 import numpy as np
 import pandas as pd
-import pcalg
-from pgmpy import estimators
 
 import diagnoser.metric_node as mn
 from diagnoser import nx_util
@@ -14,6 +12,8 @@ from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
 from .citest.fisher_z import ci_test_fisher_z
 from .citest.fisher_z_pgmpy import fisher_z
+from .PC import PC
+from .pcalg import estimate_cpdag, estimate_skeleton
 
 
 def filter_by_target_metrics(data_df: pd.DataFrame, pk: PriorKnowledge) -> pd.DataFrame:
@@ -183,7 +183,7 @@ def build_causal_graph_with_pcalg(
     init_g = nx.relabel_nodes(init_g, mapping=nodes.node_to_num)
     cm = np.corrcoef(dm.T)
     ci_test = ci_test_fisher_z if pc_citest == "fisher-z" else pc_citest
-    (G, sep_set) = pcalg.estimate_skeleton(
+    (G, sep_set) = estimate_skeleton(
         indep_test_func=ci_test,
         data_matrix=dm,
         alpha=pc_citest_alpha,
@@ -192,11 +192,11 @@ def build_causal_graph_with_pcalg(
         method=pc_variant,
     )
     if disable_orientation:
-        G = pcalg.estimate_cpdag(skel_graph=G, sep_set=sep_set)
+        return nx.relabel_nodes(G, mapping=nodes.num_to_node)
+    else:
+        G = estimate_cpdag(skel_graph=G, sep_set=sep_set)
         G = nx.relabel_nodes(G, mapping=nodes.num_to_node)
         return fix_edge_directions_in_causal_graph(G, pk)
-    else:
-        return nx.relabel_nodes(G, mapping=nodes.num_to_node)
 
 
 def build_causal_graphs_with_pgmpy(
@@ -207,7 +207,7 @@ def build_causal_graphs_with_pgmpy(
     pc_citest: str = "fisher-z",
     disable_orientation: bool = False,
 ) -> nx.Graph:
-    c = estimators.PC(data=df)
+    c = PC(data=df)
     ci_test = fisher_z if pc_citest == "fisher-z" else pc_citest
     result = c.estimate(
         variant=pc_variant,

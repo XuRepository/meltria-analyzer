@@ -1,4 +1,8 @@
-#!/usr/bin/env python
+"""
+* This file is copied from https://github.com/pgmpy/pgmpy/blob/c1a42241066c352453725ac6e5861554ebd0dbd9/pgmpy/estimators/PC.py and modified a part of it. *
+Authors: Ankur Ankan, Abinash Panda.
+LICENCE: This file is licensed under MIT.
+"""
 
 from itertools import chain, combinations, permutations
 from warnings import warn
@@ -320,7 +324,7 @@ class PC(StructureEstimator):
                             graph.remove_edge(u, v)
                             break
                         else:
-                            graph[u][v]["weight"] = p_val
+                            graph[u][v]["weight"] = 1 / p_val
 
             elif variant == "parallel":
                 neighbors = {node: set(graph[node]) for node in graph.nodes()}
@@ -351,7 +355,7 @@ class PC(StructureEstimator):
                         graph.remove_edge(u, v)
                         separating_sets[frozenset((u, v))] = sep_set
                     else:
-                        graph[u][v]["weight"] = p_val
+                        graph[u][v]["weight"] = 1/p_val
 
             else:
                 raise ValueError(f"variant must be one of (orig, stable, parallel). Got: {variant}")

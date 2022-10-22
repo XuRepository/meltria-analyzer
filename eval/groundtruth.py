@@ -38,6 +38,7 @@ CHAOS_TO_CAUSE_METRIC_PATTERNS: Final[dict[str, dict[tuple[str, str], list[str]]
             "mongodb_sys_cpu_user_ms",
             "mongodb_sys_cpu_idle_ms",
             "mongodb_sys_cpu_ctxt",
+            "mongodb_ss_opLatencies_latency",
         ],
     },
     "pod-memory-hog": {
@@ -96,6 +97,7 @@ CHAOS_TO_CAUSE_METRIC_PATTERNS: Final[dict[str, dict[tuple[str, str], list[str]]
             "mongodb_sys_memory_MemFree_kb",
             "mongodb_sys_memory_Active_kb",
             "mongodb_sys_memory_Active_file_kb",
+            "mongodb_ss_opLatencies_latency",
         ],
     },
     "pod-network-loss": {
@@ -123,7 +125,7 @@ CHAOS_TO_CAUSE_METRIC_PATTERNS: Final[dict[str, dict[tuple[str, str], list[str]]
             "mongodb_ss_network_bytesOut",
             "mongodb_ss_network_physicalBytesIn",
             "mongodb_ss_network_physicalBytesOut",
-            "mongodb_ss_network_numRequests",
+            "mongodb_ss_opLatencies_latency",
         ],
     },
     "pod-network-latency": {
@@ -151,7 +153,7 @@ CHAOS_TO_CAUSE_METRIC_PATTERNS: Final[dict[str, dict[tuple[str, str], list[str]]
             "mongodb_ss_network_bytesOut",
             "mongodb_ss_network_physicalBytesIn",
             "mongodb_ss_network_physicalBytesOut",
-            "mongodb_ss_network_numRequests",
+            "mongodb_ss_opLatencies_latency",
         ],
     },
 }

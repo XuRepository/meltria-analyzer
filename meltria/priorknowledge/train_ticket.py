@@ -12,7 +12,10 @@ ROOT_METRIC_LABELS: Final[tuple[str, ...]] = (
     "s-ts-ui-dashboard_requests_count",
     "s-ts-ui-dashboard_requests_errors_count",
     # FIXME: this is temporary solusion because the other 3 metrics are not available.
+    "m-ts-ui-dashboard_nginx_http_request_duration_seconds",
     "m-ts-ui-dashboard_nginx_http_response_count_total",
+    "m-ts-ui-dashboard_nginx_http_response_size_bytes",
+    "m-ts-ui-dashboard_nginx_http_request_size_bytes",
 )
 
 SERVICE_CALL_DIGRAPH: Final[nx.DiGraph] = nx.DiGraph(
@@ -256,7 +259,7 @@ SKIP_CONTAINERS: Final[list[str]] = []
 
 DIAGNOSER_TARGET_DATA: Final[dict[str, list[str]]] = {
     "containers": [],  # all
-    "services": [], # all
+    "services": [],  # all
     "nodes": [],  # all
     "middlewares": [],  # all
 }

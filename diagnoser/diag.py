@@ -260,9 +260,9 @@ def build_causal_graph(
     pk: PriorKnowledge,
     **kwargs: Any,
 ) -> tuple[nx.Graph, tuple[list[nx.Graph], list[nx.Graph]], dict[str, Any]]:
-    # dataset = filter_by_target_metrics(dataset, pk)
-    # if not any(label in dataset.columns for label in pk.get_root_metrics()):
-    #     raise ValueError(f"dataset has no root metric node: {pk.get_root_metrics()}")
+    dataset = filter_by_target_metrics(dataset, pk)
+    if not any(label in dataset.columns for label in pk.get_root_metrics()):
+        raise ValueError(f"dataset has no root metric node: {pk.get_root_metrics()}")
 
     building_graph_start: float = time.time()
 

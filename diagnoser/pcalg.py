@@ -119,7 +119,7 @@ def estimate_skeleton(indep_test_func, data_matrix, alpha, **kwargs):
                     _logger.debug("indep prob of %s and %s with subset %s" % (i, j, str(k)))
                     p_val = indep_test_func(data_matrix, i, j, set(k), **kwargs)
                     _logger.debug("p_val is %s" % str(p_val))
-                    if p_val > alpha:
+                    if (not kwargs["disable_ci_edge_cut"]) and p_val > alpha:
                         if g.has_edge(i, j):
                             _logger.debug("p: remove edge (%s, %s)" % (i, j))
                             if method_stable(kwargs):
@@ -129,8 +129,7 @@ def estimate_skeleton(indep_test_func, data_matrix, alpha, **kwargs):
                         sep_set[i][j] |= set(k)
                         sep_set[j][i] |= set(k)
                         break
-                    else:
-                        g[i][j]["weight"] = 1 / p_val
+                    g[i][j]["weight"] = 1 / p_val
                 cont = True
         l += 1
         if method_stable(kwargs):

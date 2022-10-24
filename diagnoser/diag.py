@@ -61,7 +61,7 @@ def build_subgraph_of_removal_edges(nodes: mn.MetricNodes, pk: PriorKnowledge) -
         elif u.is_node() and (v.is_container() or v.is_middleware()):
             if node_ctnr_graph.has_edge(u.comp, v.comp):
                 continue
-        elif (u.is_container() or v.is_middleware()) and v.is_node():
+        elif (u.is_container() or u.is_middleware()) and v.is_node():
             if node_ctnr_graph.has_edge(u.comp, v.comp):
                 continue
         elif u.is_node() and v.is_service():
@@ -176,6 +176,7 @@ def build_causal_graph_with_pcalg(
     pc_variant: str = "",
     pc_citest: str = "fisher-z",
     disable_orientation: bool = False,
+    disable_ci_edge_cut: bool = False,
 ) -> nx.Graph:
     """
     Build causal graph with PC algorithm.
@@ -190,6 +191,7 @@ def build_causal_graph_with_pcalg(
         corr_matrix=cm,
         init_graph=init_g,
         method=pc_variant,
+        disable_ci_edge_cut=disable_ci_edge_cut,
     )
     if disable_orientation:
         return nx.relabel_nodes(G, mapping=nodes.num_to_node)
@@ -279,6 +281,7 @@ def build_causal_graph(
             pc_citest=kwargs["pc_citest"],
             pc_citest_alpha=kwargs["pc_citest_alpha"],
             disable_orientation=kwargs["disable_orientation"],
+            disable_ci_edge_cut=kwargs["disable_ci_edge_cut"],
         )
     elif pc_library == "pgmpy":
         G = build_causal_graphs_with_pgmpy(

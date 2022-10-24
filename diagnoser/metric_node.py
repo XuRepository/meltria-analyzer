@@ -1,4 +1,4 @@
-from enum import Enum, auto, unique
+from enum import IntEnum, auto, unique
 from functools import total_ordering
 
 import networkx as nx
@@ -6,7 +6,7 @@ import pandas as pd
 
 
 @unique
-class MetricType(Enum):
+class MetricType(IntEnum):
     CONTAINER = auto()
     SERVICE = auto()
     NODE = auto()
@@ -15,11 +15,6 @@ class MetricType(Enum):
 
 @total_ordering
 class MetricNode:
-    label: str
-    comp: str
-    comp_type: MetricType
-    base_name: str
-
     # label should be like 'c-orders_cpu_usage_seconds_total'
     def __init__(self, label: str) -> None:
         self.label = label
@@ -108,6 +103,9 @@ class MetricNodes(object):
 
     def __repr__(self) -> str:
         return self.__str__()
+
+    def __len__(self) -> int:
+        return len(self.nodes)
 
     def liststr(self) -> str:
         return "[" + ",".join([n.label for n in self.nodes]) + "]"

@@ -1,15 +1,16 @@
-from enum import Enum
+from enum import Enum, auto, unique
 from functools import total_ordering
 
 import networkx as nx
 import pandas as pd
 
 
+@unique
 class MetricType(Enum):
-    CONTAINER = 1
-    SERVICE = 2
-    NODE = 3
-    MIDDLEWARE = 4
+    CONTAINER = auto()
+    SERVICE = auto()
+    NODE = auto()
+    MIDDLEWARE = auto()
 
 
 @total_ordering
@@ -87,6 +88,10 @@ class MetricNodes(object):
     @classmethod
     def from_list_of_metric_node(cls, nodelist: list[MetricNode]):
         return cls({i: v for i, v in enumerate(nodelist)})
+
+    @classmethod
+    def from_metric_names(cls, metric_names: list[str]):
+        return cls({i: MetricNode(v) for i, v in enumerate(metric_names)})
 
     def __iter__(self):
         yield from self.nodes

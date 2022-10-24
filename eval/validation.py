@@ -65,6 +65,12 @@ def validate_data_record(
         list(record.data_df.columns),
         record.chaos_type(),
         record.chaos_comp(),
+        {
+            "cause_middleware": False,
+            "cause_service": False,
+            "neighbors_in_cause_service": False,
+            "propagated_route": False,
+        },
     )
     validation_results: list[dict[str, Any]] = []
     for i, (gt_route, gt_route_matcher) in enumerate(gt_metrics_routes):

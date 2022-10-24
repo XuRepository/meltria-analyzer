@@ -66,8 +66,8 @@ def validate_data_record(
         record.chaos_type(),
         record.chaos_comp(),
         {
+            "cause_service": True,
             "cause_middleware": False,
-            "cause_service": False,
             "neighbors_in_cause_service": False,
             "propagated_route": False,
         },

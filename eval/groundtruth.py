@@ -432,12 +432,11 @@ def check_cause_metrics(
                 if patterns is not None and len(patterns) > 0:
                     if re.match(f"^m-{chaos_comp}_({'|'.join(patterns)})$", node.label):
                         cause_metrics.append(node)
+        elif node.is_service():
+            pass
         else:
             assert False, f"Unknown metric node type: {node}"
-    ret = mn.MetricNodes.from_list_of_metric_node(cause_metrics)
-    if len(cause_metrics) > 0:
-        return True, ret
-    return False, ret
+    return len(cause_metrics) > 0, mn.MetricNodes.from_list_of_metric_node(cause_metrics)
 
 
 def check_causal_graph(

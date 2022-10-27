@@ -1861,6 +1861,25 @@ python-versions = ">=3.7"
 test = ["pre-commit", "pytest"]
 
 [[package]]
+name = "tslearn"
+version = "0.5.2"
+description = "A machine learning toolkit dedicated to time-series data"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+Cython = "*"
+joblib = "*"
+numba = "*"
+numpy = "*"
+scikit-learn = "*"
+scipy = "*"
+
+[package.extras]
+tests = ["pytest"]
+
+[[package]]
 name = "tsmoothie"
 version = "1.0.4"
 description = "A python library for timeseries smoothing and outlier detection in a vectorized way."
@@ -1958,7 +1977,7 @@ python-versions = ">=3.7"
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.10,<3.11"
-content-hash = "95a89a193809c21cfeb21f8a3de73e7baa4bd140cff6fd9dc69107bdb0cf8158"
+content-hash = "379d9811067e9fe6c2759d5c6ef7a5fd55b337ec45b4683c985eecc2ecb60d73"
 
 [metadata.files]
 antlr4-python3-runtime = [
@@ -3474,6 +3493,38 @@ tqdm = [
 traitlets = [
     {file = "traitlets-5.3.0-py3-none-any.whl", hash = "sha256:65fa18961659635933100db8ca120ef6220555286949774b9cfc106f941d1c7a"},
     {file = "traitlets-5.3.0.tar.gz", hash = "sha256:0bb9f1f9f017aa8ec187d8b1b2a7a6626a2a1d877116baba52a129bfa124f8e2"},
+]
+tslearn = [
+    {file = "tslearn-0.5.2-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:c0d4604d696135783f6d1c68499855c36ac2da8a348aaff568e4f80a764e9ea3"},
+    {file = "tslearn-0.5.2-cp310-cp310-manylinux_2_5_i686.manylinux1_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:0e2457094d7659943a178ba051501bd7c529a27e247dbe8818f91ec963d2e394"},
+    {file = "tslearn-0.5.2-cp310-cp310-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f825d2911bff576a9adec4cff67b7c9f0db9ec505c38d4400816dff8785746ba"},
+    {file = "tslearn-0.5.2-cp310-cp310-musllinux_1_1_i686.whl", hash = "sha256:0dd0b0f3fec4ca9aa3c9ac9aa1a4718414d1becd62f118991fb48c5392c7ec6f"},
+    {file = "tslearn-0.5.2-cp310-cp310-musllinux_1_1_x86_64.whl", hash = "sha256:3aa2f5941676a4186202bfe1888b8c7872b2b45dda07d800f5527cfc40bd074f"},
+    {file = "tslearn-0.5.2-cp310-cp310-win32.whl", hash = "sha256:0e1447f3f15c5b5d0e07b163e2dff52bb6b4fd76a1e3d2079816e7e3567ddf7e"},
+    {file = "tslearn-0.5.2-cp310-cp310-win_amd64.whl", hash = "sha256:492041d3e278f61691611f44118465d908cfbb6b1755446ec3755f6fe50aa15a"},
+    {file = "tslearn-0.5.2-cp36-cp36m-macosx_10_9_x86_64.whl", hash = "sha256:82ac9e58ae9e56962ebb247a62ac78166ac62122e20a9e32597d492a517e1aa3"},
+    {file = "tslearn-0.5.2-cp36-cp36m-manylinux_2_5_i686.manylinux1_i686.manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:f2c8e49526520269c8fafae00c461bab040f3214d60b0ee398a28fac6c110bfe"},
+    {file = "tslearn-0.5.2-cp36-cp36m-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:325832e2926819707e8c7972def8879b87cb4f21db8f0e79b8050dfc0750dab0"},
+    {file = "tslearn-0.5.2-cp36-cp36m-win32.whl", hash = "sha256:39c4a8bfa2493acaa7137fd0823a759b1eb2e96e560cec169f0b4c26c56a17d4"},
+    {file = "tslearn-0.5.2-cp36-cp36m-win_amd64.whl", hash = "sha256:9a8fb7de6b64222b2c0bc3474cbea28a6089985e8355fd71c70f50fee2717915"},
+    {file = "tslearn-0.5.2-cp37-cp37m-macosx_10_9_x86_64.whl", hash = "sha256:beace9bd05a7cebda4384bb31fc5504520c118c7720e07004134fac12e3e3b14"},
+    {file = "tslearn-0.5.2-cp37-cp37m-manylinux_2_5_i686.manylinux1_i686.manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:7ecba2ed266262f46d9e55eed309d092f49f23d24eb20ef22aabecad211b67ac"},
+    {file = "tslearn-0.5.2-cp37-cp37m-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:76935adbec202b1706a0f124f6f0bf5f347b91bafd87c1821f38ecbaa97d38c0"},
+    {file = "tslearn-0.5.2-cp37-cp37m-win32.whl", hash = "sha256:8afc60b83738c3db58b3eeb26663c88535e892b6213619737b09d928751d117d"},
+    {file = "tslearn-0.5.2-cp37-cp37m-win_amd64.whl", hash = "sha256:3ddbd54c2a4ef79403556a3b1e7aaf2cc55959c0764a25d201d4f5864a993bc3"},
+    {file = "tslearn-0.5.2-cp38-cp38-macosx_10_9_x86_64.whl", hash = "sha256:fca2a5a5f0364f2cdc579d31167dfa2f187656b556621b2d616a1d00dbd7480a"},
+    {file = "tslearn-0.5.2-cp38-cp38-manylinux_2_5_i686.manylinux1_i686.manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:80b6e66041fbcc60fe046c4b7a91bcaeb1bd3fa064b2cf943f2276b00b35251b"},
+    {file = "tslearn-0.5.2-cp38-cp38-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:f362f31e2810e632a1344222497d3edb3248bb378369b585c45ba8636244b865"},
+    {file = "tslearn-0.5.2-cp38-cp38-win32.whl", hash = "sha256:32402bf20d5b38bf30794ae9ed7905317d872e1b819d42bd0de242cd87becc39"},
+    {file = "tslearn-0.5.2-cp38-cp38-win_amd64.whl", hash = "sha256:d1e4a3171d0aeb31c29591a798cc5ac16584df138039b11b7f41fdc6167ee45c"},
+    {file = "tslearn-0.5.2-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:2f108d44ad6a7e03e086ec986e696df63511d763302dd6c5ed8c0bd6bf7146f6"},
+    {file = "tslearn-0.5.2-cp39-cp39-manylinux_2_5_i686.manylinux1_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:646063cc4f908d1d1703c666ffca4eb75d32e6763f444505cd110c684839addf"},
+    {file = "tslearn-0.5.2-cp39-cp39-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:16f81ec4867c2d3c5b5accc9cd2a64346ce4297a8adb5f7e1af1019c15be6016"},
+    {file = "tslearn-0.5.2-cp39-cp39-musllinux_1_1_i686.whl", hash = "sha256:5c050e0e76106741fac7b70f4106b21f3ad8628b3eeac4cc82ddfa68a307a677"},
+    {file = "tslearn-0.5.2-cp39-cp39-musllinux_1_1_x86_64.whl", hash = "sha256:ab559940c4063abef5bf14512a77f92a652efa69da2f01e7cd1eb086a9a81589"},
+    {file = "tslearn-0.5.2-cp39-cp39-win32.whl", hash = "sha256:7d7c04920feefde97ce0306bac0c9b35f63ae4ac51fe30552c3b3246603c184e"},
+    {file = "tslearn-0.5.2-cp39-cp39-win_amd64.whl", hash = "sha256:6d898d29d61a3ac28317cbfdd6eb9899dfc0b6af60d21b6407154282cd85c0ed"},
+    {file = "tslearn-0.5.2.tar.gz", hash = "sha256:ecee5e097062556fa38afdbe8d4dc48a31070df93f8674360ab480de5a1c09ff"},
 ]
 tsmoothie = [
     {file = "tsmoothie-1.0.4-py3-none-any.whl", hash = "sha256:b805d7a31e1f1416c460007d2f049d5f0033fbdfb32aa7fb777aefe758362c30"},

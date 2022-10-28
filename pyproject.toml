@@ -8,7 +8,6 @@ authors = ["tsurubee","yuuk1"]
 python = ">=3.10,<3.11"
 numpy = "^1.23.2"
 scipy = "^v1.9.1"
-fastdtw = "^0.3.4"
 scikit-learn = "1.0.2"
 pandas = "^1.4.4"
 statsmodels = "0.13.2"

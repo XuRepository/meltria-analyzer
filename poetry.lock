@@ -367,17 +367,6 @@ optional = false
 python-versions = ">=3.6"
 
 [[package]]
-name = "fastdtw"
-version = "0.3.4"
-description = "Dynamic Time Warping (DTW) algorithm with an O(N) time and memory complexity."
-category = "main"
-optional = false
-python-versions = "*"
-
-[package.dependencies]
-numpy = "*"
-
-[[package]]
 name = "flake8"
 version = "5.0.4"
 description = "the modular source code checker: pep8 pyflakes and co"
@@ -1977,7 +1966,7 @@ python-versions = ">=3.7"
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.10,<3.11"
-content-hash = "379d9811067e9fe6c2759d5c6ef7a5fd55b337ec45b4683c985eecc2ecb60d73"
+content-hash = "4556de51482466002e054a1d182b1f5613076ba94c7cbac37fbabcc8682e7dba"
 
 [metadata.files]
 antlr4-python3-runtime = [
@@ -2303,10 +2292,6 @@ dill = [
 entrypoints = [
     {file = "entrypoints-0.4-py3-none-any.whl", hash = "sha256:f174b5ff827504fd3cd97cc3f8649f3693f51538c7e4bdf3ef002c8429d42f9f"},
     {file = "entrypoints-0.4.tar.gz", hash = "sha256:b706eddaa9218a19ebcd67b56818f05bb27589b1ca9e8d797b74affad4ccacd4"},
-]
-fastdtw = [
-    {file = "fastdtw-0.3.4-cp37-cp37m-macosx_10_14_x86_64.whl", hash = "sha256:28918c163dce9e736e09252a02073fce712bc4c7aa18f2a45d882cca84da2dbb"},
-    {file = "fastdtw-0.3.4.tar.gz", hash = "sha256:2350fa6ec36bcad186eaf81f46eff35181baf04e324f522de8aeb43d0243f64f"},
 ]
 flake8 = [
     {file = "flake8-5.0.4-py2.py3-none-any.whl", hash = "sha256:7a1cf6b73744f5806ab95e526f6f0d8c01c66d7bbe349562d22dfca20610b248"},

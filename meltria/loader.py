@@ -152,9 +152,6 @@ def _diff_mongodb_counter_metrics(metric_name: str, ts: np.ndarray) -> np.ndarra
     MongoDB counter metrics are increasing monotonically, so the difference between two consecutive values is the actual value.
     FIXME: This is a temporary solution, and the actual value should be calculated in prometheus fetcher.
     """
-    if metric_name.startswith("mongodb_"):
-        return ts
-
     rate: np.ndarray
     if (
         MONGODB_EXCLUDE_PATTERN.match(metric_name)

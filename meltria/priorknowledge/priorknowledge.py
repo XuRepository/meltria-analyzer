@@ -110,12 +110,16 @@ class PriorKnowledge(ABC):
         for metric in metrics:
             # TODO: resolve duplicated code of MetricNode class.
             comp, base_name = metric.split("-", maxsplit=1)[1].split("_", maxsplit=1)
+            service: str
             if metric.startswith("c-"):
                 service = self.get_service_by_container(comp)
             elif metric.startswith("s-"):
                 service = comp
             elif metric.startswith("m-"):
                 service = self.get_service_by_container(comp)
+            elif metric.startswith("n-"):
+                # 'node' doesn't belong to any service.
+                continue
             else:
                 raise ValueError(f"{metric} is invalid")
             groups[service].append(metric)

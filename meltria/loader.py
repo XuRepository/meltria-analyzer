@@ -115,9 +115,18 @@ PER_MINUTE_NUM: int = int(RANGE_VECTOR_DURATION / 15) + 1
 def rate_of_metrics(ts: np.ndarray) -> np.ndarray:
     slides = np.lib.stride_tricks.sliding_window_view(ts, PER_MINUTE_NUM)
     rate = (np.max(slides, axis=1).reshape(-1) - np.min(slides, axis=1).reshape(-1)) / RANGE_VECTOR_DURATION
+    first_val = rate[0]
     for _ in range(PER_MINUTE_NUM - 1):
-        rate = np.insert(rate, 0, np.NaN)
+        rate = np.insert(rate, 0, first_val)  # backfill
     return rate
+
+
+def should_not_rate_metrics(x: np.ndarray) -> bool:
+    return bool(
+        np.all(x == x[0])  # check all values are the same
+        or np.any(np.diff(x) < 0)  # check not monotonic increasing
+        or np.any(x != np.round(x))  # check including float because a counter metric should be integer.
+    )
 
 
 JVM_TOMCAT_PATTERN: re.Pattern = re.compile(
@@ -127,41 +136,25 @@ JVM_OS_PATTERN: re.Pattern = re.compile(r"^java_lang_OperatingSystem_.+_ProcessC
 JVM_JAVA_PATTERN: re.Pattern = re.compile(r"^java_lang_.+[t|T]ime$")
 
 
-def _diff_jvm_counter_metrics(metric_name: str, ts: np.ndarray) -> np.ndarray:
-    """Calculate the difference of JVM counter metrics.
-    JVM counter metrics are increasing monotonically, so the difference between two consecutive values is the actual value.
-    FIXME: This is a temporary solution, and the actual value should be calculated in prometheus fetcher.
-    """
-    rate: np.ndarray
-    if (
-        JVM_JAVA_PATTERN.match(metric_name)
-        or JVM_OS_PATTERN.match(metric_name)
-        or JVM_TOMCAT_PATTERN.match(metric_name)
-    ):
-        rate = rate_of_metrics(ts)
-    else:
-        rate = ts
-    return rate
-
-
 MONGODB_EXCLUDE_PATTERN: re.Pattern = re.compile(r"^mongodb_.+_([kb|mb|gb|time_ms])$")
 
 
-def _diff_mongodb_counter_metrics(metric_name: str, ts: np.ndarray) -> np.ndarray:
-    """Calculate the difference of mongpdb counter metrics.
-    MongoDB counter metrics are increasing monotonically, so the difference between two consecutive values is the actual value.
-    FIXME: This is a temporary solution, and the actual value should be calculated in prometheus fetcher.
-    """
-    rate: np.ndarray
+def check_counter_and_rate(metric_base_name: str, ts: np.ndarray) -> np.ndarray:
+    if should_not_rate_metrics(ts):
+        return ts
+
+    if MONGODB_EXCLUDE_PATTERN.match(metric_base_name):
+        return ts
+
     if (
-        MONGODB_EXCLUDE_PATTERN.match(metric_name)
-        or np.all(ts == ts[0])
-        or not np.all(np.diff(ts) >= 0)  # check monotonic increasing
+        JVM_JAVA_PATTERN.match(metric_base_name)
+        or JVM_OS_PATTERN.match(metric_base_name)
+        or JVM_TOMCAT_PATTERN.match(metric_base_name)
     ):
-        rate = ts
-    else:
-        rate = rate_of_metrics(ts)
-    return rate
+        # work around rate_of_metrics(ts)
+        return ts
+
+    return rate_of_metrics(ts)
 
 
 def read_metrics_file(
@@ -197,10 +190,8 @@ def read_metrics_file(
                     :, 1
                 ][-num_datapoints:]
                 if metric_type == METRIC_TYPE_MIDDLEWARES:
-                    if pk.get_role_and_runtime_by_container(target_name) == ("web", "jvm"):
-                        ts = _diff_jvm_counter_metrics(metric_name, ts)
-                    elif pk.get_role_and_runtime_by_container(target_name) == ("db", "mongodb"):
-                        ts = _diff_mongodb_counter_metrics(metric_name, ts)
+                    if pk.get_role_and_runtime_by_container(target_name) in [("web", "jvm"), ("db", "mongodb")]:
+                        ts = check_counter_and_rate(metric_name, ts)
                 metric_name = "{}-{}_{}".format(metric_type[0], target_name, metric_name)
                 metrics_name_to_values[metric_name] = ts
     data_df = pd.DataFrame(metrics_name_to_values).round(4)

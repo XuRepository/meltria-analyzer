@@ -18,7 +18,7 @@ def pearsonr_dist(X: np.ndarray, Y: np.ndarray, **kwargs: Any) -> float:
 def learn_clusters(
     X: np.ndarray,
     dist_func: str | Callable = "pearsonr",
-    min_pts: int = 2,
+    min_pts: int = 1,
     algorithm: str = "dbscan",
 ) -> tuple[np.ndarray, np.ndarray]:
     if dist_func == "pearsonr":

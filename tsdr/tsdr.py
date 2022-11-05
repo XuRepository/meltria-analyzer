@@ -349,8 +349,8 @@ def choose_metric_with_medoid(
     for c in cluster_dict:
         cluster_metrics = cluster_dict[c]
         if len(cluster_metrics) == 1:
-            continue
-        if len(cluster_metrics) == 2:
+            clustering_info[columns[cluster_metrics[0]]] = []
+        elif len(cluster_metrics) == 2:
             # Select the representative metric at random
             shuffle_list = random.sample(cluster_metrics, len(cluster_metrics))
             clustering_info[columns[shuffle_list[0]]] = [columns[shuffle_list[1]]]
@@ -384,8 +384,9 @@ def choose_metric_with_maxsum(
     for c in cluster_dict:
         cluster_metrics: list[int] = cluster_dict[c]
         if len(cluster_metrics) == 1:
+            # TODO
             continue
-        if len(cluster_metrics) > 1:
+        elif len(cluster_metrics) > 1:
             cluster_columns = data_df.columns[cluster_metrics]
             series_with_sum: pd.Series = data_df[cluster_columns].sum(numeric_only=True)
             label_with_max: str = series_with_sum.idxmax()

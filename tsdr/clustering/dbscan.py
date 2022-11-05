@@ -12,7 +12,7 @@ from sklearn.neighbors import NearestNeighbors
 
 def pearsonr_dist(X: np.ndarray, Y: np.ndarray, **kwargs: Any) -> float:
     r = scipy.stats.pearsonr(X, Y)[0]
-    return abs(r) if r is not np.nan else 0.0
+    return 1 - abs(r) if r is not np.nan else 0.0
 
 
 def learn_clusters(

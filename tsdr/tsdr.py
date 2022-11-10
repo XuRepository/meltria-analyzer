@@ -177,37 +177,32 @@ class Tsdr:
 
             future: futures.Future
 
+            dist_func: str | Callable
             if method_name == "hierarchy":
                 dist_type = kwargs["step2_hierarchy_dist_type"]
                 dist_threshold = kwargs["step2_hierarchy_dist_threshold"]
                 linkage_method = kwargs["step2_hierarchy_linkage_method"]
 
-                if dist_type == "sbd":
-                    future = executor.submit(
-                        hierarchical_clustering,
-                        df,
-                        sbd,
-                        dist_threshold,
-                        choice_method,
-                        linkage_method,
-                    )
-                elif dist_type == "hamming":
-                    if dist_threshold >= 1.0:
-                        # make the distance threshold intuitive
-                        dist_threshold /= series.shape[0]
-                    future = executor.submit(
-                        hierarchical_clustering,
-                        df,
-                        hamming,
-                        dist_threshold,
-                        choice_method,
-                        linkage_method,
-                    )
-                else:
-                    raise ValueError('dist_func must be "sbd" or "hamming"')
+                match dist_type:
+                    case "sbd":
+                        dist_func = sbd
+                    case "hamming":
+                        if dist_threshold >= 1.0:
+                            # make the distance threshold intuitive
+                            dist_threshold /= series.shape[0]
+                        dist_func = hamming
+                    case _:
+                        dist_func = dist_type
+                future = executor.submit(
+                    hierarchical_clustering,
+                    df,
+                    dist_func,
+                    dist_threshold,
+                    choice_method,
+                    linkage_method,
+                )
             elif method_name == "dbscan":
                 dist_type = kwargs["step2_dbscan_dist_type"]
-                dist_func: str | Callable
                 match dist_type:
                     case "sbd":
                         dist_func = sbd
@@ -287,7 +282,7 @@ def filter_out_no_change_metrics(data_df: pd.DataFrame, parallel: bool = False) 
 
 def hierarchical_clustering(
     target_df: pd.DataFrame,
-    dist_func: Callable,
+    dist_func: Callable | str,
     dist_threshold: float,
     choice_method: str = "medoid",
     linkage_method: str = "single",

@@ -1,7 +1,7 @@
 import re
 from functools import cache
 from itertools import product
-from typing import Final
+from typing import Final, cast
 
 import networkx as nx
 
@@ -433,8 +433,13 @@ def check_route(metrics: list[str], gt_route: list[str]) -> tuple[bool, list[str
 
 
 def check_cause_metrics(
-    pk: PriorKnowledge, nodes: mn.MetricNodes, chaos_type: str, chaos_comp: str
+    pk: PriorKnowledge, metrics: mn.MetricNodes | list[str], chaos_type: str, chaos_comp: str
 ) -> tuple[bool, mn.MetricNodes]:
+    nodes: mn.MetricNodes
+    if type(metrics) == list:
+        nodes = mn.MetricNodes.from_metric_names(metrics)
+    else:
+        nodes = cast(mn.MetricNodes, metrics)
     cause_metrics: list[mn.MetricNode] = []
     for node in nodes:
         if node.is_container():

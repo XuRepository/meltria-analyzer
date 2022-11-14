@@ -18,6 +18,7 @@ from meltria.priorknowledge.priorknowledge import PriorKnowledge
 from tsdr.clustering import dbscan
 from tsdr.clustering.kshape import kshape
 from tsdr.clustering.metricsnamecluster import cluster_words
+from tsdr.clustering.pearsonr import pearsonr_as_dist
 from tsdr.clustering.sbd import sbd, silhouette_score
 from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
 from tsdr.unireducer import UnivariateSeriesReductionResult
@@ -186,6 +187,8 @@ class Tsdr:
                 match dist_type:
                     case "sbd":
                         dist_func = sbd
+                    case "pearsonr":
+                        dist_func = pearsonr_as_dist
                     case "hamming":
                         if dist_threshold >= 1.0:
                             # make the distance threshold intuitive
@@ -208,6 +211,8 @@ class Tsdr:
                         dist_func = sbd
                     case "hamming":
                         dist_func = hamming
+                    case "pearsonr":
+                        dist_func = pearsonr_as_dist
                     case _:
                         dist_func = dist_type
 

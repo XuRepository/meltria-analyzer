@@ -9,21 +9,15 @@ import sklearn.cluster
 from sklearn.metrics.pairwise import pairwise_distances
 from sklearn.neighbors import NearestNeighbors
 
-
-def pearsonr_dist(X: np.ndarray, Y: np.ndarray, **kwargs: Any) -> float:
-    r = scipy.stats.pearsonr(X, Y)[0]
-    return 1 - abs(r) if r is not np.nan else 0.0
+from tsdr.clustering.pearsonr import pearsonr_as_dist
 
 
 def learn_clusters(
     X: np.ndarray,
-    dist_func: str | Callable = "pearsonr",
+    dist_func: str | Callable,
     min_pts: int = 1,
     algorithm: str = "dbscan",
 ) -> tuple[np.ndarray, np.ndarray]:
-    if dist_func == "pearsonr":
-        dist_func = pearsonr_dist
-
     if len(X) <= 2:
         # avoid "ValueError: Expected n_neighbors <= n_samples,  but n_samples = 2, n_neighbors = 3"
         return np.array([]), np.array([])

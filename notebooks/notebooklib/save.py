@@ -7,7 +7,7 @@ import pandas as pd
 from meltria.loader import DatasetRecord
 from tsdr import tsdr
 
-DATA_DIR = pathlib.Path("./data")
+DATA_DIR = pathlib.Path(__file__).parent.parent / "dataset" / "data"
 
 
 def run_tsdr(records: list[DatasetRecord]) -> list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
@@ -64,7 +64,7 @@ def save_tsdr(
     reduced_df: pd.DataFrame,
 ) -> None:
     path = DATA_DIR / f"tsdr_{dataset_id}" / record.chaos_case_full().replace("/", "_")
-    path.mkdir(parents=True)
+    path.mkdir(parents=True, exist_ok=True)
     for obj, name in (
         (record, "record"),
         (filtered_df, "filtered_df"),

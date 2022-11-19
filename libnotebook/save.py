@@ -64,7 +64,7 @@ def save_tsdr(
     reduced_df: pd.DataFrame,
 ) -> None:
     path = DATA_DIR / f"tsdr_{dataset_id}" / record.chaos_case_full().replace("/", "_")
-    path.mkdir()
+    path.mkdir(parents=True)
     for obj, name in (
         (record, "record"),
         (filtered_df, "filtered_df"),

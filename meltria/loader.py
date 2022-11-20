@@ -121,39 +121,28 @@ def rate_of_metrics(ts: np.ndarray) -> np.ndarray:
     return rate
 
 
-def should_not_rate_metrics(x: np.ndarray) -> bool:
+def is_monotonic_increasing(x: np.ndarray) -> bool:
+    for i in range(1, len(x)):
+        if x[i - 1] > x[i]:
+            if x[i] == 0.0:  # detect reset
+                continue
+            else:
+                return False
+    return True
+
+
+def is_counter(x: np.ndarray) -> bool:
     return bool(
-        np.all(x == x[0])  # check all values are the same
-        or np.any(np.diff(x) < 0)  # check not monotonic increasing
-        or np.any(x != np.round(x))  # check including float because a counter metric should be integer.
+        not np.all(x == x[0])  # check all values are the same
+        and np.any(x > 0)  # check all values are positive
+        and is_monotonic_increasing(x)  # check monotonic increasing
+        and np.any(x == np.round(x))  # check including float because a counter metric should be integer.
     )
 
 
-JVM_TOMCAT_PATTERN: re.Pattern = re.compile(
-    r"^Tomcat_.+_(requestCount|maxTime|processingTime|requestProcessingTime|errorCount|[b|B]ytesSent|[b|B]ytesReceived)$"
-)
-JVM_OS_PATTERN: re.Pattern = re.compile(r"^java_lang_OperatingSystem_.+_ProcessCpuTime$")
-JVM_JAVA_PATTERN: re.Pattern = re.compile(r"^java_lang_.+[t|T]ime$")
-
-
-MONGODB_EXCLUDE_PATTERN: re.Pattern = re.compile(r"^mongodb_.+_([kb|mb|gb|time_ms])$")
-
-
 def check_counter_and_rate(metric_base_name: str, ts: np.ndarray) -> np.ndarray:
-    if should_not_rate_metrics(ts):
+    if not is_counter(ts):
         return ts
-
-    if MONGODB_EXCLUDE_PATTERN.match(metric_base_name):
-        return ts
-
-    if (
-        JVM_JAVA_PATTERN.match(metric_base_name)
-        or JVM_OS_PATTERN.match(metric_base_name)
-        or JVM_TOMCAT_PATTERN.match(metric_base_name)
-    ):
-        # work around rate_of_metrics(ts)
-        return ts
-
     return rate_of_metrics(ts)
 
 
@@ -190,8 +179,7 @@ def read_metrics_file(
                     :, 1
                 ][-num_datapoints:]
                 if metric_type == METRIC_TYPE_MIDDLEWARES:
-                    if pk.get_role_and_runtime_by_container(target_name) in [("web", "jvm"), ("db", "mongodb")]:
-                        ts = check_counter_and_rate(metric_name, ts)
+                    ts = check_counter_and_rate(metric_name, ts)
                 metric_name = "{}-{}_{}".format(metric_type[0], target_name, metric_name)
                 metrics_name_to_values[metric_name] = ts
     data_df = pd.DataFrame(metrics_name_to_values).round(4)

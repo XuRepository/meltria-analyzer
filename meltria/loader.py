@@ -140,7 +140,7 @@ def is_counter(x: np.ndarray) -> bool:
     )
 
 
-def check_counter_and_rate(metric_base_name: str, ts: np.ndarray) -> np.ndarray:
+def check_counter_and_rate(ts: np.ndarray) -> np.ndarray:
     if not is_counter(ts):
         return ts
     return rate_of_metrics(ts)
@@ -179,7 +179,7 @@ def read_metrics_file(
                     :, 1
                 ][-num_datapoints:]
                 if metric_type == METRIC_TYPE_MIDDLEWARES:
-                    ts = check_counter_and_rate(metric_name, ts)
+                    ts = check_counter_and_rate(ts)
                 metric_name = "{}-{}_{}".format(metric_type[0], target_name, metric_name)
                 metrics_name_to_values[metric_name] = ts
     data_df = pd.DataFrame(metrics_name_to_values).round(4)

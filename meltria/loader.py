@@ -178,7 +178,7 @@ def read_metrics_file(
                 ts = np.array(metric["values"], dtype=np.float64,)[
                     :, 1
                 ][-num_datapoints:]
-                if metric_type == METRIC_TYPE_MIDDLEWARES:
+                if metric_type in [METRIC_TYPE_MIDDLEWARES, METRIC_TYPE_NODES]:
                     ts = check_counter_and_rate(ts)
                 metric_name = "{}-{}_{}".format(metric_type[0], target_name, metric_name)
                 metrics_name_to_values[metric_name] = ts

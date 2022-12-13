@@ -47,6 +47,7 @@ dill = "^0.3.6"
 torchinfo = "^1.7.1"
 seaborn = "^0.12.1"
 tqdm = "^4.64.1"
+tsaug = "^0.2.1"
 
 [tool.poetry.group.dev.dependencies]
 flake8 = "^5.0.4"

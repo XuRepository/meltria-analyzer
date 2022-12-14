@@ -1969,23 +1969,6 @@ python-versions = ">=3.7"
 test = ["pre-commit", "pytest"]
 
 [[package]]
-name = "tsaug"
-version = "0.2.1"
-description = "A package for time series augmentation"
-category = "main"
-optional = false
-python-versions = ">=3.5"
-
-[package.dependencies]
-numpy = ">=1.14"
-scipy = ">=1.1"
-
-[package.extras]
-dev = ["black (==19.3b0)", "isort (==4.3.21)"]
-doc = ["jupyter (>=1)", "librosa (>=0.7,<0.8)", "nbsphinx (>=0.4)", "python-dateutil (>=2.5)", "sphinx (>=2.4,<3)", "sphinx-rtd-theme (<0.5)"]
-test = ["coverage (>3.6,<5)", "coveralls (>=1.7)", "mypy (>=0.641)", "pytest (>=4)", "pytest-cov (>=2.7)", "scikit-learn (>=0.22)", "tox (>=3)"]
-
-[[package]]
 name = "tslearn"
 version = "0.5.2"
 description = "A machine learning toolkit dedicated to time-series data"
@@ -2113,7 +2096,7 @@ python-versions = ">=3.7"
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.10,<3.11"
-content-hash = "7d8f9c2d7f3934f7939932bd0e64d344cb9cc582fd360a7023a6d64dd0a01919"
+content-hash = "e2b8f2eaf662912dea638ac6153b94d98aa625580c6ad5cc204889311dbde181"
 
 [metadata.files]
 antlr4-python3-runtime = [
@@ -3719,10 +3702,6 @@ tqdm = [
 traitlets = [
     {file = "traitlets-5.3.0-py3-none-any.whl", hash = "sha256:65fa18961659635933100db8ca120ef6220555286949774b9cfc106f941d1c7a"},
     {file = "traitlets-5.3.0.tar.gz", hash = "sha256:0bb9f1f9f017aa8ec187d8b1b2a7a6626a2a1d877116baba52a129bfa124f8e2"},
-]
-tsaug = [
-    {file = "tsaug-0.2.1-py3-none-any.whl", hash = "sha256:ffd2ae4272815ad168383950749e4158c6559cbdb2a8ac098f1542f0fd8c2066"},
-    {file = "tsaug-0.2.1.tar.gz", hash = "sha256:8d3a135e817ec287e519a0f9582fdfe371b2c6ac3d30ca59dbcaf4099e98e3a5"},
 ]
 tslearn = [
     {file = "tslearn-0.5.2-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:c0d4604d696135783f6d1c68499855c36ac2da8a348aaff568e4f80a764e9ea3"},

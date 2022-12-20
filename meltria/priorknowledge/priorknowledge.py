@@ -109,21 +109,56 @@ class PriorKnowledge(ABC):
         groups: dict[str, list[str]] = defaultdict(lambda: list())
         for metric in metrics:
             # TODO: resolve duplicated code of MetricNode class.
-            comp, base_name = metric.split("-", maxsplit=1)[1].split("_", maxsplit=1)
-            service: str
-            if metric.startswith("c-"):
-                service = self.get_service_by_container(comp)
-            elif metric.startswith("s-"):
-                service = comp
-            elif metric.startswith("m-"):
-                service = self.get_service_by_container(comp)
-            elif metric.startswith("n-"):
-                # 'node' doesn't belong to any service.
+            if (service := self.get_service_by_metric(metric)) is None:
                 continue
-            else:
-                raise ValueError(f"{metric} is invalid")
             groups[service].append(metric)
         return groups
+
+    def get_service_by_metric(self, metric: str) -> str | None:
+        comp, _ = metric.split("-", maxsplit=1)[1].split("_", maxsplit=1)
+        service: str | None
+        if metric.startswith("c-"):
+            service = self.get_service_by_container(comp)
+        elif metric.startswith("s-"):
+            service = comp
+        elif metric.startswith("m-"):
+            service = self.get_service_by_container(comp)
+        elif metric.startswith("n-"):
+            # 'node' doesn't belong to any service.
+            service = None
+        else:
+            raise ValueError(f"{metric} is invalid")
+        return service
+
+    def get_container_by_metric(self, metric: str) -> str | None:
+        comp, _ = metric.split("-", maxsplit=1)[1].split("_", maxsplit=1)
+        container: str | None
+        if metric.startswith("c-"):
+            container = comp
+        elif metric.startswith("s-"):
+            container = None
+        elif metric.startswith("m-"):
+            container = comp
+        elif metric.startswith("n-"):
+            container = None
+        else:
+            raise ValueError(f"{metric} is invalid")
+        return container
+
+    def get_node_by_metric(self, metric: str) -> str | None:
+        comp, _ = metric.split("-", maxsplit=1)[1].split("_", maxsplit=1)
+        node: str | None
+        if metric.startswith("c-"):
+            node = None
+        elif metric.startswith("s-"):
+            node = None
+        elif metric.startswith("m-"):
+            node = None
+        elif metric.startswith("n-"):
+            node = comp
+        else:
+            raise ValueError(f"{metric} is invalid")
+        return node
 
     def is_target_metric_type(self, metric_type: str) -> bool:
         assert metric_type in self.target_metric_types, f"{metric_type} is not defined in target_metric_types"

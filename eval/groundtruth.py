@@ -10,151 +10,206 @@ from meltria.metric_types import METRIC_TYPE_CONTAINERS, METRIC_TYPE_MIDDLEWARES
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
 # TODO: define this by each target app.
-CHAOS_TO_CAUSE_METRIC_PATTERNS: Final[dict[str, dict[tuple[str, str], list[str]]]] = {
+CHAOS_TO_CAUSE_METRIC_PATTERNS: Final[dict[str, dict[tuple[str, str], dict[str, list[str]]]]] = {
     "pod-cpu-hog": {
-        ("*", "container"): [
-            "cpu_usage_seconds_total",
-            "cpu_user_seconds_total",
-            "threads",
-            # "sockets",
-            # "file_descriptors",
-            "processes",
-            # "memory_cache",
-            # "memory_mapped_file",
-        ],
-        ("*", "jvm"): [
-            "java_lang_OperatingSystem_SystemCpuLoad",
-            "java_lang_OperatingSystem_ProcessCpuLoad",
-            "java_lang_OperatingSystem_ProcessCpuTime",
-        ],
-        ("web", "jvm"): [
-            "Tomcat_.+_processingTime",
-            "Tomcat_.+_requestProcessingTime",
-            "Tomcat_.+_requestCount",
-        ],
-        ("*", "mongodb"): [
-            "mongodb_sys_cpu_processes",
-            "mongodb_sys_cpu_procs_running",
-            "mongodb_sys_cpu_user_ms",
-            "mongodb_sys_cpu_idle_ms",
-            "mongodb_sys_cpu_ctxt",
-            "mongodb_ss_opLatencies_latency",
-        ],
+        ("*", "container"): {
+            "mandatory": [
+                "cpu_usage_seconds_total",
+                "cpu_user_seconds_total",
+                "threads",
+                "processes",
+            ],
+            "optional": [
+                "cpu_system_seconds_total",
+                "container_cpu_cfs_periods_total",
+                "container_cpu_cfs_throttled_periods_total",
+                "container_cpu_cfs_throttled_seconds_total",
+                "container_cpu_load_average_10s",
+                "sockets",
+                "file_descriptors",
+                "memory_cache",
+                "memory_mapped_file",
+            ],
+        },
+        ("*", "jvm"): {
+            "mandatory": [
+                "java_lang_OperatingSystem_SystemCpuLoad",
+                "java_lang_OperatingSystem_ProcessCpuLoad",
+                "java_lang_OperatingSystem_ProcessCpuTime",
+            ],
+            "optional": [],
+        },
+        ("web", "jvm"): {
+            "mandatory": [
+                "Tomcat_.+_processingTime",
+                "Tomcat_.+_requestProcessingTime",
+                "Tomcat_.+_requestCount",
+            ],
+            "optional": [],
+        },
+        ("*", "mongodb"): {
+            "mandatory": [
+                "mongodb_sys_cpu_processes",
+                "mongodb_sys_cpu_procs_running",
+                "mongodb_sys_cpu_user_ms",
+                "mongodb_sys_cpu_idle_ms",
+                "mongodb_sys_cpu_ctxt",
+                "mongodb_ss_opLatencies_latency",
+            ],
+            "optional": [],
+        },
     },
     "pod-memory-hog": {
-        ("*", "container"): [
-            "memory_max_usage_byte",
-            "memory_rss",
-            "memory_usage_bytes",
-            "memory_working_set_bytes",
-            "threads",
-            # "sockets",
-            # "file_descriptors",
-            "processes",
-            # "fs_inodes_total",
-            # "fs_limit_bytes",
-            # "ulimits_soft",
-        ],
-        ("*", "jvm"): [
-            "java_lang_Memory_HeapMemoryUsage_used",
-            "java_lang_Memory_HeapMemoryUsage_committed",
-            "java_lang_Memory_NonHeapMemoryUsage_used",
-            "java_lang_Memory_NonHeapMemoryUsage_committed",
-            "java_lang_MemoryPool_CollectionUsage_committed",
-            "java_lang_MemoryPool_CollectionUsage_used",
-            "java_lang_MemoryPool_Usage_used",
-            "java_lang_MemoryPool_PeakUsage_committed",
-            "java_lang_MemoryPool_Usage_committed",
-            "java_lang_MemoryPool_PeakUsage_used",
-            "java_lang_GarbageCollector_CollectionTime",
-            "java_lang_GarbageCollector_CollectionCount",
-            "java_lang_GarbageCollector_LastGcInfo_duration",
-            "java_lang_GarbageCollector_LastGcInfo_memoryUsageAfterGc_init",
-            "java_lang_GarbageCollector_LastGcInfo_memoryUsageAfterGc_committed",
-            "java_lang_GarbageCollector_LastGcInfo_memoryUsageAfterGc_used",
-            "java_lang_GarbageCollector_LastGcInfo_memoryUsageAfterGc_max",
-            "java_lang_GarbageCollector_LastGcInfo_memoryUsageBeforeGc_used",
-            "java_lang_GarbageCollector_LastGcInfo_memoryUsageBeforeGc_committed",
-            "java_lang_GarbageCollector_LastGcInfo_memoryUsageBeforeGc_init",
-            "java_lang_GarbageCollector_LastGcInfo_memoryUsageBeforeGc_max",
-            "java_lang_GarbageCollector_LastGcInfo_GcThreadCount",
-            "java_lang_GarbageCollector_LastGcInfo_startTime",
-            "java_lang_GarbageCollector_LastGcInfo_endTime",
-            "java_lang_OperatingSystem_SystemCpuLoad",
-            "java_lang_OperatingSystem_FreePhysicalMemorySize",
-            "java_nio_BufferPool_MemoryUsed",
-            "java_nio_BufferPool_TotalCapacity",
-            "java_nio_BufferPool_Count",
-        ],
-        ("web", "jvm"): [
-            "Tomcat_.+_processingTime",
-            "Tomcat_.+_requestProcessingTime",
-            "Tomcat_.+_requestCount",
-        ],
-        ("*", "mongodb"): [
-            "mongodb_sys_memory_Buffers_kb",
-            "mongodb_sys_memory_MemAvailable_kb",
-            "mongodb_sys_memory_MemFree_kb",
-            "mongodb_sys_memory_Active_kb",
-            "mongodb_sys_memory_Active_file_kb",
-            "mongodb_ss_opLatencies_latency",
-        ],
+        ("*", "container"): {
+            "mandatory": [
+                "memory_max_usage_byte",
+                "memory_rss",
+                "memory_usage_bytes",
+                "memory_working_set_bytes",
+                "threads",
+                "processes",
+            ],
+            "optional": [
+                "sockets",
+                "file_descriptors",
+                "fs_inodes_total",
+                "fs_limit_bytes",
+                "ulimits_soft",
+            ],
+        },
+        ("*", "jvm"): {
+            "mandatory": [
+                "java_lang_Memory_HeapMemoryUsage_used",
+                "java_lang_Memory_HeapMemoryUsage_committed",
+                "java_lang_Memory_NonHeapMemoryUsage_used",
+                "java_lang_Memory_NonHeapMemoryUsage_committed",
+                "java_lang_MemoryPool_CollectionUsage_committed",
+                "java_lang_MemoryPool_CollectionUsage_used",
+                "java_lang_MemoryPool_Usage_used",
+                "java_lang_MemoryPool_PeakUsage_committed",
+                "java_lang_MemoryPool_Usage_committed",
+                "java_lang_MemoryPool_PeakUsage_used",
+                "java_lang_GarbageCollector_CollectionTime",
+                "java_lang_GarbageCollector_CollectionCount",
+                "java_lang_GarbageCollector_LastGcInfo_duration",
+                "java_lang_GarbageCollector_LastGcInfo_memoryUsageAfterGc_init",
+                "java_lang_GarbageCollector_LastGcInfo_memoryUsageAfterGc_committed",
+                "java_lang_GarbageCollector_LastGcInfo_memoryUsageAfterGc_used",
+                "java_lang_GarbageCollector_LastGcInfo_memoryUsageAfterGc_max",
+                "java_lang_GarbageCollector_LastGcInfo_memoryUsageBeforeGc_used",
+                "java_lang_GarbageCollector_LastGcInfo_memoryUsageBeforeGc_committed",
+                "java_lang_GarbageCollector_LastGcInfo_memoryUsageBeforeGc_init",
+                "java_lang_GarbageCollector_LastGcInfo_memoryUsageBeforeGc_max",
+                "java_lang_GarbageCollector_LastGcInfo_GcThreadCount",
+                "java_lang_GarbageCollector_LastGcInfo_startTime",
+                "java_lang_GarbageCollector_LastGcInfo_endTime",
+                "java_lang_OperatingSystem_SystemCpuLoad",
+                "java_lang_OperatingSystem_FreePhysicalMemorySize",
+                "java_nio_BufferPool_MemoryUsed",
+                "java_nio_BufferPool_TotalCapacity",
+                "java_nio_BufferPool_Count",
+            ],
+            "optional": [],
+        },
+        ("web", "jvm"): {
+            "mandatory": [
+                "Tomcat_.+_processingTime",
+                "Tomcat_.+_requestProcessingTime",
+                "}Tomcat_.+_requestCount",
+            ],
+            "optional": [],
+        },
+        ("*", "mongodb"): {
+            "mandatory": [
+                "mongodb_sys_memory_Buffers_kb",
+                "mongodb_sys_memory_MemAvailable_kb",
+                "mongodb_sys_memory_MemFree_kb",
+                "mongodb_sys_memory_Active_kb",
+                "mongodb_sys_memory_Active_file_kb",
+                "mongodb_ss_opLatencies_latency",
+            ],
+            "optional": [],
+        },
     },
     "pod-network-loss": {
-        ("*", "container"): [
-            "network_receive_bytes_total",
-            "network_receive_packets_total",
-            "network_transmit_bytes_total",
-            "network_transmit_packets_total",
-        ],
-        ("*", "jvm"): [],
-        ("web", "jvm"): [
-            "Tomcat_.+_processingTime",
-            "Tomcat_.+_requestProcessingTime",
-            "Tomcat_.+_requestCount",
-            "Tomcat_.+_requestBytesReceived",
-            "Tomcat_.+_requestBytesSent",
-            "Tomcat_.+_errorCount",
-            "Tomcat_.+_bytesReceived",
-            "Tomcat_.+_bytesSent",
-            "Tomcat_ThreadPool_connectionCount",
-            "Tomcat_ThreadPool_keepAliveCount",
-        ],
-        ("*", "mongodb"): [
-            "mongodb_ss_network_bytesIn",
-            "mongodb_ss_network_bytesOut",
-            "mongodb_ss_network_physicalBytesIn",
-            "mongodb_ss_network_physicalBytesOut",
-            "mongodb_ss_opLatencies_latency",
-        ],
+        ("*", "container"): {
+            "mandatory": [
+                "network_receive_bytes_total",
+                "network_receive_packets_total",
+                "network_transmit_bytes_total",
+                "network_transmit_packets_total",
+            ],
+            "optional": [],
+        },
+        ("*", "jvm"): {
+            "mandatory": [],
+            "optional": [],
+        },
+        ("web", "jvm"): {
+            "mandatory": [
+                "Tomcat_.+_processingTime",
+                "Tomcat_.+_requestProcessingTime",
+                "Tomcat_.+_requestCount",
+                "Tomcat_.+_requestBytesReceived",
+                "Tomcat_.+_requestBytesSent",
+                "Tomcat_.+_errorCount",
+                "Tomcat_.+_bytesReceived",
+                "Tomcat_.+_bytesSent",
+                "Tomcat_ThreadPool_connectionCount",
+                "Tomcat_ThreadPool_keepAliveCount",
+            ],
+            "optional": [],
+        },
+        ("*", "mongodb"): {
+            "mandatory": [
+                "mongodb_ss_network_bytesIn",
+                "mongodb_ss_network_bytesOut",
+                "mongodb_ss_network_physicalBytesIn",
+                "mongodb_ss_network_physicalBytesOut",
+                "mongodb_ss_opLatencies_latency",
+            ],
+            "optional": [],
+        },
     },
     "pod-network-latency": {
-        ("*", "container"): [
-            "network_receive_bytes_total",
-            "network_receive_packets_total",
-            "network_transmit_bytes_total",
-            "network_transmit_packets_total",
-        ],
-        ("*", "jvm"): [],
-        ("web", "jvm"): [
-            "Tomcat_.+_processingTime",
-            "Tomcat_.+_requestProcessingTime",
-            "Tomcat_.+_requestCount",
-            "Tomcat_.+_requestBytesReceived",
-            "Tomcat_.+_requestBytesSent",
-            "Tomcat_.+_errorCount",
-            "Tomcat_.+_bytesReceived",
-            "Tomcat_.+_bytesSent",
-            "Tomcat_ThreadPool_connectionCount",
-            "Tomcat_ThreadPool_keepAliveCount",
-        ],
-        ("*", "mongodb"): [
-            "mongodb_ss_network_bytesIn",
-            "mongodb_ss_network_bytesOut",
-            "mongodb_ss_network_physicalBytesIn",
-            "mongodb_ss_network_physicalBytesOut",
-            "mongodb_ss_opLatencies_latency",
-        ],
+        ("*", "container"): {
+            "mandatory": [
+                "network_receive_bytes_total",
+                "network_receive_packets_total",
+                "network_transmit_bytes_total",
+                "network_transmit_packets_total",
+            ],
+            "optional": [],
+        },
+        ("*", "jvm"): {
+            "mandatory": [],
+            "optional": [],
+        },
+        ("web", "jvm"): {
+            "mandatory": [
+                "Tomcat_.+_processingTime",
+                "Tomcat_.+_requestProcessingTime",
+                "Tomcat_.+_requestCount",
+                "Tomcat_.+_requestBytesReceived",
+                "Tomcat_.+_requestBytesSent",
+                "Tomcat_.+_errorCount",
+                "Tomcat_.+_bytesReceived",
+                "Tomcat_.+_bytesSent",
+                "Tomcat_ThreadPool_connectionCount",
+                "Tomcat_ThreadPool_keepAliveCount",
+            ],
+            "optional": [],
+        },
+        ("*", "mongodb"): {
+            "mandatory": [
+                "mongodb_ss_network_bytesIn",
+                "mongodb_ss_network_bytesOut",
+                "mongodb_ss_network_physicalBytesIn",
+                "mongodb_ss_network_physicalBytesOut",
+                "mongodb_ss_opLatencies_latency",
+            ],
+            "optional": [],
+        },
     },
 }
 
@@ -294,6 +349,7 @@ def get_tsdr_ground_truth(
     chaos_type: str,
     chaos_comp: str,
     opts: dict[str, bool] = DEFAULT_GT_OPTS,
+    optional_candidates: bool = False,
 ) -> list[list[str]]:
     """Get ground truth for testing extracted metrics with tsdr based on call graph."""
     return _get_tsdr_ground_truth(
@@ -304,7 +360,17 @@ def get_tsdr_ground_truth(
         opt_cause_service=opts["cause_service"],
         opt_neighbors_in_cause_service=opts["neighbors_in_cause_service"],
         opt_propagated_route=opts["propagated_route"],
+        optional_candidates=optional_candidates,
     )
+
+
+def get_chaos_to_cause_metric_patterns(
+    chaos_type: str, role: str, runtime: str, optional_candidates: bool = False
+) -> list[str]:
+    patterns = CHAOS_TO_CAUSE_METRIC_PATTERNS[chaos_type].get((role, runtime), {"mandatory": [], "optional": []})
+    if optional_candidates:
+        return patterns["mandatory"] + patterns["optional"]
+    return patterns["mandatory"]
 
 
 @cache
@@ -316,9 +382,8 @@ def _get_tsdr_ground_truth(
     opt_cause_service: bool,
     opt_neighbors_in_cause_service: bool,
     opt_propagated_route: bool,
+    optional_candidates: bool = False,
 ) -> list[list[str]]:
-    metric_patterns_by_runtime = CHAOS_TO_CAUSE_METRIC_PATTERNS[chaos_type]
-
     routes: list[list[str]] = []
     cause_service: str = pk.get_service_by_container(chaos_comp)
     stos_routes: list[tuple[str, ...]] = pk.get_service_routes(cause_service)
@@ -332,13 +397,23 @@ def _get_tsdr_ground_truth(
         # add cause metrics pattern
         if pk.is_target_metric_type(METRIC_TYPE_CONTAINERS):
             for _role in ["*", role]:
-                ctnr_metric_patterns: list[str] = metric_patterns_by_runtime.get((_role, "container"), [])
+                ctnr_metric_patterns: list[str] = get_chaos_to_cause_metric_patterns(
+                    chaos_type,
+                    _role,
+                    "container",
+                    optional_candidates,
+                )
                 if len(ctnr_metric_patterns) > 0:
                     metrics_pattern_list.append(f"^c-{chaos_comp}_({'|'.join(ctnr_metric_patterns)})$")
 
         if pk.is_target_metric_type(METRIC_TYPE_MIDDLEWARES) and opt_cause_middleware:
             for _role in ["*", role]:
-                middleware_metric_patterns: list[str] = metric_patterns_by_runtime.get((_role, runtime), [])
+                middleware_metric_patterns: list[str] = get_chaos_to_cause_metric_patterns(
+                    chaos_type,
+                    _role,
+                    runtime,
+                    optional_candidates,
+                )
                 if len(middleware_metric_patterns) > 0:
                     metrics_pattern_list.append(f"^m-{chaos_comp}_({'|'.join(middleware_metric_patterns)})$")
 
@@ -433,7 +508,11 @@ def check_route(metrics: list[str], gt_route: list[str]) -> tuple[bool, list[str
 
 
 def check_cause_metrics(
-    pk: PriorKnowledge, metrics: mn.MetricNodes | list[str], chaos_type: str, chaos_comp: str
+    pk: PriorKnowledge,
+    metrics: mn.MetricNodes | list[str],
+    chaos_type: str,
+    chaos_comp: str,
+    optional_cause: bool = False,
 ) -> tuple[bool, mn.MetricNodes]:
     nodes: mn.MetricNodes
     if type(metrics) == list:
@@ -445,19 +524,21 @@ def check_cause_metrics(
         if node.is_container():
             role, _ = pk.get_role_and_runtime_by_container(node.comp)
             for _role in ["*", role]:
-                patterns = CHAOS_TO_CAUSE_METRIC_PATTERNS[chaos_type].get((_role, "container"))
+                patterns = get_chaos_to_cause_metric_patterns(chaos_type, _role, "container", optional_cause)
                 if patterns is not None and len(patterns) > 0:
                     if re.match(f"^c-{chaos_comp}_({'|'.join(patterns)})$", node.label):
                         cause_metrics.append(node)
         elif node.is_node():
-            patterns = CHAOS_TO_CAUSE_METRIC_PATTERNS[chaos_type].get(("*", "node"))  # FIXME: handling any other role
+            patterns = get_chaos_to_cause_metric_patterns(
+                chaos_type, "*", "node", optional_cause
+            )  # FIXME: handling any other role
             if patterns is not None and len(patterns) > 0:
                 if re.match(f"^n-{chaos_comp}_({'|'.join(patterns)})$", node.label):
                     cause_metrics.append(node)
         elif node.is_middleware():
             role, runtime = pk.get_role_and_runtime_by_container(node.comp)
             for _role in ["*", role]:
-                patterns = CHAOS_TO_CAUSE_METRIC_PATTERNS[chaos_type].get((_role, runtime))
+                patterns = get_chaos_to_cause_metric_patterns(chaos_type, _role, runtime, optional_cause)
                 if patterns is not None and len(patterns) > 0:
                     if re.match(f"^m-{chaos_comp}_({'|'.join(patterns)})$", node.label):
                         cause_metrics.append(node)
@@ -473,10 +554,11 @@ def check_causal_graph(
     G: nx.DiGraph,
     chaos_type: str,
     chaos_comp: str,
+    optional_cause: bool = False,
 ) -> tuple[bool, list[mn.MetricNodes]]:
     """Check that the causal graph (G) has the accurate route."""
     call_graph: nx.DiGraph = G.reverse()  # for traverse starting from root node
-    cause_metric_exps: list[str] = CHAOS_TO_CAUSE_METRIC_PATTERNS[chaos_type][("*", "container")]
+    cause_metric_exps: list[str] = get_chaos_to_cause_metric_patterns(chaos_type, "*", "container", optional_cause)
     cause_metric_pattern: re.Pattern = re.compile(f"^c-{chaos_comp}_({'|'.join(cause_metric_exps)})$")
 
     match_routes: list[mn.MetricNodes] = []

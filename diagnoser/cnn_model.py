@@ -1,6 +1,84 @@
+from collections import OrderedDict
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+CLASS_TO_CATEGORY = OrderedDict(
+    [
+        (0, "Fluctuations/anomaly_during_fault"),
+        (1, "Fluctuations/anomaly_outside_fault"),
+        (2, "Level shift down/anomaly_during_fault"),
+        (3, "Level shift down/anomaly_outside_fault"),
+        (4, "Level shift up/anomaly_during_fault"),
+        (5, "Level shift up/anomaly_outside_fault"),
+        (6, "Multiple dips/anomaly_during_fault"),
+        (7, "Multiple dips/anomaly_outside_fault"),
+        (8, "Multiple spikes/anomaly_during_fault"),
+        (9, "Multiple spikes/anomaly_outside_fault"),
+        (10, "Other normal/no_anomaly"),
+        (11, "Single dip/anomaly_during_fault"),
+        (12, "Single dip/anomaly_outside_fault"),
+        (13, "Single spike/anomaly_during_fault"),
+        (14, "Single spike/anomaly_outside_fault"),
+        (15, "Steady decrease/anomaly_during_fault"),
+        (16, "Steady decrease/anomaly_outside_fault"),
+        (17, "Steady increase/anomaly_during_fault"),
+        (18, "Steady increase/anomaly_outside_fault"),
+        (19, "Sudden decrease/anomaly_during_fault"),
+        (20, "Sudden decrease/anomaly_outside_fault"),
+        (21, "Sudden increase/anomaly_during_fault"),
+        (22, "Sudden increase/anomaly_outside_fault"),
+        (23, "Transient level shift down/anomaly_during_fault"),
+        (24, "Transient level shift down/anomaly_outside_fault"),
+        (25, "Transient level shift up/anomaly_during_fault"),
+        (26, "Transient level shift up/anomaly_outside_fault"),
+        (27, "White noise/no_anomaly"),
+    ]
+)
+
+NORMAL_CLASSES: set[int] = set([10, 27])
+ANONALY_CLASSES: set[int] = set([i for i in CLASS_TO_CATEGORY.keys() if i not in NORMAL_CLASSES])
+
+TYPE0_CLASSES: set[int] = NORMAL_CLASSES
+TYPE1_CLASSES: set[int] = set([2, 3, 4, 5, 15, 16, 17, 18, 19, 20, 21, 22])
+TYPE2_CLASSES: set[int] = set([i for i in CLASS_TO_CATEGORY.keys() if i not in TYPE0_CLASSES.union(TYPE1_CLASSES)])
+
+
+CLASS_TO_CATEGORY_WITHOUT_AP = OrderedDict(
+    [
+        (0, "Fluctuations"),
+        (1, "Level shift down"),
+        (2, "Level shift up"),
+        (3, "Multiple dips"),
+        (4, "Multiple spikes"),
+        (5, "Other normal"),
+        (6, "Single dip"),
+        (7, "Single spike"),
+        (8, "Steady decrease"),
+        (9, "Steady increase"),
+        (10, "Sudden decrease"),
+        (11, "Sudden increase"),
+        (12, "Transient level shift down"),
+        (13, "Transient level shift up"),
+        (14, "White noise"),
+    ]
+)
+
+NORMAL_CLASSES_WITHOUT_AP: set[int] = set([5, 14])
+ANONALY_CLASSES_WITHOUT_AP: set[int] = set(
+    [i for i in CLASS_TO_CATEGORY_WITHOUT_AP.keys() if i not in NORMAL_CLASSES_WITHOUT_AP]
+)
+
+TYPE0_CLASSES_WITHOUT_AP: set[int] = NORMAL_CLASSES_WITHOUT_AP
+TYPE1_CLASSES_WITHOUT_AP: set[int] = set([1, 2, 8, 9, 10, 11])
+TYPE2_CLASSES_WITHOUT_AP: set[int] = set(
+    [
+        i
+        for i in CLASS_TO_CATEGORY_WITHOUT_AP.keys()
+        if i not in TYPE0_CLASSES_WITHOUT_AP.union(TYPE1_CLASSES_WITHOUT_AP)
+    ]
+)
 
 
 class CNN1d(nn.Module):

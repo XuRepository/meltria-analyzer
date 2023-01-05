@@ -407,6 +407,8 @@ def choose_metrics_with_max_cluster(
     cluster_dict: dict[int, list[int]],
 ) -> tuple[dict[str, Any], list[str]]:
     """Choose metrics which has max of number of datapoints in each metrics in each cluster."""
+    if len(cluster_dict) == 0:
+        return {}, []
     max_cluster_idx = np.argmax([len(cluster_dict) for c in cluster_dict])
     max_cluster_metrics: list[int] = cluster_dict[max_cluster_idx]
     clustering_info: dict[str, list[str]] = {columns[i]: [] for i in max_cluster_metrics}

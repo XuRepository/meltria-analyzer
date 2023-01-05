@@ -303,12 +303,15 @@ def hierarchical_clustering(
         else:
             cluster_dict[v] = [i]
 
-    if choice_method == "medoid":
-        return choose_metric_with_medoid(target_df.columns, cluster_dict, dist_matrix)
-    elif choice_method == "maxsum":
-        return choose_metric_with_maxsum(target_df, cluster_dict)
-    else:
-        raise ValueError("choice_method is required.")
+    match choice_method:
+        case "medoid":
+            return choose_metric_with_medoid(target_df.columns, cluster_dict, dist_matrix)
+        case "maxsum":
+            return choose_metric_with_maxsum(target_df, cluster_dict)
+        case "max_cluster":
+            return choose_metrics_with_max_cluster(target_df.columns.to_list(), cluster_dict)
+        case _:
+            raise ValueError("choice_method is required.")
 
 
 def dbscan_clustering(
@@ -332,12 +335,15 @@ def dbscan_clustering(
         else:
             cluster_dict[v] = [i]
 
-    if choice_method == "medoid":
-        return choose_metric_with_medoid(target_df.columns, cluster_dict, dist_matrix)
-    elif choice_method == "maxsum":
-        return choose_metric_with_maxsum(target_df, cluster_dict)
-    else:
-        raise ValueError("choice_method is required.")
+    match choice_method:
+        case "medoid":
+            return choose_metric_with_medoid(target_df.columns, cluster_dict, dist_matrix)
+        case "maxsum":
+            return choose_metric_with_maxsum(target_df, cluster_dict)
+        case "max_cluster":
+            return choose_metrics_with_max_cluster(target_df.columns.to_list(), cluster_dict)
+        case _:
+            raise ValueError("choice_method is required.")
 
 
 def choose_metric_with_medoid(
@@ -393,6 +399,18 @@ def choose_metric_with_maxsum(
             sub_metrics: list[str] = list(series_with_sum.loc[series_with_sum.index != label_with_max].index)
             clustering_info[label_with_max] = sub_metrics
             remove_list += sub_metrics
+    return clustering_info, remove_list
+
+
+def choose_metrics_with_max_cluster(
+    columns: list[str],
+    cluster_dict: dict[int, list[int]],
+) -> tuple[dict[str, Any], list[str]]:
+    """Choose metrics which has max of number of datapoints in each metrics in each cluster."""
+    max_cluster_idx = np.argmax([len(cluster_dict) for c in cluster_dict])
+    max_cluster_metrics: list[int] = cluster_dict[max_cluster_idx]
+    clustering_info: dict[str, list[str]] = {columns[i]: [] for i in max_cluster_metrics}
+    remove_list: list[str] = [col for i, col in enumerate(columns) if i not in max_cluster_metrics]
     return clustering_info, remove_list
 
 

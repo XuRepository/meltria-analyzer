@@ -45,7 +45,7 @@ def run_tsdr(
 
 
 def load_tsdr(
-    dataset_id: str, suffix: str = ""
+    dataset_id: str, revert_normalized_time_series: bool = False, suffix: str = ""
 ) -> list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
     dir_name: str = f"tsdr_{dataset_id}" if suffix == "" else f"tsdr_{dataset_id}_{suffix}"
     results = []
@@ -59,6 +59,9 @@ def load_tsdr(
             anomalous_df = pickle.load(f)
         with (path / "reduced_df.pkl").open("rb") as f:
             reduced_df = pickle.load(f)
+            if revert_normalized_time_series:
+                for metric_name, _ in reduced_df.items():
+                    reduced_df[metric_name] = anomalous_df[metric_name]
         results.append((record, filtered_df, anomalous_df, reduced_df))
     return results
 

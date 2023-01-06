@@ -204,12 +204,8 @@ def update_count_of_meta(data_df: pd.DataFrame, meta: dict[str, Any]) -> None:
     meta["count"]["middlewares"] = data_df.loc[:, data_df.columns.str.startswith("m-")].shape[1]
     meta["count"]["services"] = data_df.loc[:, data_df.columns.str.startswith("s-")].shape[1]
     meta["count"]["nodes"] = data_df.loc[:, data_df.columns.str.startswith("n-")].shape[1]
-    assert (
-        len(data_df)
-        == meta["count"]["containers"]
-        + meta["count"]["middlewares"]
-        + meta["count"]["nodes"]
-        + meta["count"]["services"]
+    assert data_df.shape[1] == (
+        meta["count"]["containers"] + meta["count"]["middlewares"] + meta["count"]["nodes"] + meta["count"]["services"]
     )
 
 

@@ -1,5 +1,4 @@
 from collections.abc import Callable
-from typing import Any
 
 import hdbscan
 import numpy as np
@@ -9,12 +8,10 @@ import sklearn.cluster
 from sklearn.metrics.pairwise import pairwise_distances
 from sklearn.neighbors import NearestNeighbors
 
-from tsdr.clustering.pearsonr import pearsonr_as_dist
-
 
 def learn_clusters(
     X: np.ndarray,
-    dist_func: str | Callable,
+    dist_func: Callable,
     min_pts: int = 1,
     algorithm: str = "dbscan",
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -25,12 +22,15 @@ def learn_clusters(
     match algorithm:
         case "dbscan":
             nn_fit = NearestNeighbors(n_neighbors=min_pts, metric=dist_func).fit(X)
-            distances = nn_fit.kneighbors()[0]
+            distances = nn_fit.kneighbors()[0].flatten()
             dist_square_matrix: scipy.sparse.csr_matrix = nn_fit.radius_neighbors_graph(
                 mode="distance", sort_results=True
             )
+            assert len(distances) != 0, f"distances is empty: {distances}, {X}"
+            assert np.isnan(distances).sum() == 0, f"distances has NaN: {distances}, {X}"
 
-            eps = max(distances.flatten()) / 4  # see DBSherlock paper
+            eps = np.nanmax(distances) / 4  # see DBSherlock paper
+            assert eps != 0.0, f"eps is 0.0.: {distances}, {X}"
 
             labels = sklearn.cluster.DBSCAN(
                 eps=eps,

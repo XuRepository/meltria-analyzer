@@ -143,7 +143,10 @@ def is_counter(x: np.ndarray) -> bool:
 def check_counter_and_rate(ts: np.ndarray) -> np.ndarray:
     if not is_counter(ts):
         return ts
-    return rate_of_metrics(ts)
+    rated_ts = rate_of_metrics(ts)
+    if np.any(rated_ts < 0.0):  # return the unrated series if the rated series has a negative value.
+        return ts
+    return rated_ts
 
 
 def read_metrics_file(

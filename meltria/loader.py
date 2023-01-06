@@ -149,6 +149,70 @@ def check_counter_and_rate(ts: np.ndarray) -> np.ndarray:
     return rated_ts
 
 
+EXCLUDE_PROMETHEUS_DEFAULT_METRICS = [
+    "process_cpu_seconds_total",
+    "process_cpu_seconds_total",
+    "process_virtual_memory_bytes",
+    "process_resident_memory_bytes",
+    "process_start_time_seconds",
+    "process_open_fds",
+    "process_max_fds",
+    "go_goroutines",
+    "go_threads",
+    "go_gc_duration_seconds",
+    "go_info",
+    "go_memstats_alloc_bytes",
+    "go_memstats_alloc_bytes_total",
+    "go_memstats_sys_bytes",
+    "go_memstats_lookups_total",
+    "go_memstats_mallocs_total",
+    "go_memstats_frees_total",
+    "go_memstats_heap_alloc_bytes",
+    "go_memstats_heap_sys_bytes",
+    "go_memstats_heap_idle_bytes",
+    "go_memstats_heap_idle_bytes",
+    "go_memstats_heap_inuse_bytes",
+    "go_memstats_heap_inuse_bytes",
+    "go_memstats_heap_released_bytes",
+    "go_memstats_heap_objects",
+    "go_memstats_stack_inuse_bytes",
+    "go_memstats_stack_sys_bytes",
+    "go_memstats_stack_inuse_bytes",
+    "go_memstats_stack_idle_bytes",
+    "go_memstats_heap_idle_bytes",
+    "go_memstats_mspan_inuse_bytes",
+    "go_memstats_mspan_sys_bytes",
+    "go_memstats_mcache_inuse_bytes",
+    "go_memstats_mcache_sys_bytes",
+    "go_memstats_buck_hash_sys_bytes",
+    "go_memstats_gc_sys_bytes",
+    "go_memstats_other_sys_bytes",
+    "go_memstats_next_gc_bytes",
+    "go_memstats_last_gc_time_seconds",
+    "go_memstats_last_gc_cpu_fraction",
+]
+
+
+def is_prometheus_exporter_default_metrics(metric_name: str) -> bool:
+    # bad side effects: golang application metrics are also excluded.
+    return any([metric_name.endswith(m) for m in EXCLUDE_PROMETHEUS_DEFAULT_METRICS])
+
+
+def update_count_of_meta(data_df: pd.DataFrame, meta: dict[str, Any]) -> None:
+    """Update meta data"""
+    meta["count"]["containers"] = data_df.loc[:, data_df.columns.str.startswith("c-")].shape[1]
+    meta["count"]["middlewares"] = data_df.loc[:, data_df.columns.str.startswith("m-")].shape[1]
+    meta["count"]["services"] = data_df.loc[:, data_df.columns.str.startswith("s-")].shape[1]
+    meta["count"]["nodes"] = data_df.loc[:, data_df.columns.str.startswith("n-")].shape[1]
+    assert (
+        len(data_df)
+        == meta["count"]["containers"]
+        + meta["count"]["middlewares"]
+        + meta["count"]["nodes"]
+        + meta["count"]["services"]
+    )
+
+
 def read_metrics_file(
     data_file: str,
     target_metric_types: dict[str, bool],
@@ -165,8 +229,11 @@ def read_metrics_file(
             continue
         for metrics in raw_data[metric_type].values():
             for metric in metrics:
-                # remove prefix of label name that Prometheus gives
+                # Remove prefix of label name that Prometheus gives
                 metric_name = metric["metric_name"].removeprefix("container_").removeprefix("node_")
+                # Skip metrics of Prometheus exporter itself.
+                if is_prometheus_exporter_default_metrics(metric_name):
+                    continue
                 target_name = metric[
                     "{}_name".format(metric_type[:-1]) if metric_type != METRIC_TYPE_MIDDLEWARES else "container_name"
                 ]
@@ -194,6 +261,7 @@ def read_metrics_file(
         except:  # To cacth `dfitpack.error: (m>k) failed for hidden m: fpcurf0:m=3`
             logging.info(f"calculating spline error: {data_file}")
             return None
+    update_count_of_meta(data_df, raw_data["meta"])  # update the number of metrics because some metrics are removed.
     return DatasetRecord(data_df=data_df, pk=pk, metrics_file=data_file, meta=raw_data["meta"])
 
 

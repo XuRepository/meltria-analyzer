@@ -118,6 +118,7 @@ class Tsdr:
                 df_before_clustering = reduced_series1.apply(scipy.stats.zscore)
                 # filter metrics including nan values after zscore
                 df_before_clustering = filter_out_no_change_metrics(df_before_clustering, parallel=(max_workers != 1))
+                df_before_clustering = filter_out_duplicated_metrics(df_before_clustering, pk)
             case "anomaly_score" | "binary_anomaly_score":
                 tmp_dict_to_df: dict[str, np.ndarray] = {}
                 for name, res in step1_results.items():
@@ -283,6 +284,37 @@ def filter_out_no_change_metrics(data_df: pd.DataFrame, parallel: bool = False) 
         return data_df.loc[:, data_df.parallel_apply(filter)]
     else:
         return data_df.loc[:, data_df.apply(filter)]
+
+
+def filter_out_duplicated_metrics(data_df: pd.DataFrame, pk: PriorKnowledge) -> pd.DataFrame:
+    def duplicated(x: pd.DataFrame) -> list[str]:
+        indices = np.unique(x.T.to_numpy(), return_index=True, axis=0)[1]
+        return x.iloc[:, indices].columns.tolist()
+
+    unique_cols: list[str] = []
+    for service, containers in pk.get_containers_of_service().items():
+        # 1. service-level duplication
+        service_metrics_df = data_df.loc[:, data_df.columns.str.startswith(f"s-{service}_")]
+        if len(service_metrics_df.columns) > 1:
+            unique_cols += duplicated(service_metrics_df)
+        # 2. container-level duplication
+        for container in containers:
+            # perform clustering in each type of metric
+            # TODO: retrieve container and middleware metrics efficently
+            container_metrics_df = data_df.loc[
+                :,
+                data_df.columns.str.startswith((f"c-{container}_", f"m-{container}_")),
+            ]
+            if len(container_metrics_df.columns) <= 1:
+                continue
+            unique_cols += duplicated(container_metrics_df)
+    # 3. node-level clustering
+    for node in pk.get_nodes():
+        node_metrics_df = data_df.loc[:, data_df.columns.str.startswith(f"n-{node}_")]
+        if len(node_metrics_df.columns) <= 1:
+            continue
+        unique_cols += duplicated(node_metrics_df)
+    return data_df.loc[:, unique_cols]
 
 
 def hierarchical_clustering(
@@ -522,4 +554,5 @@ def kshape_clustering(
         clustering_info.update(c_info)
         remove_list.extend(r_list)
 
+    return clustering_info, remove_list
     return clustering_info, remove_list

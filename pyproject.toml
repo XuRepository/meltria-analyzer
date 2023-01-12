@@ -48,6 +48,7 @@ torchinfo = "^1.7.1"
 seaborn = "^0.12.1"
 tqdm = "^4.64.1"
 pyarrow = "^10.0.1"
+ads-evt = "^0.0.4"
 
 [tool.poetry.group.dev.dependencies]
 flake8 = "^5.0.4"

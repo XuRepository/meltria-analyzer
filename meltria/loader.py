@@ -82,26 +82,29 @@ def load_dataset_as_generator(
     target_metric_types: dict[str, bool],
     num_datapoints: int,
     n_jobs: int = 0,
+    interpolate: bool = True,
 ) -> Iterator[list[DatasetRecord]]:
     """Load n_jobs files at a time as generator"""
     if n_jobs == 0:
         n_jobs = cpu_count()
     if len(metrics_files) < n_jobs:
-        yield load_dataset(metrics_files, target_metric_types, num_datapoints)
+        yield load_dataset(metrics_files, target_metric_types, num_datapoints, interpolate)
     else:
         parts_of_files: list[np.ndarray] = np.array_split(metrics_files, int(len(metrics_files) / n_jobs))
         for part_of_files in parts_of_files:
-            yield load_dataset(part_of_files.tolist(), target_metric_types, num_datapoints)
+            yield load_dataset(part_of_files.tolist(), target_metric_types, num_datapoints, interpolate)
 
 
 def load_dataset(
     metrics_files: list[str],
     target_metric_types: dict[str, bool],
     num_datapoints: int,
+    interpolate: bool = True,
 ) -> list[DatasetRecord]:
     """Load metrics dataset"""
     records: list[DatasetRecord] | None = joblib.Parallel(n_jobs=-1, backend="multiprocessing")(
-        joblib.delayed(read_metrics_file)(path, target_metric_types, num_datapoints) for path in metrics_files
+        joblib.delayed(read_metrics_file)(path, target_metric_types, num_datapoints, interpolate)
+        for path in metrics_files
     )
     if records is None or len(records) < 1:
         raise ValueError("No metrics data loaded")
@@ -253,7 +256,9 @@ def read_metrics_file(
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                data_df.interpolate(method="akima", limit_direction="both", inplace=True)
+                # The interpolated time serie should not have negative values.
+                # See https://stackoverflow.com/questions/40072420/interpolate-without-having-negative-values-in-python.
+                data_df.interpolate(method="pchip", limit_direction="both", inplace=True)
         except:  # To cacth `dfitpack.error: (m>k) failed for hidden m: fpcurf0:m=3`
             logging.info(f"calculating spline error: {data_file}")
             return None

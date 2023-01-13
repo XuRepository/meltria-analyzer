@@ -30,7 +30,9 @@ def learn_clusters(
             assert np.isnan(distances).sum() == 0, f"distances has NaN: {distances}, {X}"
 
             eps = np.nanmax(distances) / 4  # see DBSherlock paper
-            assert eps != 0.0, f"eps is 0.0.: {distances}, {X}"
+            if eps == 0.0:
+                # avoid "ValueError: eps=0.0 is invalid: must be greater than or equal to 1e-20."
+                eps = 1e-20
 
             labels = sklearn.cluster.DBSCAN(
                 eps=eps,

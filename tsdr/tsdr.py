@@ -115,10 +115,9 @@ class Tsdr:
 
         match series_type := self.params["step2_clustering_series_type"]:
             case "raw":
-                df_before_clustering = reduced_series1.apply(scipy.stats.zscore)
+                df_before_clustering = filter_out_duplicated_metrics(reduced_series1, pk).apply(scipy.stats.zscore)
                 # filter metrics including nan values after zscore
                 df_before_clustering = filter_out_no_change_metrics(df_before_clustering, parallel=(max_workers != 1))
-                df_before_clustering = filter_out_duplicated_metrics(df_before_clustering, pk)
             case "anomaly_score" | "binary_anomaly_score":
                 tmp_dict_to_df: dict[str, np.ndarray] = {}
                 for name, res in step1_results.items():

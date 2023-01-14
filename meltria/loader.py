@@ -262,6 +262,9 @@ def read_metrics_file(
         except:  # To cacth `dfitpack.error: (m>k) failed for hidden m: fpcurf0:m=3`
             logging.info(f"calculating spline error: {data_file}")
             return None
+        # Set negative values to 0.0 because interpolating may cause negative values.
+        data_df.where(data_df >= 0.0, 0.0, inplace=True)
+
     update_count_of_meta(data_df, raw_data["meta"])  # update the number of metrics because some metrics are removed.
     return DatasetRecord(data_df=data_df, pk=pk, metrics_file=data_file, meta=raw_data["meta"])
 

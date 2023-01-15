@@ -228,6 +228,26 @@ six = "*"
 swagger-spec-validator = ">=2.0.1"
 
 [[package]]
+name = "causal-learn"
+version = "0.1.3.1"
+description = "causal-learn Python Package"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+graphviz = "*"
+matplotlib = "*"
+networkx = "*"
+numpy = "*"
+pandas = "*"
+pydot = "*"
+scikit-learn = "*"
+scipy = "*"
+statsmodels = "*"
+tqdm = "*"
+
+[[package]]
 name = "certifi"
 version = "2022.6.15"
 description = "Python package for providing Mozilla's CA Bundle."
@@ -444,6 +464,19 @@ python-versions = ">=3.7"
 
 [package.dependencies]
 gitdb = ">=4.0.1,<5"
+
+[[package]]
+name = "graphviz"
+version = "0.20.1"
+description = "Simple Python interface for Graphviz"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[package.extras]
+dev = ["flake8", "pep8-naming", "tox (>=3)", "twine", "wheel"]
+docs = ["sphinx (>=5)", "sphinx-autodoc-typehints", "sphinx-rtd-theme"]
+test = ["coverage", "mock (>=4)", "pytest (>=7)", "pytest-cov", "pytest-mock (>=3)"]
 
 [[package]]
 name = "gsq"
@@ -1396,6 +1429,17 @@ doc = ["nbsite", "sphinx-ioam-theme"]
 tests = ["flake8", "pytest"]
 
 [[package]]
+name = "pydot"
+version = "1.4.2"
+description = "Python interface to Graphviz's Dot"
+category = "main"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
+
+[package.dependencies]
+pyparsing = ">=2.1.4"
+
+[[package]]
 name = "pyflakes"
 version = "2.5.0"
 description = "passive checker of Python programs"
@@ -2110,7 +2154,7 @@ python-versions = ">=3.7"
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.10,<3.11"
-content-hash = "8342a84b898f8596d387b6de78177ff5044b7117d2fa321d5338ca3a60b74dda"
+content-hash = "dccc7012c8e408a46942f5944b816a2a632957e84fc12dbd91303ee7173c141f"
 
 [metadata.files]
 ads-evt = [
@@ -2216,6 +2260,10 @@ bravado = [
 bravado-core = [
     {file = "bravado-core-5.17.1.tar.gz", hash = "sha256:0da9c6f3814734622a55db3f62d08db6e188b25f3ebd087de370c91afb66a7f4"},
     {file = "bravado_core-5.17.1-py2.py3-none-any.whl", hash = "sha256:e231567cdc471337d23dfc950c45c5914ade8a78cde7ccf2ebb9433fcda29f40"},
+]
+causal-learn = [
+    {file = "causal-learn-0.1.3.1.tar.gz", hash = "sha256:0345affa8bc9236c6f8fa1adc45e0e9b7bddf8e54ebb8e08d421a3e4754faf85"},
+    {file = "causal_learn-0.1.3.1-py3-none-any.whl", hash = "sha256:6aa4a66f2231d425801562ac142da33054e3ee4cc8d10e9e04695cb4af172db2"},
 ]
 certifi = [
     {file = "certifi-2022.6.15-py3-none-any.whl", hash = "sha256:fe86415d55e84719d75f8b69414f6438ac3547d2078ab91b67e779ef69378412"},
@@ -2459,6 +2507,10 @@ gitdb = [
 GitPython = [
     {file = "GitPython-3.1.27-py3-none-any.whl", hash = "sha256:5b68b000463593e05ff2b261acff0ff0972df8ab1b70d3cdbd41b546c8b8fc3d"},
     {file = "GitPython-3.1.27.tar.gz", hash = "sha256:1c885ce809e8ba2d88a29befeb385fcea06338d3640712b59ca623c220bb5704"},
+]
+graphviz = [
+    {file = "graphviz-0.20.1-py3-none-any.whl", hash = "sha256:587c58a223b51611c0cf461132da386edd896a029524ca61a1462b880bf97977"},
+    {file = "graphviz-0.20.1.zip", hash = "sha256:8c58f14adaa3b947daf26c19bc1e98c4e0702cdc31cf99153e6f06904d492bf8"},
 ]
 gsq = [
     {file = "gsq-0.1.6.tar.gz", hash = "sha256:6c7954f1b08496f911b96d8db72d04d3f5ad4cb681585b759ff4c86711c7d90b"},
@@ -3231,6 +3283,10 @@ pycparser = [
 pyct = [
     {file = "pyct-0.4.8-py2.py3-none-any.whl", hash = "sha256:222e104d561b28cfdb56667d2ba10e5290b4466db66d0af38ab935577af85390"},
     {file = "pyct-0.4.8.tar.gz", hash = "sha256:23d7525b5a1567535c093aea4b9c33809415aa5f018dd77f6eb738b1226df6f7"},
+]
+pydot = [
+    {file = "pydot-1.4.2-py2.py3-none-any.whl", hash = "sha256:66c98190c65b8d2e2382a441b4c0edfdb4f4c025ef9cb9874de478fb0793a451"},
+    {file = "pydot-1.4.2.tar.gz", hash = "sha256:248081a39bcb56784deb018977e428605c1c758f10897a339fce1dd728ff007d"},
 ]
 pyflakes = [
     {file = "pyflakes-2.5.0-py2.py3-none-any.whl", hash = "sha256:4579f67d887f804e67edb544428f264b7b24f435b263c4614f384135cea553d2"},

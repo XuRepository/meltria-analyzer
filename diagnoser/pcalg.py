@@ -129,6 +129,8 @@ def estimate_skeleton(indep_test_func, data_matrix, alpha, **kwargs):
                         sep_set[i][j] |= set(k)
                         sep_set[j][i] |= set(k)
                         break
+                    if p_val == 0.0:
+                        p_val = 1e-10
                     g[i][j]["weight"] = 1 / p_val
                 cont = True
         l += 1

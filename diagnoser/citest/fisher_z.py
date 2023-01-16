@@ -7,13 +7,13 @@ def ci_test_fisher_z(data_matrix, x, y, s, **kwargs):
     cm = kwargs["corr_matrix"]
     n = data_matrix.shape[0]
     z = zstat(x, y, list(s), cm, n)
-    p_val = 2.0 * norm.sf(np.absolute(z))
+    p_val = 2.0 * (1 - norm.cdf(np.abs(z)))
     return p_val
 
 
 def zstat(x, y, s, cm, n):
     r = pcor_order(x, y, s, cm)
-    zv = np.sqrt(n - len(s) - 3) * 0.5 * log_q1pm(r)
+    zv = np.sqrt(n - len(s) - 3) * 0.5 * np.abs(log_q1pm(r))
     if np.isnan(zv):
         return 0
     else:
@@ -21,9 +21,11 @@ def zstat(x, y, s, cm, n):
 
 
 def log_q1pm(r):
-    if r == 1:
+    if r >= 1.0:
         r = 1 - 1e-10
-    return np.log1p((2 * r) / (1 - r))
+    elif r <= -1.0:
+        r = -1.0 + 1e-10
+    return np.log((1 + r) / (1 - r))
 
 
 def pcor_order(x, y, s, cm):

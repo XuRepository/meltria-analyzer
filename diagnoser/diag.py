@@ -125,7 +125,7 @@ def fix_edge_direction_based_network_call(
             nx_util.reverse_edge_direction(G, u, v)
 
     # From container to container
-    if u.is_container() and v.is_container():
+    if u.is_container_or_middleware() and v.is_container_or_middleware():
         # If u and v is in the same container, force bi-directed edge.
         if u.comp == v.comp:
             nx_util.set_bidirected_edge(G, u, v)
@@ -133,15 +133,13 @@ def fix_edge_direction_based_network_call(
             nx_util.reverse_edge_direction(G, u, v)
 
     # From service to container
-    if u.is_service() and v.is_container():
+    if u.is_service() and v.is_container_or_middleware():
         v_service = pk.get_service_by_container(v.comp)
         if (v_service not in service_dep_graph[u.comp]) and (u.comp in service_dep_graph[v_service]):
             nx_util.reverse_edge_direction(G, u, v)
 
     # From container to service
-    if u.is_container() and v.is_service():
-        # u_ctnr = u.split('-', maxsplit=1)[1].split('_')[0]
-        # v_service = v.split('-', maxsplit=1)[1].split('_')[0]
+    if u.is_container_or_middleware() and v.is_service():
         u_service = pk.get_service_by_container(u.comp)
         if (v.comp not in service_dep_graph[u_service]) and (u_service in service_dep_graph[v.comp]):
             nx_util.reverse_edge_direction(G, u, v)
@@ -300,6 +298,8 @@ def build_causal_graph(
     building_graph_elapsed: float = time.time() - building_graph_start
 
     G = remove_nodes_subgraph_uncontained_root(G, pk.get_root_metrics())  # for stats
+    if G.size == 0:
+        return G, (root_contained_graphs, root_uncontained_graphs), {}
     stats = {
         "init_graph_nodes_num": init_g.number_of_nodes(),
         "init_graph_edges_num": init_g.number_of_edges(),

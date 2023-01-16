@@ -61,6 +61,9 @@ class MetricNode:
     def is_middleware(self) -> bool:
         return self.comp_type == MetricType.MIDDLEWARE
 
+    def is_container_or_middleware(self) -> bool:
+        return self.is_container() or self.is_middleware()
+
 
 class MetricNodes(object):
     def __init__(self, num_to_node: dict[int, MetricNode]) -> None:

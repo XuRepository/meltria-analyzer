@@ -298,7 +298,7 @@ def build_causal_graph(
     building_graph_elapsed: float = time.time() - building_graph_start
 
     G = remove_nodes_subgraph_uncontained_root(G, pk.get_root_metrics())  # for stats
-    if G.size == 0:
+    if G.size() == 0:
         return G, (root_contained_graphs, root_uncontained_graphs), {}
     stats = {
         "init_graph_nodes_num": init_g.number_of_nodes(),

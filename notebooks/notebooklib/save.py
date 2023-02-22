@@ -6,6 +6,7 @@ from typing import Any, Final
 import pandas as pd
 
 from meltria.loader import DatasetRecord
+from meltria.metric_types import ALL_METRIC_TYPES, METRIC_PREFIX_TO_TYPE
 from tsdr import tsdr
 
 DATA_DIR = pathlib.Path(__file__).parent.parent / "dataset" / "data"
@@ -44,8 +45,22 @@ def run_tsdr(
     return list_of_record_and_reduced_df
 
 
+def _filter_metrics_by_metric_type(df: pd.DataFrame, metric_types: dict[str, bool]) -> pd.DataFrame:
+    return df[
+        [
+            metric_name
+            for metric_name in df.columns.tolist()
+            for metric_type, is_selected in metric_types.items()
+            if is_selected and metric_name.startswith(METRIC_PREFIX_TO_TYPE[metric_type])
+        ]
+    ]
+
+
 def load_tsdr(
-    dataset_id: str, revert_normalized_time_series: bool = False, suffix: str = ""
+    dataset_id: str,
+    revert_normalized_time_series: bool = False,
+    suffix: str = "",
+    metric_types: dict[str, bool] = ALL_METRIC_TYPES,
 ) -> list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
     dir_name: str = f"tsdr_{dataset_id}" if suffix == "" else f"tsdr_{dataset_id}_{suffix}"
     results = []
@@ -54,12 +69,12 @@ def load_tsdr(
         with (path / "record.pkl").open("rb") as f:
             record = pickle.load(f)
         with (path / "filtered_df.pkl").open("rb") as f:
-            filtered_df = pickle.load(f)
+            filtered_df = _filter_metrics_by_metric_type(pickle.load(f), metric_types)
         with (path / "anomalous_df.pkl").open("rb") as f:
-            anomalous_df = pickle.load(f)
+            anomalous_df = _filter_metrics_by_metric_type(pickle.load(f), metric_types)
         with (path / "reduced_df.pkl").open("rb") as f:
-            reduced_df = pickle.load(f)
-            if revert_normalized_time_series:
+            reduced_df = _filter_metrics_by_metric_type(pickle.load(f), metric_types)
+            if revert_normalized_time_series:  # Workaround
                 for metric_name, _ in reduced_df.items():
                     reduced_df[metric_name] = anomalous_df[metric_name]
         results.append((record, filtered_df, anomalous_df, reduced_df))

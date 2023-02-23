@@ -6,7 +6,7 @@ from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass
 from multiprocessing import cpu_count
-from typing import Any
+from typing import Any, Final
 
 import joblib
 import numpy as np
@@ -58,7 +58,7 @@ class DatasetRecord:
         return self.basename_of_metrics_file().rsplit("_", maxsplit=1)[1].removesuffix(".json")
 
     def metrics_names(self) -> list[str]:
-        return list(self.data_df.columns)
+        return self.data_df.columns.tolist()  # type: ignore
 
     def basename_of_metrics_file(self) -> str:
         return os.path.basename(self.metrics_file)
@@ -120,7 +120,7 @@ def rate_of_metrics(ts: np.ndarray) -> np.ndarray:
     first_val = rate[0]
     for _ in range(PER_MINUTE_NUM - 1):
         rate = np.insert(rate, 0, first_val)  # backfill
-    return rate
+    return rate  # type: ignore
 
 
 def is_monotonic_increasing(x: np.ndarray) -> bool:
@@ -151,7 +151,7 @@ def check_counter_and_rate(ts: np.ndarray) -> np.ndarray:
     return rated_ts
 
 
-EXCLUDE_PROMETHEUS_DEFAULT_METRICS = [
+EXCLUDE_PROMETHEUS_DEFAULT_METRICS: Final[list[str]] = [
     "process_cpu_seconds_total",
     "process_cpu_seconds_total",
     "process_virtual_memory_bytes",
@@ -159,10 +159,45 @@ EXCLUDE_PROMETHEUS_DEFAULT_METRICS = [
     "process_start_time_seconds",
     "process_open_fds",
     "process_max_fds",
+    "promhttp_metric_handler_requests_in_flight",
+    "promhttp_metric_handler_requests_total",
     "go_goroutines",
     "go_threads",
     "go_gc_duration_seconds",
+    "go_gc_cycles_automatic_gc_cycles_total",
+    "go_gc_cycles_forced_gc_cycles_total",
+    "go_gc_cycles_total_gc_cycles_total",
+    "go_gc_heap_allocs_by_size_bytes_total_bucket",
+    "go_gc_heap_allocs_by_size_bytes_total_sum",
+    "go_gc_heap_allocs_by_size_bytes_total_count",
+    "go_gc_heap_allocs_bytes_total",
+    "go_gc_heap_allocs_objects_total",
+    "go_gc_heap_frees_by_size_bytes_total_bucket",
+    "go_gc_heap_frees_by_size_bytes_total_sum",
+    "go_gc_heap_frees_by_size_bytes_total_count",
+    "go_gc_heap_frees_bytes_total",
+    "go_gc_heap_frees_objects_total",
+    "go_gc_heap_goal_bytes",
+    "go_gc_heap_objects_objects",
+    "go_gc_heap_tiny_allocs_objects_total",
+    "go_gc_pauses_seconds_total_bucket",
+    "go_gc_pauses_seconds_total_sum",
+    "go_gc_pauses_seconds_total_count",
     "go_info",
+    "go_memory_classes_heap_free_bytes",
+    "go_memory_classes_heap_objects_bytes",
+    "go_memory_classes_heap_released_bytes",
+    "go_memory_classes_heap_stacks_bytes",
+    "go_memory_classes_heap_unused_bytes",
+    "go_memory_classes_metadata_mcache_free_bytes",
+    "go_memory_classes_metadata_mcache_inuse_bytes",
+    "go_memory_classes_metadata_mspan_free_bytes",
+    "go_memory_classes_metadata_mspan_inuse_bytes",
+    "go_memory_classes_metadata_other_bytes",
+    "go_memory_classes_os_stacks_bytes",
+    "go_memory_classes_other_bytes",
+    "go_memory_classes_profiling_buckets_bytes",
+    "go_memory_classes_total_bytes",
     "go_memstats_alloc_bytes",
     "go_memstats_alloc_bytes_total",
     "go_memstats_sys_bytes",
@@ -192,6 +227,10 @@ EXCLUDE_PROMETHEUS_DEFAULT_METRICS = [
     "go_memstats_next_gc_bytes",
     "go_memstats_last_gc_time_seconds",
     "go_memstats_last_gc_cpu_fraction",
+    "go_sched_goroutines_goroutines",
+    "go_sched_latencies_seconds_bucket",
+    "go_sched_latencies_seconds_sum",
+    "go_sched_latencies_seconds_count",
 ]
 
 

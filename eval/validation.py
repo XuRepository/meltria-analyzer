@@ -63,7 +63,7 @@ def find_records_detected_anomalies_of_cause_metrics(
 ) -> list[DatasetRecord]:
 
     def _detect_anomalous_cause_metrics(record: DatasetRecord, faulty_datapoints: int) -> bool:
-        ok, cause_metrics = check_cause_metrics(record.pk, record.data_df.columns.tolist(), record.chaos_type(), record.chaos_comp())
+        ok, cause_metrics = check_cause_metrics(record.pk, record.data_df.columns.tolist(), record.chaos_type(), record.chaos_comp(), optional_cause=True)
         anomalies: list[bool] = []
         for metric in cause_metrics.tolist():
             x = record.data_df.loc[:, metric].to_numpy()

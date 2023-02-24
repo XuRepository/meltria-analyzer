@@ -1,11 +1,15 @@
+import math
 import pathlib
 import pickle
 from multiprocessing import cpu_count
 from typing import Any, Final
 
+import matplotlib.pyplot as plt
 import pandas as pd
+import scipy.stats
 
-from meltria.loader import DatasetRecord
+from eval.groundtruth import check_cause_metrics
+from meltria.loader import DatasetRecord, is_prometheus_exporter_default_metrics
 from meltria.metric_types import ALL_METRIC_TYPES, METRIC_PREFIX_TO_TYPE
 from tsdr import tsdr
 
@@ -56,6 +60,10 @@ def _filter_metrics_by_metric_type(df: pd.DataFrame, metric_types: dict[str, boo
     ]
 
 
+def _filter_prometheus_exporter_go_metrics(df: pd.DataFrame) -> pd.DataFrame:
+    return df.loc[:, [not is_prometheus_exporter_default_metrics(metric_name) for metric_name in df.columns.tolist()]]
+
+
 def load_tsdr(
     dataset_id: str,
     revert_normalized_time_series: bool = False,
@@ -68,12 +76,19 @@ def load_tsdr(
     for path in parent_path.iterdir():
         with (path / "record.pkl").open("rb") as f:
             record = pickle.load(f)
+            record.data_df = _filter_prometheus_exporter_go_metrics(record.data_df)
         with (path / "filtered_df.pkl").open("rb") as f:
-            filtered_df = _filter_metrics_by_metric_type(pickle.load(f), metric_types)
+            filtered_df = _filter_prometheus_exporter_go_metrics(
+                _filter_metrics_by_metric_type(pickle.load(f), metric_types)
+            )
         with (path / "anomalous_df.pkl").open("rb") as f:
-            anomalous_df = _filter_metrics_by_metric_type(pickle.load(f), metric_types)
+            anomalous_df = _filter_prometheus_exporter_go_metrics(
+                _filter_metrics_by_metric_type(pickle.load(f), metric_types)
+            )
         with (path / "reduced_df.pkl").open("rb") as f:
-            reduced_df = _filter_metrics_by_metric_type(pickle.load(f), metric_types)
+            reduced_df = _filter_prometheus_exporter_go_metrics(
+                _filter_metrics_by_metric_type(pickle.load(f), metric_types)
+            )
             if revert_normalized_time_series:  # Workaround
                 for metric_name, _ in reduced_df.items():
                     reduced_df[metric_name] = anomalous_df[metric_name]
@@ -100,3 +115,89 @@ def save_tsdr(
     ):
         with open(path / f"{name}.pkl", "wb") as f:
             pickle.dump(obj, f)
+
+
+def validate_datasets(
+    datasets: list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]
+) -> tuple[pd.DataFrame, dict]:
+    check_results = []
+    dataset_by_chaos_case = {}
+    for record, filtered_df, anomalous_df, reduced_df in datasets:
+        anomalous_ok, anomalous_cause_metrics = check_cause_metrics(
+            record.pk,
+            anomalous_df.columns.tolist(),
+            chaos_type=record.chaos_type(),
+            chaos_comp=record.chaos_comp(),
+            optional_cause=True,
+        )
+        reduced_ok, reduced_cause_metrics = check_cause_metrics(
+            record.pk,
+            reduced_df.columns.tolist(),
+            chaos_type=record.chaos_type(),
+            chaos_comp=record.chaos_comp(),
+            optional_cause=True,
+        )
+        check_results.append(
+            (
+                record.target_app(),
+                record.chaos_type(),
+                record.chaos_comp(),
+                record.chaos_case_num(),
+                anomalous_ok,
+                anomalous_cause_metrics,
+                reduced_ok,
+                reduced_cause_metrics,
+            )
+        )
+        dataset_by_chaos_case[(record.chaos_type(), record.chaos_comp(), record.chaos_case_num())] = (
+            record,
+            filtered_df,
+            anomalous_df,
+            reduced_df,
+        )
+    return (
+        pd.DataFrame(
+            check_results,
+            columns=[
+                "target_app",
+                "chaos_type",
+                "chaos_comp",
+                "chaos_case_num",
+                "anomalous_ok",
+                "anomalous_cause_metrics",
+                "reduced_ok",
+                "reduced_cause_metrics",
+            ],
+        )
+        .set_index(["target_app", "chaos_type", "chaos_comp", "chaos_case_num"])
+        .sort_index()
+    ), dataset_by_chaos_case
+
+
+def plot_figures_of_cause_metrics(
+    validation_results: pd.DataFrame, dataset_by_chaos_case: dict, only_clustered_ng: bool = False
+) -> None:
+    def _plot_figure_of_cause_metrics(data_df: pd.DataFrame, row: pd.Series, title: str) -> None:
+        _target_df = data_df.apply(lambda x: scipy.stats.zscore(x)).filter(regex=f"{row.chaos_comp}")
+        n, ncols = 6, 3
+        nrows = math.ceil((_target_df.shape[1] / n) / ncols)
+        fig, axs = plt.subplots(figsize=(20, 3.0 * nrows), ncols=ncols, nrows=nrows)
+        fig.suptitle(f"{title}: {row.chaos_type}/{row.chaos_comp}/{row.chaos_case_num}")
+        fig.tight_layout()
+        for i, ax in zip(range(0, _target_df.shape[1], n), axs.flatten()):
+            for col, ts in _target_df.iloc[:, i : i + n].items():
+                ax.plot(ts, label=col)
+            ax.legend(loc="upper left", fontsize=8)
+        plt.show()
+        plt.close(fig=fig)
+
+    for row in validation_results.reset_index().itertuples():
+        if only_clustered_ng and row.reduced_ok:
+            continue
+        record, filtered_df, anomalous_df, reduced_df = dataset_by_chaos_case[
+            row.chaos_type,
+            row.chaos_comp,
+            row.chaos_case_num,
+        ]
+        _plot_figure_of_cause_metrics(anomalous_df, row, "anomalous")
+        _plot_figure_of_cause_metrics(reduced_df, row, "clustered")

@@ -9,7 +9,7 @@ from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
 
 def get_ranks_by_case(sorted_results_df: DataFrameGroupBy, pk: PriorKnowledge, granularity: str = "metric"):
-    ranks_by_case: dict[str, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
+    ranks_by_case: dict[tuple[str, str, int], list[int]] = defaultdict(list)
     n_cases: int = 0
     for (dataset_id, target_app, chaos_type, chaos_comp, chaos_case_num), group in sorted_results_df:
         if chaos_comp in pk.get_skip_containers():
@@ -38,17 +38,16 @@ def get_ranks_by_case(sorted_results_df: DataFrameGroupBy, pk: PriorKnowledge, g
                 ranks = sorted([i+1 for i, service in enumerate(ranked_service) if service == chaos_service])
             case _:
                 assert False, f"Unknown detect_unit: {granularity}"
-        ranks_by_case[chaos_type][chaos_comp] = ranks
+        ranks_by_case[(chaos_type,chaos_comp,chaos_case_num)] = ranks
         n_cases += 1
     return ranks_by_case, n_cases
 
 
-def calc_ac_k(k: int, ranks_by_case: dict[str, dict[str, list[int]]], n_faults: int) -> float:
+def calc_ac_k(k: int, ranks_by_case: dict[tuple[str, str, int], list[int]], n_faults: int) -> float:
     sum_ac = 0.0
-    for _, ranks_by_ in ranks_by_case.items():
-        for _, ranks in ranks_by_.items():
-            if (min_param := min(k, len(ranks)) > 0):
-                sum_ac += sum([1 if ranks[i-1] <= k else 0 for i in range(1, min_param+1)]) / min_param
+    for _, ranks in ranks_by_case.items():
+        if (min_param := min(k, len(ranks)) > 0):
+            sum_ac += sum([1 if ranks[i-1] <= k else 0 for i in range(1, min_param+1)]) / min_param
     return sum_ac / n_faults
 
 

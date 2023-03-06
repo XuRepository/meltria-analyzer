@@ -133,6 +133,60 @@ def _filter_prometheus_exporter_go_metrics(df: pd.DataFrame) -> pd.DataFrame:
     return df.loc[:, [not is_prometheus_exporter_default_metrics(metric_name) for metric_name in df.columns.tolist()]]
 
 
+def _group_by_metric_type(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    result = {}
+    for metric_type, _ in ALL_METRIC_TYPES.items():
+        result[metric_type] = _filter_metrics_by_metric_type(df, {metric_type: True})
+    return result
+
+
+def load_tsdr_by_chaos(
+    dataset_id: str,
+    revert_normalized_time_series: bool = False,
+    suffix: str = "",
+) -> dict[
+    tuple[str, str], list[tuple[DatasetRecord, dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]]]
+]:  # (chaos_type, chaos_comp)
+    datasets = load_tsdr_grouped_by_metric_type(dataset_id, revert_normalized_time_series, suffix)
+    results = defaultdict(list)
+    for record, df_by_metric_type in datasets:
+        results[(record.chaos_type(), record.chaos_comp())].append((record, df_by_metric_type))
+    return results
+
+
+def load_tsdr_grouped_by_metric_type(
+    dataset_id: str,
+    revert_normalized_time_series: bool = False,
+    suffix: str = "",
+) -> list[tuple[DatasetRecord, dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]]]:
+    dir_name: str = f"tsdr_{dataset_id}" if suffix == "" else f"tsdr_{dataset_id}_{suffix}"
+    results = []
+    parent_path = DATA_DIR / dir_name
+    for path in parent_path.iterdir():
+        if not any(path.iterdir()):  # check empty
+            continue
+        with (path / "record.bz2").open("rb") as f:
+            record = joblib.load(f)
+        with (path / "filtered_df.bz2").open("rb") as f:
+            filtered_df = _group_by_metric_type(_filter_prometheus_exporter_go_metrics(joblib.load(f)))
+        with (path / "anomalous_df.bz2").open("rb") as f:
+            anomalous_df = _group_by_metric_type(_filter_prometheus_exporter_go_metrics(joblib.load(f)))
+        with (path / "reduced_df.bz2").open("rb") as f:
+            reduced_df = _group_by_metric_type(_filter_prometheus_exporter_go_metrics(joblib.load(f)))
+            if revert_normalized_time_series:  # Workaround
+                for metric_name, _ in reduced_df.items():
+                    reduced_df[metric_name] = anomalous_df[metric_name]
+        df_by_metric_type: dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]] = {}
+        for metric_type in ALL_METRIC_TYPES.keys():
+            df_by_metric_type[metric_type] = (
+                filtered_df[metric_type],
+                anomalous_df[metric_type],
+                reduced_df[metric_type],
+            )
+        results.append((record, df_by_metric_type))
+    return results
+
+
 def load_tsdr(
     dataset_id: str,
     revert_normalized_time_series: bool = False,

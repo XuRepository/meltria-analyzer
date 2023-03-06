@@ -31,6 +31,7 @@ tsdr_default_options: Final[dict[str, Any]] = {
 def run_tsdr(
     records: list[DatasetRecord],
     tsdr_options: dict[str, Any] = tsdr_default_options,
+    metric_types: dict[str, bool] = ALL_METRIC_TYPES,
 ) -> list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
     list_of_record_and_reduced_df: list = []
     tsdr_options = dict(tsdr_default_options, **tsdr_options)
@@ -38,7 +39,10 @@ def run_tsdr(
         # run tsdr
         reducer = tsdr.Tsdr("residual_integral", **tsdr_options)
         tsdr_stat, _, _ = reducer.run(
-            X=record.data_df,
+            X=_filter_metrics_by_metric_type(
+                _filter_prometheus_exporter_go_metrics(record.data_df),
+                metric_types,
+            ),
             pk=record.pk,
             max_workers=cpu_count(),
         )

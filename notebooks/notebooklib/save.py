@@ -1,9 +1,10 @@
 import math
 import pathlib
-import pickle
+from collections import defaultdict
 from multiprocessing import cpu_count
 from typing import Any, Final
 
+import joblib
 import matplotlib.pyplot as plt
 import pandas as pd
 import scipy.stats
@@ -142,26 +143,35 @@ def load_tsdr(
     results = []
     parent_path = DATA_DIR / dir_name
     for path in parent_path.iterdir():
-        with (path / "record.pkl").open("rb") as f:
-            record = pickle.load(f)
-            record.data_df = _filter_prometheus_exporter_go_metrics(record.data_df)
-        with (path / "filtered_df.pkl").open("rb") as f:
+        with (path / "record.bz2").open("rb") as f:
+            record = joblib.load(f)
+        with (path / "filtered_df.bz2").open("rb") as f:
             filtered_df = _filter_prometheus_exporter_go_metrics(
-                _filter_metrics_by_metric_type(pickle.load(f), metric_types)
+                _filter_metrics_by_metric_type(joblib.load(f), metric_types)
             )
-        with (path / "anomalous_df.pkl").open("rb") as f:
+        with (path / "anomalous_df.bz2").open("rb") as f:
             anomalous_df = _filter_prometheus_exporter_go_metrics(
-                _filter_metrics_by_metric_type(pickle.load(f), metric_types)
+                _filter_metrics_by_metric_type(joblib.load(f), metric_types)
             )
-        with (path / "reduced_df.pkl").open("rb") as f:
+        with (path / "reduced_df.bz2").open("rb") as f:
             reduced_df = _filter_prometheus_exporter_go_metrics(
-                _filter_metrics_by_metric_type(pickle.load(f), metric_types)
+                _filter_metrics_by_metric_type(joblib.load(f), metric_types)
             )
             if revert_normalized_time_series:  # Workaround
                 for metric_name, _ in reduced_df.items():
                     reduced_df[metric_name] = anomalous_df[metric_name]
         results.append((record, filtered_df, anomalous_df, reduced_df))
     return results
+
+
+def save_tsdr_each_set(
+    dataset_id: str,
+    results: dict[str, list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]],
+    suffix: str = "",
+) -> None:
+    for name, items in results.items():
+        for item in items:
+            save_tsdr(dataset_id, *item, suffix=f"{suffix}_{name}")
 
 
 def save_tsdr(
@@ -181,8 +191,7 @@ def save_tsdr(
         (anomalous_df, "anomalous_df"),
         (reduced_df, "reduced_df"),
     ):
-        with open(path / f"{name}.pkl", "wb") as f:
-            pickle.dump(obj, f)
+        joblib.dump(obj, path / f"{name}.bz2", compress=("bz2", 3))  # type: ignore
 
 
 def validate_datasets(

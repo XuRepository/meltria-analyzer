@@ -5,6 +5,7 @@ from typing import Any
 import networkx as nx
 import numpy as np
 import pandas as pd
+from cdt.causality.graph import PC
 
 import diagnoser.metric_node as mn
 from diagnoser import nx_util
@@ -89,13 +90,15 @@ def build_subgraph_of_removal_edges(nodes: mn.MetricNodes, pk: PriorKnowledge) -
     return G
 
 
-def prepare_init_graph(nodes: mn.MetricNodes, pk: PriorKnowledge) -> nx.Graph:
+def prepare_init_graph(nodes: mn.MetricNodes, pk: PriorKnowledge, enable_orientation: bool = False) -> nx.Graph:
     """Prepare initialized causal graph."""
     init_g = nx.Graph()
     for (u, v) in combinations(nodes, 2):
         init_g.add_edge(u, v)
     RG: nx.Graph = build_subgraph_of_removal_edges(nodes, pk)
     init_g.remove_edges_from(RG.edges())
+    if enable_orientation:
+        return fix_edge_directions_in_causal_graph(init_g, pk)
     return init_g
 
 
@@ -224,6 +227,22 @@ def build_causal_graphs_with_pgmpy(
     return G
 
 
+# def build_causal_graphs_with_cdt(
+#     df: pd.DataFrame,
+#     pk: PriorKnowledge,
+#     pc_citest_alpha: float,
+#     pc_variant: str = "orig",
+#     pc_citest: str = "fisher-z",
+#     disable_orientation: bool = False,
+# ) -> nx.Graph:
+#     if pc_citest == "fisher-z":
+#         ci_test = "gaussian"
+#         method_indep = "corr"
+#     pc = PC(CItest=ci_test, method_indep=method_indep, alpha=pc_citest_alpha)
+#     output = obj.predict
+#     return pc.predict(df, output)
+
+
 def find_connected_subgraphs(G: nx.Graph, root_labels: tuple[str, ...]) -> tuple[list[nx.Graph], list[nx.Graph]]:
     """Find subgraphs connected components."""
     root_contained_subg: list[nx.Graph] = []
@@ -269,29 +288,39 @@ def build_causal_graph(
     nodes: mn.MetricNodes = mn.MetricNodes.from_dataframe(dataset)
     init_g: nx.Graph = prepare_init_graph(nodes, pk)
 
-    if (pc_library := kwargs["pc_library"]) == "pcalg":
-        G = build_causal_graph_with_pcalg(
-            dataset.to_numpy(),
-            nodes,
-            init_g,
-            pk,
-            pc_variant=kwargs["pc_variant"],
-            pc_citest=kwargs["pc_citest"],
-            pc_citest_alpha=kwargs["pc_citest_alpha"],
-            disable_orientation=kwargs["disable_orientation"],
-            disable_ci_edge_cut=kwargs["disable_ci_edge_cut"],
-        )
-    elif pc_library == "pgmpy":
-        G = build_causal_graphs_with_pgmpy(
-            dataset,
-            pk,
-            pc_variant=kwargs["pc_variant"],
-            pc_citest=kwargs["pc_citest"],
-            pc_citest_alpha=kwargs["pc_citest_alpha"],
-            disable_orientation=kwargs["disable_orientation"],
-        )
-    else:
-        raise ValueError(f"pc_library should be pcalg or pgmpy ({pc_library})")
+    match (pc_library := kwargs["pc_library"]):
+        case "pcalg":
+            G = build_causal_graph_with_pcalg(
+                dataset.to_numpy(),
+                nodes,
+                init_g,
+                pk,
+                pc_variant=kwargs["pc_variant"],
+                pc_citest=kwargs["pc_citest"],
+                pc_citest_alpha=kwargs["pc_citest_alpha"],
+                disable_orientation=kwargs["disable_orientation"],
+                disable_ci_edge_cut=kwargs["disable_ci_edge_cut"],
+            )
+        case "pgmpy":
+            G = build_causal_graphs_with_pgmpy(
+                dataset,
+                pk,
+                pc_variant=kwargs["pc_variant"],
+                pc_citest=kwargs["pc_citest"],
+                pc_citest_alpha=kwargs["pc_citest_alpha"],
+                disable_orientation=kwargs["disable_orientation"],
+            )
+        # case "cdt":
+        # G = build_causal_graphs_with_cdt(
+        #     dataset,
+        #     pk,
+        #     pc_variant=kwargs["pc_variant"],
+        #     pc_citest=kwargs["pc_citest"],
+        #     pc_citest_alpha=kwargs["pc_citest_alpha"],
+        #     disable_orientation=kwargs["disable_orientation"],
+        # )
+        case _:
+            raise ValueError(f"pc_library should be pcalg or pgmpy ({pc_library})")
 
     root_contained_graphs, root_uncontained_graphs = find_connected_subgraphs(G, pk.get_root_metrics())
 

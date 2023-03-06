@@ -25,7 +25,7 @@ from tsdr.unireducer import UnivariateSeriesReductionResult
 
 ELAPSED_TIME_NUM_DECIMAL_PLACES: Final[int] = 4
 
-pandarallel.initialize(progress_bar=False)
+pandarallel.initialize(progress_bar=False, verbose=0)
 
 
 class Tsdr:

@@ -28,6 +28,70 @@ tsdr_default_options: Final[dict[str, Any]] = {
 }
 
 
+def run_tsdr_to_each_set(
+    records: list[DatasetRecord],
+    tsdr_options: dict[str, Any] = tsdr_default_options,
+) -> dict[str, list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]]:
+    results = joblib.Parallel(n_jobs=-1)(
+        [
+            joblib.delayed(run_tsdr_to_only_services)(records, tsdr_options),
+            joblib.delayed(run_tsdr_to_only_ctnrs)(records, tsdr_options),
+            joblib.delayed(run_tsdr_to_middlewares)(records, tsdr_options),
+        ]
+    )
+    assert results is not None
+    assert len(results) == 3
+    return {"only_services": results[0], "only_ctnrs": results[1], "middlewares": results[2]}  # type: ignore
+
+
+def run_tsdr_to_only_services(
+    records: list[DatasetRecord],
+    tsdr_options: dict[str, Any] = tsdr_default_options,
+) -> list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
+    return run_tsdr(
+        records,
+        tsdr_options,
+        metric_types={
+            "services": True,
+            "containers": False,
+            "middlewares": False,
+            "nodes": False,
+        },
+    )
+
+
+def run_tsdr_to_only_ctnrs(
+    records: list[DatasetRecord],
+    tsdr_options: dict[str, Any] = tsdr_default_options,
+) -> list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
+    return run_tsdr(
+        records,
+        tsdr_options,
+        metric_types={
+            "services": True,
+            "containers": True,
+            "middlewares": False,
+            "nodes": False,
+        },
+    )
+
+
+def run_tsdr_to_middlewares(
+    records: list[DatasetRecord],
+    tsdr_options: dict[str, Any] = tsdr_default_options,
+) -> list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
+    return run_tsdr(
+        records,
+        tsdr_options,
+        metric_types={
+            "services": True,
+            "containers": True,
+            "middlewares": True,
+            "nodes": False,
+        },
+    )
+
+
 def run_tsdr(
     records: list[DatasetRecord],
     tsdr_options: dict[str, Any] = tsdr_default_options,

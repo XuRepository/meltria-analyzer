@@ -16,6 +16,8 @@ from tsdr import tsdr
 
 DATA_DIR = pathlib.Path(__file__).parent.parent / "dataset" / "data"
 
+TSDR_DEFAULT_PHASE1_METHOD: Final[str] = "residual_integral"
+
 tsdr_default_options: Final[dict[str, Any]] = {
     "step1_residual_integral_threshold": 20,
     "step1_residual_integral_change_start_point": False,
@@ -31,13 +33,14 @@ tsdr_default_options: Final[dict[str, Any]] = {
 
 def run_tsdr_to_each_set(
     records: list[DatasetRecord],
+    phase1_method: str = TSDR_DEFAULT_PHASE1_METHOD,
     tsdr_options: dict[str, Any] = tsdr_default_options,
 ) -> dict[str, list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]]:
     results = joblib.Parallel(n_jobs=-1)(
         [
-            joblib.delayed(run_tsdr_to_only_services)(records, tsdr_options),
-            joblib.delayed(run_tsdr_to_only_ctnrs)(records, tsdr_options),
-            joblib.delayed(run_tsdr_to_middlewares)(records, tsdr_options),
+            joblib.delayed(run_tsdr_to_only_services)(records, phase1_method, tsdr_options),
+            joblib.delayed(run_tsdr_to_only_ctnrs)(records, phase1_method, tsdr_options),
+            joblib.delayed(run_tsdr_to_middlewares)(records, phase1_method, tsdr_options),
         ]
     )
     assert results is not None
@@ -47,10 +50,12 @@ def run_tsdr_to_each_set(
 
 def run_tsdr_to_only_services(
     records: list[DatasetRecord],
+    phase1_method: str = TSDR_DEFAULT_PHASE1_METHOD,
     tsdr_options: dict[str, Any] = tsdr_default_options,
 ) -> list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
     return run_tsdr(
         records,
+        phase1_method,
         tsdr_options,
         metric_types={
             "services": True,
@@ -63,10 +68,12 @@ def run_tsdr_to_only_services(
 
 def run_tsdr_to_only_ctnrs(
     records: list[DatasetRecord],
+    phase1_method: str = TSDR_DEFAULT_PHASE1_METHOD,
     tsdr_options: dict[str, Any] = tsdr_default_options,
 ) -> list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
     return run_tsdr(
         records,
+        phase1_method,
         tsdr_options,
         metric_types={
             "services": True,
@@ -79,10 +86,12 @@ def run_tsdr_to_only_ctnrs(
 
 def run_tsdr_to_middlewares(
     records: list[DatasetRecord],
+    phase1_method: str = TSDR_DEFAULT_PHASE1_METHOD,
     tsdr_options: dict[str, Any] = tsdr_default_options,
 ) -> list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
     return run_tsdr(
         records,
+        phase1_method,
         tsdr_options,
         metric_types={
             "services": True,
@@ -95,6 +104,7 @@ def run_tsdr_to_middlewares(
 
 def run_tsdr(
     records: list[DatasetRecord],
+    phase1_method: str = TSDR_DEFAULT_PHASE1_METHOD,
     tsdr_options: dict[str, Any] = tsdr_default_options,
     metric_types: dict[str, bool] = ALL_METRIC_TYPES,
 ) -> list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
@@ -102,7 +112,7 @@ def run_tsdr(
     tsdr_options = dict(tsdr_default_options, **tsdr_options)
     for record in records:
         # run tsdr
-        reducer = tsdr.Tsdr("residual_integral", **tsdr_options)
+        reducer = tsdr.Tsdr(phase1_method, **tsdr_options)
         tsdr_stat, _, _ = reducer.run(
             X=_filter_metrics_by_metric_type(
                 _filter_prometheus_exporter_go_metrics(record.data_df),

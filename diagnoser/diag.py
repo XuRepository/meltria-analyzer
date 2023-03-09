@@ -5,16 +5,20 @@ from typing import Any
 import networkx as nx
 import numpy as np
 import pandas as pd
-from cdt.causality.graph import PC
+from causallearn.graph.GraphNode import GraphNode
+from causallearn.search.ConstraintBased.PC import pc as cl_pc
+from causallearn.utils.PCUtils.BackgroundKnowledge import BackgroundKnowledge
+from cdt.causality.graph import PC as cdt_PC
 
+import diagnoser.causalgraph.cdt_PC_patch  # noqa: F401  for only patching
 import diagnoser.metric_node as mn
 from diagnoser import nx_util
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
+from .causalgraph.pcalg import estimate_cpdag, estimate_skeleton
+from .causalgraph.pgmpy_PC import PC
 from .citest.fisher_z import ci_test_fisher_z
 from .citest.fisher_z_pgmpy import fisher_z
-from .PC import PC
-from .pcalg import estimate_cpdag, estimate_skeleton
 
 
 def filter_by_target_metrics(data_df: pd.DataFrame, pk: PriorKnowledge) -> pd.DataFrame:
@@ -227,20 +231,57 @@ def build_causal_graphs_with_pgmpy(
     return G
 
 
-# def build_causal_graphs_with_cdt(
-#     df: pd.DataFrame,
-#     pk: PriorKnowledge,
-#     pc_citest_alpha: float,
-#     pc_variant: str = "orig",
-#     pc_citest: str = "fisher-z",
-#     disable_orientation: bool = False,
-# ) -> nx.Graph:
-#     if pc_citest == "fisher-z":
-#         ci_test = "gaussian"
-#         method_indep = "corr"
-#     pc = PC(CItest=ci_test, method_indep=method_indep, alpha=pc_citest_alpha)
-#     output = obj.predict
-#     return pc.predict(df, output)
+def build_causal_graphs_with_cdt(
+    df: pd.DataFrame,
+    init_g: nx.Graph,
+    pk: PriorKnowledge,
+    pc_citest_alpha: float,
+    pc_variant: str = "orig",
+    pc_citest: str = "fisher-z",
+    disable_orientation: bool = False,
+) -> nx.Graph:
+    if pc_citest == "fisher-z":
+        ci_test = "gaussian"
+        method_indep = "corr"
+    else:
+        raise ValueError(f"Unsupported CI test: {pc_citest}")
+    pc = cdt_PC(CItest=ci_test, method_indep=method_indep, alpha=pc_citest_alpha)
+    G = pc.create_from_init_graph(df, init_graph=init_g)
+    G = mn.relabel_graph_labels_to_node(G)
+    return G if disable_orientation else fix_edge_directions_in_causal_graph(G, pk)
+
+
+def build_causal_graphs_with_causallearn(
+    df: pd.DataFrame,
+    nodes: mn.MetricNode,
+    init_g: nx.Graph,
+    pk: PriorKnowledge,
+    pc_citest_alpha: float,
+    pc_citest: str = "fisherz",
+    disable_orientation: bool = False,
+):
+    init_dg = fix_edge_directions_in_causal_graph(init_g, pk)
+    background_knowledge = BackgroundKnowledge()
+    for node1, node2 in combinations(init_dg.nodes, 2):
+        if not init_dg.has_edge(node1, node2):
+            background_knowledge.add_forbidden_by_node(GraphNode(node2.label), GraphNode(node1.label))
+        if not init_dg.has_edge(node2, node1):
+            background_knowledge.add_forbidden_by_node(GraphNode(node1.label), GraphNode(node2.label))
+
+    G = cl_pc(
+        data=df.to_numpy(dtype=np.float32),
+        alpha=pc_citest_alpha,
+        indep_test=pc_citest,
+        stable=True,
+        uc_rule=2,  # definiteMaxP
+        uc_priority=2,
+        mvpc=False,
+        node_names=df.columns.to_list(),
+        background_knowledge=background_knowledge,
+        verbose=False,
+        show_progress=False,
+    )
+    return G if disable_orientation else fix_edge_directions_in_causal_graph(G, pk)
 
 
 def find_connected_subgraphs(G: nx.Graph, root_labels: tuple[str, ...]) -> tuple[list[nx.Graph], list[nx.Graph]]:
@@ -310,15 +351,26 @@ def build_causal_graph(
                 pc_citest_alpha=kwargs["pc_citest_alpha"],
                 disable_orientation=kwargs["disable_orientation"],
             )
-        # case "cdt":
-        # G = build_causal_graphs_with_cdt(
-        #     dataset,
-        #     pk,
-        #     pc_variant=kwargs["pc_variant"],
-        #     pc_citest=kwargs["pc_citest"],
-        #     pc_citest_alpha=kwargs["pc_citest_alpha"],
-        #     disable_orientation=kwargs["disable_orientation"],
-        # )
+        case "cdt":
+            G = build_causal_graphs_with_cdt(
+                dataset,
+                init_g,
+                pk,
+                pc_variant=kwargs["pc_variant"],
+                pc_citest=kwargs["pc_citest"],
+                pc_citest_alpha=kwargs["pc_citest_alpha"],
+                disable_orientation=kwargs["disable_orientation"],
+            )
+        case "causallearn":
+            G = build_causal_graphs_with_causallearn(
+                dataset,
+                nodes,
+                init_g,
+                pk,
+                pc_citest=kwargs["pc_citest"],
+                pc_citest_alpha=kwargs["pc_citest_alpha"],
+                disable_orientation=kwargs["disable_orientation"],
+            )
         case _:
             raise ValueError(f"pc_library should be pcalg or pgmpy ({pc_library})")
 
@@ -339,3 +391,81 @@ def build_causal_graph(
         "building_graph_elapsed_sec": building_graph_elapsed,
     }
     return G, (root_contained_graphs, root_uncontained_graphs), stats
+
+
+def prepare_monitor_rank_based_random_walk(
+    G: nx.DiGraph, dataset: pd.DataFrame
+) -> tuple[nx.DiGraph, dict[str, float]]:
+    """MonitorRank-based ranked algorithm
+    G must be a call graph
+    """
+    G = mn.relabel_graph_nodes_to_label(G)
+    data = dataset.filter(list(G.nodes), axis=1)
+    front_root_metrics = [m for m in data.columns.tolist() if m in pk.get_root_metrics()]
+    special_front_root_metric = [m for m in data.columns.tolist() if m in pk.get_root_metrics()][0]
+    # front_root_metric_ids = [data.columns.tolist().index(_) for _ in front_root_metrics]
+    special_front_root_metric_id = data.columns.tolist().index(special_front_root_metric)
+
+    corr = np.corrcoef(data.values.T)  # calculate pearson correlation
+    sim = [abs(x) for x in corr[special_front_root_metric_id]]  # similarity to front root metric
+    rho = 0.1
+    # 'weight' of each edge means "transition probability"
+    for i in G.nodes:
+        for j in G.nodes:
+            s_i = sim[list(G.nodes).index(i)]
+            s_j = sim[list(G.nodes).index(j)]
+            if G.has_edge(i, j):  # forward edge
+                G.edges[i, j]["weight"] = abs(s_j)
+            elif G.has_edge(j, i):  # backward edge
+                G.add_edge(i, j, weight=rho * abs(s_i))
+
+    ## self edge
+    for i in G.nodes:
+        if i in front_root_metrics:
+            continue
+        s_i: float = sim[list(G.nodes).index(i)]
+        p_i: list[float] = [G[i][j]["weight"] for j in G[i]]
+        G.add_edge(i, i, weight=max(0, s_i - max(p_i)))
+
+    # normalize
+    for i in G.nodes:
+        adj_sum = sum([G[i][j]["weight"] for j in G[i]])
+        for j in G[i]:
+            G.edges[i, j]["weight"] /= adj_sum
+
+    u = {n: sim[list(G.nodes).index(n)] for n in G.nodes if n != special_front_root_metric}  # preference vector
+    u[special_front_root_metric] = 0
+
+    return G, u
+
+
+def walk_causal_graph_with_monitorrank(
+    G: nx.DiGraph,
+    dataset: pd.DataFrame,
+    **kwargs: dict,
+) -> list[tuple[str, float]]:
+    prepared_g, preference_vector = prepare_monitor_rank_based_random_walk(G.reverse(), dataset)
+    pr = nx.pagerank(
+        prepared_g,
+        alpha=kwargs.get("pagerank_alpha", 0.85),  # type: ignore
+        weight="weight",
+        personalization=preference_vector,
+    )
+    # sort by rank
+    return sorted(pr.items(), key=lambda item: item[1], reverse=True)
+
+
+def build_and_walk_causal_graph(
+    dataset: pd.DataFrame,
+    pk: PriorKnowledge,
+    **kwargs: Any,
+) -> tuple[nx.Graph, list[tuple[str, float]]]:
+    G, (root_contained_graphs, root_uncontained_graphs), stats = build_causal_graph(dataset, pk, **kwargs)
+    max_graph = max(root_contained_graphs, key=lambda g: g.number_of_nodes())
+    ranks: list[tuple[str, float]]
+    match (walk_method := kwargs["walk_method"]):
+        case "monitorrank":
+            ranks = walk_causal_graph_with_monitorrank(max_graph, dataset, **kwargs)
+        case _:
+            raise ValueError(f"walk_method should be monitorrank ({walk_method})")
+    return max_graph, ranks

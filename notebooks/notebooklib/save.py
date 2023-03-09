@@ -2,7 +2,7 @@ import math
 import pathlib
 from collections import defaultdict
 from multiprocessing import cpu_count
-from typing import Any, Final
+from typing import Any, Final, Generator
 
 import joblib
 import matplotlib.pyplot as plt
@@ -31,84 +31,43 @@ tsdr_default_options: Final[dict[str, Any]] = {
 }
 
 
-def run_tsdr_to_each_set(
+def run_and_save_tsdr_to_each_set(
+    dataset_id: str,
     records: list[DatasetRecord],
     phase1_method: str = TSDR_DEFAULT_PHASE1_METHOD,
     tsdr_options: dict[str, Any] = tsdr_default_options,
-) -> dict[str, list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]]:
-    results = joblib.Parallel(n_jobs=-1)(
-        [
-            joblib.delayed(run_tsdr_to_only_services)(records, phase1_method, tsdr_options),
-            joblib.delayed(run_tsdr_to_only_ctnrs)(records, phase1_method, tsdr_options),
-            joblib.delayed(run_tsdr_to_middlewares)(records, phase1_method, tsdr_options),
-        ]
-    )
-    assert results is not None
-    assert len(results) == 3
-    return {"only_services": results[0], "only_ctnrs": results[1], "middlewares": results[2]}  # type: ignore
-
-
-def run_tsdr_to_only_services(
-    records: list[DatasetRecord],
-    phase1_method: str = TSDR_DEFAULT_PHASE1_METHOD,
-    tsdr_options: dict[str, Any] = tsdr_default_options,
-) -> list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
-    return run_tsdr(
-        records,
-        phase1_method,
-        tsdr_options,
-        metric_types={
+    suffix: str = "",
+) -> None:
+    params = {
+        "only_services": {
             "services": True,
             "containers": False,
             "middlewares": False,
             "nodes": False,
         },
-    )
-
-
-def run_tsdr_to_only_ctnrs(
-    records: list[DatasetRecord],
-    phase1_method: str = TSDR_DEFAULT_PHASE1_METHOD,
-    tsdr_options: dict[str, Any] = tsdr_default_options,
-) -> list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
-    return run_tsdr(
-        records,
-        phase1_method,
-        tsdr_options,
-        metric_types={
+        "only_ctnrs": {
             "services": True,
             "containers": True,
             "middlewares": False,
             "nodes": False,
         },
-    )
-
-
-def run_tsdr_to_middlewares(
-    records: list[DatasetRecord],
-    phase1_method: str = TSDR_DEFAULT_PHASE1_METHOD,
-    tsdr_options: dict[str, Any] = tsdr_default_options,
-) -> list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
-    return run_tsdr(
-        records,
-        phase1_method,
-        tsdr_options,
-        metric_types={
+        "middlewares": {
             "services": True,
             "containers": True,
             "middlewares": True,
             "nodes": False,
         },
-    )
+    }
+    for type_name, metric_types in params.items():
+        run_and_save_tsdr(dataset_id, records, phase1_method, tsdr_options, metric_types, f"{suffix}_{type_name}")
 
 
-def run_tsdr(
+def run_tsdr_as_generator(
     records: list[DatasetRecord],
     phase1_method: str = TSDR_DEFAULT_PHASE1_METHOD,
     tsdr_options: dict[str, Any] = tsdr_default_options,
     metric_types: dict[str, bool] = ALL_METRIC_TYPES,
-) -> list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
-    list_of_record_and_reduced_df: list = []
+) -> Generator[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame], None, None]:
     tsdr_options = dict(tsdr_default_options, **tsdr_options)
     for record in records:
         # run tsdr
@@ -124,8 +83,31 @@ def run_tsdr(
         filtered_df: pd.DataFrame = tsdr_stat[1][0]  # simple filtered-out data
         reduced_df = tsdr_stat[-1][0]
         anomalous_df = tsdr_stat[-2][0]
-        list_of_record_and_reduced_df.append((record, filtered_df, anomalous_df, reduced_df))
-    return list_of_record_and_reduced_df
+        yield (record, filtered_df, anomalous_df, reduced_df)
+
+
+def run_tsdr(
+    records: list[DatasetRecord],
+    phase1_method: str = TSDR_DEFAULT_PHASE1_METHOD,
+    tsdr_options: dict[str, Any] = tsdr_default_options,
+    metric_types: dict[str, bool] = ALL_METRIC_TYPES,
+) -> list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
+    return list(run_tsdr_as_generator(records, phase1_method, tsdr_options, metric_types))
+
+
+def run_and_save_tsdr(
+    dataset_id: str,
+    records: list[DatasetRecord],
+    phase1_method: str = TSDR_DEFAULT_PHASE1_METHOD,
+    tsdr_options: dict[str, Any] = tsdr_default_options,
+    metric_types: dict[str, bool] = ALL_METRIC_TYPES,
+    suffix: str = "",
+) -> None:
+    for record, filtered_df, anomalous_df, reduced_df in run_tsdr_as_generator(
+        records, phase1_method, tsdr_options, metric_types
+    ):
+        save_tsdr(dataset_id, record, filtered_df, anomalous_df, reduced_df, suffix=suffix)
+        del record, filtered_df, anomalous_df, reduced_df  # for memory efficiency
 
 
 def _filter_metrics_by_metric_type(df: pd.DataFrame, metric_types: dict[str, bool]) -> pd.DataFrame:

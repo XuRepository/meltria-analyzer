@@ -80,14 +80,12 @@ def load_dataset_as_generator(
     metrics_files: list[str],
     target_metric_types: dict[str, bool],
     num_datapoints: int,
-    n_jobs: int = 0,
     interpolate: bool = True,
+    n_jobs: int = -1,
 ) -> Iterator[list[DatasetRecord]]:
     """Load n_jobs files at a time as generator"""
-    if n_jobs == 0:
-        n_jobs = cpu_count()
     if len(metrics_files) < n_jobs:
-        yield load_dataset(metrics_files, target_metric_types, num_datapoints, interpolate)
+        yield load_dataset(metrics_files, target_metric_types, num_datapoints, interpolate, n_jobs)
     else:
         parts_of_files: list[np.ndarray] = np.array_split(metrics_files, int(len(metrics_files) / n_jobs))
         for part_of_files in parts_of_files:
@@ -99,9 +97,10 @@ def load_dataset(
     target_metric_types: dict[str, bool],
     num_datapoints: int,
     interpolate: bool = True,
+    n_jobs: int = -1,
 ) -> list[DatasetRecord]:
     """Load metrics dataset"""
-    records: list[DatasetRecord] | None = joblib.Parallel(n_jobs=-1, backend="multiprocessing")(
+    records: list[DatasetRecord] | None = joblib.Parallel(n_jobs=n_jobs, backend="multiprocessing")(
         joblib.delayed(read_metrics_file)(path, target_metric_types, num_datapoints, interpolate)
         for path in metrics_files
     )

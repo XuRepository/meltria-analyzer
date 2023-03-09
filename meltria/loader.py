@@ -5,7 +5,6 @@ import warnings
 from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass
-from multiprocessing import cpu_count
 from typing import Any, Final
 
 import joblib

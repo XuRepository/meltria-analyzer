@@ -18,6 +18,12 @@ ROOT_METRIC_LABELS: Final[tuple[str, ...]] = (
     "m-ts-ui-dashboard_nginx_http_request_size_bytes",
 )
 
+ROOT_METRIC_TYPES_AS_RED: Final[dict[str, str]] = {
+    "latency": "s-ts-ui-dashboard_request_duration_seconds",
+    "throughput": "s-ts-ui-dashboard_requests_count",
+    "errors": "s-ts-ui-dashboard_requests_errors_count",
+}
+
 SERVICE_CALL_DIGRAPH: Final[nx.DiGraph] = nx.DiGraph(
     [
         ("ts-ui-dashboard", "ts-travel"),

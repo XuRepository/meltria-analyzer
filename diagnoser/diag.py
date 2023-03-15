@@ -323,21 +323,16 @@ def remove_nodes_subgraph_uncontained_root(G: nx.Graph, root_labels: tuple[str, 
     return G
 
 
-def build_causal_graph(
+def build_causal_graph_with_library(
     dataset: pd.DataFrame,
+    nodes: mn.MetricNodes,
+    init_g: nx.Graph,
     pk: PriorKnowledge,
+    pc_library: str,
     **kwargs: Any,
-) -> tuple[nx.Graph, tuple[list[nx.Graph], list[nx.Graph]], dict[str, Any]]:
-    dataset = filter_by_target_metrics(dataset, pk)
-    if not any(label in dataset.columns for label in pk.get_root_metrics()):
-        raise ValueError(f"dataset has no root metric node: {pk.get_root_metrics()}")
-
-    building_graph_start: float = time.time()
-
-    nodes: mn.MetricNodes = mn.MetricNodes.from_dataframe(dataset)
-    init_g: nx.Graph = prepare_init_graph(nodes, pk)
-
-    match (pc_library := kwargs["pc_library"]):
+) -> nx.Graph:
+    G: nx.Graph
+    match (pc_library):
         case "pcalg":
             G = build_causal_graph_with_pcalg(
                 dataset.to_numpy(),
@@ -381,6 +376,39 @@ def build_causal_graph(
             )
         case _:
             raise ValueError(f"pc_library should be pcalg or pgmpy ({pc_library})")
+    return G
+
+
+def build_causal_graph(
+    dataset: pd.DataFrame,
+    pk: PriorKnowledge,
+    use_call_graph: bool = False,
+    **kwargs: Any,
+) -> tuple[nx.Graph, tuple[list[nx.Graph], list[nx.Graph]], dict[str, Any]]:
+    dataset = filter_by_target_metrics(dataset, pk)
+    if not any(label in dataset.columns for label in pk.get_root_metrics()):
+        raise ValueError(f"dataset has no root metric node: {pk.get_root_metrics()}")
+
+    building_graph_start: float = time.time()
+
+    nodes: mn.MetricNodes = mn.MetricNodes.from_dataframe(dataset)
+    init_g: nx.Graph = prepare_init_graph(nodes, pk)
+
+    if use_call_graph:
+        G = fix_edge_directions_in_causal_graph(init_g.to_directed(), pk)
+    else:
+        G = build_causal_graph_with_library(
+            dataset,
+            nodes,
+            init_g,
+            pk,
+            pc_library=kwargs["pc_library"],
+            pc_variant=kwargs["pc_variant"],
+            pc_citest=kwargs["pc_citest"],
+            pc_citest_alpha=kwargs["pc_citest_alpha"],
+            disable_orientation=kwargs["disable_orientation"],
+            disable_ci_edge_cut=kwargs["disable_ci_edge_cut"],
+        )
 
     root_contained_graphs, root_uncontained_graphs = find_connected_subgraphs(G, pk.get_root_metrics())
 
@@ -410,12 +438,15 @@ def prepare_monitor_rank_based_random_walk(
     """MonitorRank-based ranked algorithm
     G must be a call graph, not causal graph
     """
+    assert G.number_of_nodes() > 1, f"number of nodes must be > 1, but {G.number_of_nodes()}."
+
     G = mn.relabel_graph_nodes_to_label(G)
     data = dataset.filter(list(G.nodes), axis=1)
     front_root_metrics = [m for m in data.columns.tolist() if m in pk.get_root_metrics()]
     assert len(front_root_metrics) > 0, f"dataset has no root metric node: {pk.get_root_metrics()}"
     start_front_root_metric = pk.get_root_metric_by_type(root_metric_type)
-    assert start_front_root_metric in front_root_metrics, f"dataset has no root metric node: {start_front_root_metric}"
+    if start_front_root_metric not in front_root_metrics:
+        start_front_root_metric = front_root_metrics[0]
     start_front_root_metric_id = data.columns.tolist().index(start_front_root_metric)
     assert start_front_root_metric_id >= 0, f"dataset has no root metric node: {start_front_root_metric}"
 
@@ -477,9 +508,15 @@ def build_and_walk_causal_graph(
     **kwargs: Any,
 ) -> tuple[nx.Graph, list[tuple[str, float]]]:
     G, (root_contained_graphs, root_uncontained_graphs), stats = build_causal_graph(dataset, pk, **kwargs)
+    max_graph = max(root_contained_graphs, key=lambda g: g.number_of_nodes())
+    if max_graph.number_of_nodes() < 2:
+        return max_graph, []
+
     target_graph = next(
         filter(lambda g: g.has_node(pk.get_root_metric_by_type(root_metric_type)), root_contained_graphs)
     )
+    if target_graph.number_of_nodes() < 2:  # fallback to other root metrics
+        target_graph = max_graph
     ranks: list[tuple[str, float]]
     match (walk_method := kwargs["walk_method"]):
         case "monitorrank":

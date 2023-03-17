@@ -25,7 +25,7 @@ from tsdr.unireducer import UnivariateSeriesReductionResult
 
 ELAPSED_TIME_NUM_DECIMAL_PLACES: Final[int] = 4
 
-pandarallel.initialize(progress_bar=False)
+pandarallel.initialize(progress_bar=False, verbose=0)
 
 
 class Tsdr:
@@ -115,6 +115,7 @@ class Tsdr:
 
         match series_type := self.params["step2_clustering_series_type"]:
             case "raw":
+                # df_before_clustering = filter_out_duplicated_metrics(reduced_series1, pk).apply(scipy.stats.zscore)
                 df_before_clustering = reduced_series1.apply(scipy.stats.zscore)
                 # filter metrics including nan values after zscore
                 df_before_clustering = filter_out_no_change_metrics(df_before_clustering, parallel=(max_workers != 1))
@@ -285,6 +286,37 @@ def filter_out_no_change_metrics(data_df: pd.DataFrame, parallel: bool = False) 
         return data_df.loc[:, data_df.apply(filter)]
 
 
+def filter_out_duplicated_metrics(data_df: pd.DataFrame, pk: PriorKnowledge) -> pd.DataFrame:
+    def duplicated(x: pd.DataFrame) -> list[str]:
+        indices = np.unique(x.T.to_numpy(), return_index=True, axis=0)[1]
+        return x.iloc[:, indices].columns.tolist()
+
+    unique_cols: list[str] = []
+    for service, containers in pk.get_containers_of_service().items():
+        # 1. service-level duplication
+        service_metrics_df = data_df.loc[:, data_df.columns.str.startswith(f"s-{service}_")]
+        if len(service_metrics_df.columns) > 1:
+            unique_cols += duplicated(service_metrics_df)
+        # 2. container-level duplication
+        for container in containers:
+            # perform clustering in each type of metric
+            # TODO: retrieve container and middleware metrics efficently
+            container_metrics_df = data_df.loc[
+                :,
+                data_df.columns.str.startswith((f"c-{container}_", f"m-{container}_")),
+            ]
+            if len(container_metrics_df.columns) <= 1:
+                continue
+            unique_cols += duplicated(container_metrics_df)
+    # 3. node-level clustering
+    for node in pk.get_nodes():
+        node_metrics_df = data_df.loc[:, data_df.columns.str.startswith(f"n-{node}_")]
+        if len(node_metrics_df.columns) <= 1:
+            continue
+        unique_cols += duplicated(node_metrics_df)
+    return data_df.loc[:, unique_cols]
+
+
 def hierarchical_clustering(
     target_df: pd.DataFrame,
     dist_func: Callable | str,
@@ -303,12 +335,15 @@ def hierarchical_clustering(
         else:
             cluster_dict[v] = [i]
 
-    if choice_method == "medoid":
-        return choose_metric_with_medoid(target_df.columns, cluster_dict, dist_matrix)
-    elif choice_method == "maxsum":
-        return choose_metric_with_maxsum(target_df, cluster_dict)
-    else:
-        raise ValueError("choice_method is required.")
+    match choice_method:
+        case "medoid":
+            return choose_metric_with_medoid(target_df.columns, cluster_dict, dist_matrix)
+        case "maxsum":
+            return choose_metric_with_maxsum(target_df, cluster_dict)
+        case "max_cluster":
+            return choose_metrics_with_max_cluster(target_df.columns.to_list(), cluster_dict)
+        case _:
+            raise ValueError("choice_method is required.")
 
 
 def dbscan_clustering(
@@ -332,12 +367,15 @@ def dbscan_clustering(
         else:
             cluster_dict[v] = [i]
 
-    if choice_method == "medoid":
-        return choose_metric_with_medoid(target_df.columns, cluster_dict, dist_matrix)
-    elif choice_method == "maxsum":
-        return choose_metric_with_maxsum(target_df, cluster_dict)
-    else:
-        raise ValueError("choice_method is required.")
+    match choice_method:
+        case "medoid":
+            return choose_metric_with_medoid(target_df.columns, cluster_dict, dist_matrix)
+        case "maxsum":
+            return choose_metric_with_maxsum(target_df, cluster_dict)
+        case "max_cluster":
+            return choose_metrics_with_max_cluster(target_df.columns.to_list(), cluster_dict)
+        case _:
+            raise ValueError("choice_method is required.")
 
 
 def choose_metric_with_medoid(
@@ -393,6 +431,20 @@ def choose_metric_with_maxsum(
             sub_metrics: list[str] = list(series_with_sum.loc[series_with_sum.index != label_with_max].index)
             clustering_info[label_with_max] = sub_metrics
             remove_list += sub_metrics
+    return clustering_info, remove_list
+
+
+def choose_metrics_with_max_cluster(
+    columns: list[str],
+    cluster_dict: dict[int, list[int]],
+) -> tuple[dict[str, Any], list[str]]:
+    """Choose metrics which has max of number of datapoints in each metrics in each cluster."""
+    if len(cluster_dict) == 0:
+        return {}, []
+    max_cluster_key = max(cluster_dict, key=cluster_dict.get)
+    max_cluster_metrics: list[int] = cluster_dict[max_cluster_key]
+    clustering_info: dict[str, list[str]] = {columns[i]: [] for i in max_cluster_metrics}
+    remove_list: list[str] = [col for i, col in enumerate(columns) if i not in max_cluster_metrics]
     return clustering_info, remove_list
 
 
@@ -502,4 +554,5 @@ def kshape_clustering(
         clustering_info.update(c_info)
         remove_list.extend(r_list)
 
+    return clustering_info, remove_list
     return clustering_info, remove_list

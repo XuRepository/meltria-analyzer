@@ -360,7 +360,7 @@ def two_samp_test_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeriesRe
                 vectorized=False,
                 permutation_type="independent",
                 alternative="two-sided",
-                n_resamples=1999,  # default value 9999 is very slow.
+                n_resamples=kwargs["step1_two_samp_test_n_resamples"],  # default value 9999 is very slow.
             ).pvalue
         case _:
             raise ValueError(f"Unknown two-sample test method {method}")

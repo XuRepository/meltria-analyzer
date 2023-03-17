@@ -12,6 +12,12 @@ ROOT_METRIC_LABELS: Final[tuple[str, str, str]] = (
     "s-front-end_errors",
 )
 
+ROOT_METRIC_TYPES_AS_RED: Final[dict[str, str]] = {
+    "latency": "s-front-end_latency",
+    "throughput": "s-front-end_throughput",
+    "errors": "s-front-end_errors",
+}
+
 SERVICE_CALL_DIGRAPH: Final[nx.DiGraph] = nx.DiGraph(
     [
         ("front-end", "orders"),
@@ -119,11 +125,11 @@ DIAGNOSER_TARGET_DATA: Final[dict[str, list[str]]] = {
     "containers": [],  # all
     "services": [],  # all
     "nodes": [],  # all
-        # "node_cpu_seconds_total",
-        # "node_disk_io_now",
-        # "node_filesystem_avail_bytes",
-        # "node_memory_MemAvailable_bytes",
-        # "node_network_receive_bytes_total",
-        # "node_network_transmit_bytes_total",
+    # "node_cpu_seconds_total",
+    # "node_disk_io_now",
+    # "node_filesystem_avail_bytes",
+    # "node_memory_MemAvailable_bytes",
+    # "node_network_receive_bytes_total",
+    # "node_network_transmit_bytes_total",
     "middlewares": [],  # all
 }

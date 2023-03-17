@@ -29,6 +29,10 @@ class PriorKnowledge(ABC):
         pass
 
     @abstractmethod
+    def get_root_metric_by_type(self, red_type: str) -> str:
+        pass
+
+    @abstractmethod
     def get_service_call_digraph(self) -> nx.DiGraph:
         pass
 
@@ -201,6 +205,9 @@ class SockShopKnowledge(PriorKnowledge):
     def get_root_metrics(self) -> tuple[str, ...]:
         return sock_shop.ROOT_METRIC_LABELS
 
+    def get_root_metric_by_type(self, red_type: str) -> str:
+        return sock_shop.ROOT_METRIC_TYPES_AS_RED[red_type]
+
     def get_service_call_digraph(self) -> nx.DiGraph:
         return sock_shop.SERVICE_CALL_DIGRAPH
 
@@ -255,6 +262,9 @@ class TrainTicketKnowledge(PriorKnowledge):
 
     def get_root_metrics(self) -> tuple[str, ...]:
         return train_ticket.ROOT_METRIC_LABELS
+
+    def get_root_metric_by_type(self, red_type: str) -> str:
+        return train_ticket.ROOT_METRIC_TYPES_AS_RED[red_type]
 
     def get_service_call_digraph(self) -> nx.DiGraph:
         return train_ticket.SERVICE_CALL_DIGRAPH

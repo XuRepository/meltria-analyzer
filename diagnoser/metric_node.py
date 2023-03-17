@@ -14,21 +14,25 @@ class MetricType(IntEnum):
 
 
 @total_ordering
-class MetricNode:
-    # label should be like 'c-orders_cpu_usage_seconds_total'
-    def __init__(self, label: str) -> None:
-        self.label = label
-        self.comp, self.base_name = label.split("-", maxsplit=1)[1].split("_", maxsplit=1)
-        if label.startswith("c-"):
+class MetricNode(str):
+    # label_ should be like 'c-orders_cpu_usage_seconds_total'
+    def __new__(cls, label_: str):
+        self = super().__new__(cls, label_)
+        return self
+
+    def __init__(self, label_: str) -> None:
+        self.label = label_
+        self.comp, self.base_name = label_.split("-", maxsplit=1)[1].split("_", maxsplit=1)
+        if self.startswith("c-"):
             self.comp_type = MetricType.CONTAINER
-        elif label.startswith("s-"):
+        elif self.startswith("s-"):
             self.comp_type = MetricType.SERVICE
-        elif label.startswith("n-"):
+        elif self.startswith("n-"):
             self.comp_type = MetricType.NODE
-        elif label.startswith("m-"):
+        elif self.startswith("m-"):
             self.comp_type = MetricType.MIDDLEWARE
         else:
-            raise ValueError(f"no prefix: {label}")
+            raise ValueError(f"no prefix: {label_}")
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, type(self)):
@@ -60,6 +64,9 @@ class MetricNode:
 
     def is_middleware(self) -> bool:
         return self.comp_type == MetricType.MIDDLEWARE
+
+    def is_container_or_middleware(self) -> bool:
+        return self.is_container() or self.is_middleware()
 
 
 class MetricNodes(object):
@@ -116,7 +123,15 @@ class MetricNodes(object):
     def node_to_label(self) -> dict[MetricNode, str]:
         return {n: n.label for n in self.nodes}
 
+    def label_to_node(self) -> dict[str, MetricNode]:
+        return {n.label: n for n in self.nodes}
+
 
 def relabel_graph_nodes_to_label(G: nx.DiGraph) -> nx.DiGraph:
     mapping = MetricNodes.from_list_of_metric_node(list(G.nodes)).node_to_label()
+    return nx.relabel_nodes(G, mapping, copy=True)
+
+
+def relabel_graph_labels_to_node(G: nx.DiGraph) -> nx.DiGraph:
+    mapping = MetricNodes.from_metric_names(list(G.nodes)).label_to_node()
     return nx.relabel_nodes(G, mapping, copy=True)

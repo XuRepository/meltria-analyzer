@@ -1,13 +1,11 @@
 import json
 import logging
 import os
-import re
 import warnings
 from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass
-from multiprocessing import cpu_count
-from typing import Any
+from typing import Any, Final
 
 import joblib
 import numpy as np
@@ -59,7 +57,7 @@ class DatasetRecord:
         return self.basename_of_metrics_file().rsplit("_", maxsplit=1)[1].removesuffix(".json")
 
     def metrics_names(self) -> list[str]:
-        return list(self.data_df.columns)
+        return self.data_df.columns.tolist()  # type: ignore
 
     def basename_of_metrics_file(self) -> str:
         return os.path.basename(self.metrics_file)
@@ -81,27 +79,29 @@ def load_dataset_as_generator(
     metrics_files: list[str],
     target_metric_types: dict[str, bool],
     num_datapoints: int,
-    n_jobs: int = 0,
+    interpolate: bool = True,
+    n_jobs: int = -1,
 ) -> Iterator[list[DatasetRecord]]:
     """Load n_jobs files at a time as generator"""
-    if n_jobs == 0:
-        n_jobs = cpu_count()
     if len(metrics_files) < n_jobs:
-        yield load_dataset(metrics_files, target_metric_types, num_datapoints)
+        yield load_dataset(metrics_files, target_metric_types, num_datapoints, interpolate, n_jobs)
     else:
         parts_of_files: list[np.ndarray] = np.array_split(metrics_files, int(len(metrics_files) / n_jobs))
         for part_of_files in parts_of_files:
-            yield load_dataset(part_of_files.tolist(), target_metric_types, num_datapoints)
+            yield load_dataset(part_of_files.tolist(), target_metric_types, num_datapoints, interpolate)
 
 
 def load_dataset(
     metrics_files: list[str],
     target_metric_types: dict[str, bool],
     num_datapoints: int,
+    interpolate: bool = True,
+    n_jobs: int = -1,
 ) -> list[DatasetRecord]:
     """Load metrics dataset"""
-    records: list[DatasetRecord] | None = joblib.Parallel(n_jobs=-1, backend="multiprocessing")(
-        joblib.delayed(read_metrics_file)(path, target_metric_types, num_datapoints) for path in metrics_files
+    records: list[DatasetRecord] | None = joblib.Parallel(n_jobs=n_jobs, backend="multiprocessing")(
+        joblib.delayed(read_metrics_file)(path, target_metric_types, num_datapoints, interpolate)
+        for path in metrics_files
     )
     if records is None or len(records) < 1:
         raise ValueError("No metrics data loaded")
@@ -118,7 +118,7 @@ def rate_of_metrics(ts: np.ndarray) -> np.ndarray:
     first_val = rate[0]
     for _ in range(PER_MINUTE_NUM - 1):
         rate = np.insert(rate, 0, first_val)  # backfill
-    return rate
+    return rate  # type: ignore
 
 
 def is_monotonic_increasing(x: np.ndarray) -> bool:
@@ -143,7 +143,109 @@ def is_counter(x: np.ndarray) -> bool:
 def check_counter_and_rate(ts: np.ndarray) -> np.ndarray:
     if not is_counter(ts):
         return ts
-    return rate_of_metrics(ts)
+    rated_ts = rate_of_metrics(ts)
+    if np.any(rated_ts < 0.0):  # return the unrated series if the rated series has a negative value.
+        return ts
+    return rated_ts
+
+
+EXCLUDE_PROMETHEUS_DEFAULT_METRICS: Final[list[str]] = [
+    "process_cpu_seconds_total",
+    "process_cpu_seconds_total",
+    "process_virtual_memory_bytes",
+    "process_resident_memory_bytes",
+    "process_start_time_seconds",
+    "process_open_fds",
+    "process_max_fds",
+    "promhttp_metric_handler_requests_in_flight",
+    "promhttp_metric_handler_requests_total",
+    "go_goroutines",
+    "go_threads",
+    "go_gc_duration_seconds",
+    "go_gc_cycles_automatic_gc_cycles_total",
+    "go_gc_cycles_forced_gc_cycles_total",
+    "go_gc_cycles_total_gc_cycles_total",
+    "go_gc_heap_allocs_by_size_bytes_total_bucket",
+    "go_gc_heap_allocs_by_size_bytes_total_sum",
+    "go_gc_heap_allocs_by_size_bytes_total_count",
+    "go_gc_heap_allocs_bytes_total",
+    "go_gc_heap_allocs_objects_total",
+    "go_gc_heap_frees_by_size_bytes_total_bucket",
+    "go_gc_heap_frees_by_size_bytes_total_sum",
+    "go_gc_heap_frees_by_size_bytes_total_count",
+    "go_gc_heap_frees_bytes_total",
+    "go_gc_heap_frees_objects_total",
+    "go_gc_heap_goal_bytes",
+    "go_gc_heap_objects_objects",
+    "go_gc_heap_tiny_allocs_objects_total",
+    "go_gc_pauses_seconds_total_bucket",
+    "go_gc_pauses_seconds_total_sum",
+    "go_gc_pauses_seconds_total_count",
+    "go_info",
+    "go_memory_classes_heap_free_bytes",
+    "go_memory_classes_heap_objects_bytes",
+    "go_memory_classes_heap_released_bytes",
+    "go_memory_classes_heap_stacks_bytes",
+    "go_memory_classes_heap_unused_bytes",
+    "go_memory_classes_metadata_mcache_free_bytes",
+    "go_memory_classes_metadata_mcache_inuse_bytes",
+    "go_memory_classes_metadata_mspan_free_bytes",
+    "go_memory_classes_metadata_mspan_inuse_bytes",
+    "go_memory_classes_metadata_other_bytes",
+    "go_memory_classes_os_stacks_bytes",
+    "go_memory_classes_other_bytes",
+    "go_memory_classes_profiling_buckets_bytes",
+    "go_memory_classes_total_bytes",
+    "go_memstats_alloc_bytes",
+    "go_memstats_alloc_bytes_total",
+    "go_memstats_sys_bytes",
+    "go_memstats_lookups_total",
+    "go_memstats_mallocs_total",
+    "go_memstats_frees_total",
+    "go_memstats_heap_alloc_bytes",
+    "go_memstats_heap_sys_bytes",
+    "go_memstats_heap_idle_bytes",
+    "go_memstats_heap_idle_bytes",
+    "go_memstats_heap_inuse_bytes",
+    "go_memstats_heap_inuse_bytes",
+    "go_memstats_heap_released_bytes",
+    "go_memstats_heap_objects",
+    "go_memstats_stack_inuse_bytes",
+    "go_memstats_stack_sys_bytes",
+    "go_memstats_stack_inuse_bytes",
+    "go_memstats_stack_idle_bytes",
+    "go_memstats_heap_idle_bytes",
+    "go_memstats_mspan_inuse_bytes",
+    "go_memstats_mspan_sys_bytes",
+    "go_memstats_mcache_inuse_bytes",
+    "go_memstats_mcache_sys_bytes",
+    "go_memstats_buck_hash_sys_bytes",
+    "go_memstats_gc_sys_bytes",
+    "go_memstats_other_sys_bytes",
+    "go_memstats_next_gc_bytes",
+    "go_memstats_last_gc_time_seconds",
+    "go_memstats_last_gc_cpu_fraction",
+    "go_sched_goroutines_goroutines",
+    "go_sched_latencies_seconds_bucket",
+    "go_sched_latencies_seconds_sum",
+    "go_sched_latencies_seconds_count",
+]
+
+
+def is_prometheus_exporter_default_metrics(metric_name: str) -> bool:
+    # bad side effects: golang application metrics are also excluded.
+    return any([metric_name.endswith(m) for m in EXCLUDE_PROMETHEUS_DEFAULT_METRICS])
+
+
+def update_count_of_meta(data_df: pd.DataFrame, meta: dict[str, Any]) -> None:
+    """Update meta data"""
+    meta["count"]["containers"] = data_df.loc[:, data_df.columns.str.startswith("c-")].shape[1]
+    meta["count"]["middlewares"] = data_df.loc[:, data_df.columns.str.startswith("m-")].shape[1]
+    meta["count"]["services"] = data_df.loc[:, data_df.columns.str.startswith("s-")].shape[1]
+    meta["count"]["nodes"] = data_df.loc[:, data_df.columns.str.startswith("n-")].shape[1]
+    assert data_df.shape[1] == (
+        meta["count"]["containers"] + meta["count"]["middlewares"] + meta["count"]["nodes"] + meta["count"]["services"]
+    )
 
 
 def read_metrics_file(
@@ -162,8 +264,11 @@ def read_metrics_file(
             continue
         for metrics in raw_data[metric_type].values():
             for metric in metrics:
-                # remove prefix of label name that Prometheus gives
+                # Remove prefix of label name that Prometheus gives
                 metric_name = metric["metric_name"].removeprefix("container_").removeprefix("node_")
+                # Skip metrics of Prometheus exporter itself.
+                if is_prometheus_exporter_default_metrics(metric_name):
+                    continue
                 target_name = metric[
                     "{}_name".format(metric_type[:-1]) if metric_type != METRIC_TYPE_MIDDLEWARES else "container_name"
                 ]
@@ -187,10 +292,16 @@ def read_metrics_file(
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                data_df.interpolate(method="akima", limit_direction="both", inplace=True)
+                # The interpolated time serie should not have negative values.
+                # See https://stackoverflow.com/questions/40072420/interpolate-without-having-negative-values-in-python.
+                data_df.interpolate(method="pchip", limit_direction="both", inplace=True)
         except:  # To cacth `dfitpack.error: (m>k) failed for hidden m: fpcurf0:m=3`
             logging.info(f"calculating spline error: {data_file}")
             return None
+        # Set negative values to 0.0 because interpolating may cause negative values.
+        data_df.where(data_df >= 0.0, 0.0, inplace=True)
+
+    update_count_of_meta(data_df, raw_data["meta"])  # update the number of metrics because some metrics are removed.
     return DatasetRecord(data_df=data_df, pk=pk, metrics_file=data_file, meta=raw_data["meta"])
 
 

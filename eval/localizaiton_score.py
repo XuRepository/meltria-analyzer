@@ -8,7 +8,7 @@ from eval.groundtruth import check_cause_metrics
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
 
-def get_ranks_by_case(sorted_results_df: pd.DataFrame, pk: PriorKnowledge, granularity: str = "metric"):
+def get_ranks_by_case(sorted_results_df: DataFrameGroupBy, pk: PriorKnowledge, granularity: str = "metric"):
     ranks_by_case: dict[tuple[str, str, int], list[int]] = defaultdict(list)
     n_cases: int = 0
     for (dataset_id, target_app, chaos_type, chaos_comp, chaos_case_num), row in sorted_results_df:
@@ -33,11 +33,11 @@ def get_ranks_by_case(sorted_results_df: pd.DataFrame, pk: PriorKnowledge, granu
                 ranks = sorted([list(ranked_metrics).index(cm) + 1 for cm in cause_metrics])
             case "container":
                 metrics = [m for m in metrics if not m.startswith("s-")]  # Exclude service metrics
-                ranked_ctnrs = dict.fromkeys([pk.get_container_by_metric(metric) for metric in metrics])
+                ranked_ctnrs = list(set([pk.get_container_by_metric(metric) for metric in metrics]))
                 ranks = sorted([i + 1 for i, ctnr in enumerate(ranked_ctnrs) if ctnr == chaos_comp])
             case "service":
                 chaos_service: str = pk.get_service_by_container(chaos_comp)
-                ranked_service = dict.fromkeys([pk.get_service_by_metric(metric) for metric in metrics])
+                ranked_service = list(set([pk.get_service_by_metric(metric) for metric in metrics]))
                 ranked_service = [s for s in ranked_service if s is not None and not s.startswith("gke-")]
                 ranks = sorted([i + 1 for i, service in enumerate(ranked_service) if service == chaos_service])
             case _:
@@ -58,7 +58,7 @@ def calc_ac_k(k: int, ranks_by_case: dict[tuple[str, str, int], list[int]], n_fa
 
 
 def evaluate_ac_of_rc(
-    sorted_results_df: pd.DataFrame,
+    sorted_results_df: DataFrameGroupBy,
     pk: PriorKnowledge,
     k: int = 10,
     granuallity: str = "metric",

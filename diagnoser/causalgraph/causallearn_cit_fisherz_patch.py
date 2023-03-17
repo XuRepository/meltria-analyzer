@@ -27,17 +27,18 @@ def fisherz_test(self, X, Y, condition_set=None):
     var = Xs + Ys + condition_set
     sub_corr_matrix = self.correlation_matrix[np.ix_(var, var)]
     try:
-        inv = np.linalg.inv(sub_corr_matrix)
+        inv = np.linalg.pinv(sub_corr_matrix)
+        # inv = np.linalg.inv(sub_corr_matrix)
     except np.linalg.LinAlgError:
-        inv = np.linalg.pinv(sub_corr_matrix)  # patched here
-        # raise ValueError("Data correlation matrix is singular. Cannot run fisherz test. Please check your data.")
-    r = -inv[0, 1] / sqrt(inv[0, 0] * inv[1, 1])
+        raise ValueError("Data correlation matrix is singular. Cannot run fisherz test. Please check your data.")
+    # TODO: use np.sqrt instead of sqrt to avoid 'math domain error'
+    r = -inv[0, 1] / np.sqrt(inv[0, 0] * inv[1, 1])
     if r >= 1.0:
         r = 1.0 - 1e-15
     elif r <= -1.0:
         r = -1.0 + 1e-15
-    Z = 0.5 * log((1 + r) / (1 - r))
-    X = sqrt(self.sample_size - len(condition_set) - 3) * abs(Z)
+    Z = 0.5 * np.log((1 + r) / (1 - r))
+    X = np.sqrt(self.sample_size - len(condition_set) - 3) * abs(Z)
     p = 2 * (1 - norm.cdf(abs(X)))
     self.pvalue_cache[cache_key] = p
     return p

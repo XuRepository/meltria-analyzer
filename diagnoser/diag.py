@@ -5,10 +5,15 @@ from typing import Any
 import networkx as nx
 import numpy as np
 import pandas as pd
+import scipy
 from causallearn.graph.GraphNode import GraphNode
+from causallearn.search.ConstraintBased.CDNOD import cdnod
+from causallearn.search.ConstraintBased.FCI import fci
 from causallearn.search.ConstraintBased.PC import pc as cl_pc
 from causallearn.utils.PCUtils.BackgroundKnowledge import BackgroundKnowledge
+from cdt.causality.graph import GIES as cdt_GIES
 from cdt.causality.graph import PC as cdt_PC
+from cdt.causality.graph import LiNGAM
 
 import diagnoser.causalgraph.causallearn_cit_fisherz_patch  # noqa: F401  for only patching
 import diagnoser.causalgraph.cdt_PC_patch  # noqa: F401  for only patching
@@ -95,13 +100,16 @@ def build_subgraph_of_removal_edges(nodes: mn.MetricNodes, pk: PriorKnowledge) -
     return G
 
 
-def prepare_init_graph(nodes: mn.MetricNodes, pk: PriorKnowledge, enable_orientation: bool = False) -> nx.Graph:
+def prepare_init_graph(
+    nodes: mn.MetricNodes, pk: PriorKnowledge, enable_orientation: bool = False, enable_prior_knowledge: bool = True
+) -> nx.Graph:
     """Prepare initialized causal graph."""
     init_g = nx.Graph()
     for (u, v) in combinations(nodes, 2):
         init_g.add_edge(u, v)
-    RG: nx.Graph = build_subgraph_of_removal_edges(nodes, pk)
-    init_g.remove_edges_from(RG.edges())
+    if enable_prior_knowledge:
+        RG: nx.Graph = build_subgraph_of_removal_edges(nodes, pk)
+        init_g.remove_edges_from(RG.edges())
     if enable_orientation:
         return fix_edge_directions_in_causal_graph(init_g, pk)
     return init_g
@@ -236,19 +244,25 @@ def build_causal_graphs_with_cdt(
     df: pd.DataFrame,
     init_g: nx.Graph,
     pk: PriorKnowledge,
-    pc_citest_alpha: float,
+    cg_algo: str = "pc",
+    pc_citest_alpha: float = 0.05,
     pc_variant: str = "orig",
-    pc_citest: str = "fisher-z",
+    pc_citest: str = "gaussian",
     disable_orientation: bool = False,
 ) -> nx.Graph:
-    if pc_citest == "fisher-z":
-        ci_test = "gaussian"
-        method_indep = "corr"
-    else:
-        raise ValueError(f"Unsupported CI test: {pc_citest}")
-    pc = cdt_PC(CItest=ci_test, method_indep=method_indep, alpha=pc_citest_alpha)
-    # create_graph_from_init_graph is a patched method.
-    G = pc.create_graph_from_init_graph(df, init_graph=init_g)
+    match cg_algo:
+        case "pc":
+            pc = cdt_PC(CItest=pc_citest, alpha=pc_citest_alpha)
+            # create_graph_from_init_graph is a patched method.
+            G = pc.create_graph_from_init_graph(df, init_graph=init_g)
+        case "gies":
+            gies = cdt_GIES(score="obs")
+            G = gies.create_graph_from_init_graph(df, init_graph=init_g)
+        case "lingam":
+            lingam = LiNGAM()
+            G = lingam.create_graph_from_data(df)
+        case _:
+            raise ValueError(f"Unsupported causal graph algorithm: {cg_algo}")
     G = mn.relabel_graph_labels_to_node(G)
     return G if disable_orientation else fix_edge_directions_in_causal_graph(G, pk)
 
@@ -258,10 +272,11 @@ def build_causal_graphs_with_causallearn(
     nodes: mn.MetricNodes,
     init_g: nx.Graph,
     pk: PriorKnowledge,
-    pc_citest_alpha: float,
+    cg_algo: str = "pc",
+    pc_citest_alpha: float = 0.05,
     pc_citest: str = "fisherz",
     disable_orientation: bool = False,
-):
+) -> nx.Graph:
     init_dg = fix_edge_directions_in_causal_graph(init_g, pk)
     background_knowledge = BackgroundKnowledge()
     for node1, node2 in combinations(init_dg.nodes, 2):
@@ -274,22 +289,76 @@ def build_causal_graphs_with_causallearn(
                 GraphNode(node2.label), GraphNode(node1.label)
             )
 
-    G_ = cl_pc(
-        data=df.to_numpy(dtype=np.float32),
-        alpha=pc_citest_alpha,
-        indep_test=pc_citest,
-        stable=True,
-        uc_rule=2,  # definiteMaxP
-        uc_priority=2,
-        mvpc=False,
-        node_names=df.columns.to_list(),
-        background_knowledge=background_knowledge,
-        verbose=False,
-        show_progress=False,
-    )
-    G_.to_nx_graph()
-    G = nx.relabel_nodes(G_.nx_graph, mapping=nodes.num_to_node)
+    G: nx.Graph
+    match cg_algo:
+        case "pc":
+            G_ = cl_pc(
+                data=df.to_numpy(dtype=np.float32),
+                alpha=pc_citest_alpha,
+                indep_test=pc_citest,
+                stable=True,
+                uc_rule=2,  # definiteMaxP
+                uc_priority=2,
+                mvpc=False,
+                node_names=df.columns.to_list(),
+                background_knowledge=background_knowledge,
+                verbose=False,
+                show_progress=False,
+            )
+            G_.to_nx_graph()
+            G = nx.relabel_nodes(G_.nx_graph, mapping=nodes.num_to_node)
+        case "fci":
+            G_, edges = fci(
+                dataset=df.to_numpy(dtype=np.float32),
+                alpha=pc_citest_alpha,
+                indep_test=pc_citest,
+                node_names=df.columns.to_list(),
+                background_knowledge=background_knowledge,
+                verbose=False,
+                show_progress=False,
+            )
+            G = nx.relabel_nodes(G_, mapping=nodes.num_to_node)
+        case _:
+            raise ValueError(f"Unsupported causal graph algorithm: {cg_algo}")
     return G if disable_orientation else fix_edge_directions_in_causal_graph(G, pk)
+
+
+def fisher_z_two_var(dm, cm, x, y) -> float:
+    m = dm.shape[0]
+    r = cm[x, y]
+    if 1 - r == 0:
+        r = 1 - 1e-10
+    if r >= 1.0:
+        r = 1.0 - 1e-10
+    elif r <= -1.0:
+        r = -1.0 + 1e-10
+    z = np.log((1 + r) / (1 - r))
+    zstat = np.sqrt(m - 3) * 0.5 * np.abs(z)
+    p_val = 2.0 * (1 - scipy.stats.norm.cdf(np.abs(zstat)))
+    return p_val
+
+
+def build_causal_graph_without_citest(
+    data_df: pd.DataFrame,
+    init_g: nx.Graph,
+    pk: PriorKnowledge,
+    pc_citest: str,
+    pc_citest_alpha: float,
+    disable_orientation: bool = False,
+) -> nx.Graph:
+    nodes = mn.MetricNodes.from_dataframe(data_df)
+    dm = data_df.to_numpy(dtype=np.float32)
+    cm = np.corrcoef(dm.T)
+    citest_func = fisher_z_two_var
+
+    G = nx.relabel_nodes(init_g, mapping=nodes.node_to_num)
+    for (u, v) in G.edges:
+        p_val = citest_func(dm, cm, u, v)
+        if p_val > pc_citest_alpha:
+            G.remove_edge(u, v)
+
+    G = nx.relabel_nodes(G, mapping=nodes.num_to_node)
+    return G if disable_orientation else fix_edge_directions_in_causal_graph(G.to_directed(), pk)
 
 
 def find_connected_subgraphs(G: nx.Graph, root_labels: tuple[str, ...]) -> tuple[list[nx.Graph], list[nx.Graph]]:
@@ -359,6 +428,7 @@ def build_causal_graph_with_library(
                 dataset,
                 init_g,
                 pk,
+                cg_algo=kwargs["cg_algo"],
                 pc_variant=kwargs["pc_variant"],
                 pc_citest=kwargs["pc_citest"],
                 pc_citest_alpha=kwargs["pc_citest_alpha"],
@@ -368,6 +438,16 @@ def build_causal_graph_with_library(
             G = build_causal_graphs_with_causallearn(
                 dataset,
                 nodes,
+                init_g,
+                pk,
+                cg_algo=kwargs["cg_algo"],
+                pc_citest=kwargs["pc_citest"],
+                pc_citest_alpha=kwargs["pc_citest_alpha"],
+                disable_orientation=kwargs["disable_orientation"],
+            )
+        case "without_citest":
+            G = build_causal_graph_without_citest(
+                dataset,
                 init_g,
                 pk,
                 pc_citest=kwargs["pc_citest"],
@@ -382,6 +462,7 @@ def build_causal_graph_with_library(
 def build_causal_graph(
     dataset: pd.DataFrame,
     pk: PriorKnowledge,
+    enable_prior_knowledge: bool = True,
     use_call_graph: bool = False,
     **kwargs: Any,
 ) -> tuple[nx.Graph, tuple[list[nx.Graph], list[nx.Graph]], dict[str, Any]]:
@@ -392,7 +473,7 @@ def build_causal_graph(
     building_graph_start: float = time.time()
 
     nodes: mn.MetricNodes = mn.MetricNodes.from_dataframe(dataset)
-    init_g: nx.Graph = prepare_init_graph(nodes, pk)
+    init_g: nx.Graph = prepare_init_graph(nodes, pk, enable_prior_knowledge=enable_prior_knowledge)
 
     if use_call_graph:
         G = fix_edge_directions_in_causal_graph(init_g.to_directed(), pk)
@@ -403,6 +484,7 @@ def build_causal_graph(
             init_g,
             pk,
             pc_library=kwargs["pc_library"],
+            cg_algo=kwargs["cg_algo"],
             pc_variant=kwargs["pc_variant"],
             pc_citest=kwargs["pc_citest"],
             pc_citest_alpha=kwargs["pc_citest_alpha"],
@@ -505,9 +587,12 @@ def build_and_walk_causal_graph(
     dataset: pd.DataFrame,
     pk: PriorKnowledge,
     root_metric_type: str,  # "latency" or "throughput" or "error"
+    enable_prior_knowledge: bool = True,
     **kwargs: Any,
 ) -> tuple[nx.Graph, list[tuple[str, float]]]:
-    G, (root_contained_graphs, root_uncontained_graphs), stats = build_causal_graph(dataset, pk, **kwargs)
+    G, (root_contained_graphs, root_uncontained_graphs), stats = build_causal_graph(
+        dataset, pk, enable_prior_knowledge=enable_prior_knowledge, **kwargs
+    )
     max_graph = max(root_contained_graphs, key=lambda g: g.number_of_nodes())
     if max_graph.number_of_nodes() < 2:
         return max_graph, []

@@ -99,7 +99,12 @@ def create_localization_score_as_dataframe(
         case (False, False):
             scores_df = pd.concat(
                 [
-                    evaluate_ac_of_rc(ranks_df, pk, granuallity=gran, k=k)
+                    evaluate_ac_of_rc(
+                        ranks_df.groupby(["dataset_id", "target_app", "chaos_type", "chaos_comp", "chaos_idx"]),
+                        pk,
+                        granuallity=gran,
+                        k=k,
+                    )
                     for gran in ["metric", "container", "service"]
                 ],
                 axis=1,

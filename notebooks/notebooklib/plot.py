@@ -2,8 +2,11 @@ import math
 
 import matplotlib.pyplot as plt
 import networkx as nx
+import pandas as pd
 import scipy.stats
 from pandas.core.groupby.generic import DataFrameGroupBy
+
+from meltria.loader import DatasetRecord
 
 
 def plot_causal_graph(
@@ -34,4 +37,19 @@ def plot_rank_dataframe(
     for row, ax in zip(rank_df.itertuples(), axs.flatten()):  # type: ignore
         ax.plot(scipy.stats.zscore(row.metric_values))
         ax.set_title(f"{row.Index} - {row.chaos_type}/{row.chaos_comp}/{row.chaos_idx}: {row.metric_name}")
+    plt.show()
+
+
+def plot_dataset_dataframe(
+    data_df: pd.DataFrame,
+    record: DatasetRecord,
+    fig_width: float = 20,
+    graph_height: float = 2.7,
+    ncols: int = 3,
+) -> None:
+    nrows = math.ceil(data_df.shape[1] / ncols)
+    fig, axs = plt.subplots(figsize=(fig_width, graph_height * nrows), nrows=nrows, ncols=ncols)
+    for (label, data), ax in zip(data_df.items(), axs.flatten()):  # type: ignore
+        ax.plot(data.to_numpy())
+        ax.set_title(f"{record.chaos_case_full()}: {label}")
     plt.show()

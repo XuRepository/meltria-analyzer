@@ -8,4 +8,5 @@
 /outputs
 /samples/**/
 /notebooks/dataset/data/
+/notebooks/dataset/prompts/
 /data/**

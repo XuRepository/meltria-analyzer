@@ -28,9 +28,13 @@ class Tsdr:
     def __init__(
         self,
         univariate_series_func_or_name: Callable[[np.ndarray, Any], UnivariateSeriesReductionResult] | str,
+        enable_unireducer: bool = True,
+        enable_multireducer: bool = True,
         **kwargs: Any,
     ) -> None:
         self.params = kwargs
+        self.enable_unireducer = enable_unireducer
+        self.enable_multireducer = enable_multireducer
         if callable(univariate_series_func_or_name):
             setattr(self, "univariate_series_func", univariate_series_func_or_name)
         elif type(univariate_series_func_or_name) == str:
@@ -84,57 +88,65 @@ class Tsdr:
         stat.append((series, count_metrics(series), elapsed_time))
 
         # step1
-        start = time.time()
-
-        reduced_series1, step1_results, anomaly_points = self.reduce_univariate_series(series, max_workers)
-
-        elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
-        stat.append((reduced_series1, count_metrics(reduced_series1), elapsed_time))
-
-        if self.params.get("step1_residual_integral_change_start_point", False):
-            # step1.5
+        anomaly_points: dict[str, np.ndarray] = {}
+        reduced_series1 = series
+        step1_results: dict = {}
+        if self.enable_unireducer:
             start = time.time()
 
-            sli_name: str = pk.get_root_metrics()[0]  # TODO: choose SLI metrics formally
-            reduced_series1 = self.reduce_by_failure_detection_time(
-                reduced_series1,
-                step1_results,
-                series[sli_name].to_numpy(),
-                sigma_threshold=self.params["step1_residual_integral_change_start_point_n_sigma"],
-            )
+            reduced_series1, step1_results, anomaly_points = self.reduce_univariate_series(series, max_workers)
 
             elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
             stat.append((reduced_series1, count_metrics(reduced_series1), elapsed_time))
 
+            if self.params.get("step1_residual_integral_change_start_point", False):
+                # step1.5
+                start = time.time()
+
+                sli_name: str = pk.get_root_metrics()[0]  # TODO: choose SLI metrics formally
+                reduced_series1 = self.reduce_by_failure_detection_time(
+                    reduced_series1,
+                    step1_results,
+                    series[sli_name].to_numpy(),
+                    sigma_threshold=self.params["step1_residual_integral_change_start_point_n_sigma"],
+                )
+
+                elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
+                stat.append((reduced_series1, count_metrics(reduced_series1), elapsed_time))
+
         # step2
-        start = time.time()
+        clustering_info: dict = {}
+        if self.enable_multireducer:
+            start = time.time()
 
-        match series_type := self.params["step2_clustering_series_type"]:
-            case "raw":
-                # df_before_clustering = filter_out_duplicated_metrics(reduced_series1, pk).apply(scipy.stats.zscore)
-                df_before_clustering = reduced_series1.apply(scipy.stats.zscore)
-                # filter metrics including nan values after zscore
-                df_before_clustering = filter_out_no_change_metrics(df_before_clustering, parallel=(max_workers != 1))
-            case "anomaly_score" | "binary_anomaly_score":
-                tmp_dict_to_df: dict[str, np.ndarray] = {}
-                for name, res in step1_results.items():
-                    if res.has_kept:
-                        if series_type == "anomaly_score":
-                            tmp_dict_to_df[name] = scipy.stats.zscore(res.anomaly_scores)
-                        elif series_type == "binary_anomaly_score":
-                            tmp_dict_to_df[name] = res.binary_scores()
-                df_before_clustering = pd.DataFrame(tmp_dict_to_df)
-            case _:
-                raise ValueError(f"step2_clustered_series_type is invalid {series_type}")
+            match series_type := self.params["step2_clustering_series_type"]:
+                case "raw":
+                    # df_before_clustering = filter_out_duplicated_metrics(reduced_series1, pk).apply(scipy.stats.zscore)
+                    df_before_clustering = reduced_series1.apply(scipy.stats.zscore)
+                    # filter metrics including nan values after zscore
+                    df_before_clustering = filter_out_no_change_metrics(
+                        df_before_clustering, parallel=(max_workers != 1)
+                    )
+                case "anomaly_score" | "binary_anomaly_score":
+                    tmp_dict_to_df: dict[str, np.ndarray] = {}
+                    for name, res in step1_results.items():
+                        if res.has_kept:
+                            if series_type == "anomaly_score":
+                                tmp_dict_to_df[name] = scipy.stats.zscore(res.anomaly_scores)
+                            elif series_type == "binary_anomaly_score":
+                                tmp_dict_to_df[name] = res.binary_scores()
+                    df_before_clustering = pd.DataFrame(tmp_dict_to_df)
+                case _:
+                    raise ValueError(f"step2_clustered_series_type is invalid {series_type}")
 
-        reduced_series2, clustering_info = self.reduce_multivariate_series(
-            df_before_clustering,
-            pk,
-            max_workers,
-        )
+            reduced_series2, clustering_info = self.reduce_multivariate_series(
+                df_before_clustering,
+                pk,
+                max_workers,
+            )
 
-        elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
-        stat.append((reduced_series2, count_metrics(reduced_series2), elapsed_time))
+            elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
+            stat.append((reduced_series2, count_metrics(reduced_series2), elapsed_time))
 
         return stat, clustering_info, anomaly_points
 

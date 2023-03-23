@@ -176,53 +176,54 @@ class Tsdr:
             future: futures.Future
 
             dist_func: str | Callable
-            if method_name == "hierarchy":
-                dist_type = kwargs["step2_hierarchy_dist_type"]
-                dist_threshold = kwargs["step2_hierarchy_dist_threshold"]
-                linkage_method = kwargs["step2_hierarchy_linkage_method"]
+            match method_name:
+                case "hierarchy":
+                    dist_type = kwargs["step2_hierarchy_dist_type"]
+                    dist_threshold = kwargs["step2_hierarchy_dist_threshold"]
+                    linkage_method = kwargs["step2_hierarchy_linkage_method"]
 
-                match dist_type:
-                    case "sbd":
-                        dist_func = sbd
-                    case "pearsonr":
-                        dist_func = pearsonr_as_dist
-                    case "hamming":
-                        if dist_threshold >= 1.0:
-                            # make the distance threshold intuitive
-                            dist_threshold /= series.shape[0]
-                        dist_func = hamming
-                    case _:
-                        dist_func = dist_type
-                future = executor.submit(
-                    multireducer.hierarchical_clustering,
-                    df,
-                    dist_func,
-                    dist_threshold,
-                    choice_method,
-                    linkage_method,
-                )
-            elif method_name == "dbscan":
-                dist_type = kwargs["step2_dbscan_dist_type"]
-                match dist_type:
-                    case "sbd":
-                        dist_func = sbd
-                    case "hamming":
-                        dist_func = hamming
-                    case "pearsonr":
-                        dist_func = pearsonr_as_dist
-                    case _:
-                        dist_func = dist_type
+                    match dist_type:
+                        case "sbd":
+                            dist_func = sbd
+                        case "pearsonr":
+                            dist_func = pearsonr_as_dist
+                        case "hamming":
+                            if dist_threshold >= 1.0:
+                                # make the distance threshold intuitive
+                                dist_threshold /= series.shape[0]
+                            dist_func = hamming
+                        case _:
+                            dist_func = dist_type
+                    future = executor.submit(
+                        multireducer.hierarchical_clustering,
+                        df,
+                        dist_func,
+                        dist_threshold,
+                        choice_method,
+                        linkage_method,
+                    )
+                case "dbscan":
+                    dist_type = kwargs["step2_dbscan_dist_type"]
+                    match dist_type:
+                        case "sbd":
+                            dist_func = sbd
+                        case "hamming":
+                            dist_func = hamming
+                        case "pearsonr":
+                            dist_func = pearsonr_as_dist
+                        case _:
+                            dist_func = dist_type
 
-                future = executor.submit(
-                    multireducer.dbscan_clustering,
-                    df,
-                    dist_func,
-                    kwargs["step2_dbscan_min_pts"],
-                    kwargs["step2_dbscan_algorithm"],
-                    choice_method,
-                )
-            else:
-                raise ValueError('method_name must be "hierarchy" or "dbscan"')
+                    future = executor.submit(
+                        multireducer.dbscan_clustering,
+                        df,
+                        dist_func,
+                        kwargs["step2_dbscan_min_pts"],
+                        kwargs["step2_dbscan_algorithm"],
+                        choice_method,
+                    )
+                case _:
+                    raise ValueError('method_name must be "hierarchy" or "dbscan"')
             return future
 
         clustering_info: dict[str, Any] = {}

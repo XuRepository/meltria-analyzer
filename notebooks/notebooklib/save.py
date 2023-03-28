@@ -15,7 +15,6 @@ from meltria.metric_types import ALL_METRIC_TYPES, METRIC_PREFIX_TO_TYPE
 from tsdr import tsdr
 
 DATA_DIR = pathlib.Path(__file__).parent.parent / "dataset" / "data"
-
 TSDR_DEFAULT_PHASE1_METHOD: Final[str] = "residual_integral"
 
 tsdr_default_options: Final[dict[str, Any]] = {
@@ -36,6 +35,8 @@ def run_and_save_tsdr_to_each_set(
     records: list[DatasetRecord],
     phase1_method: str = TSDR_DEFAULT_PHASE1_METHOD,
     tsdr_options: dict[str, Any] = tsdr_default_options,
+    enable_unireducer: bool = True,
+    enable_multireducer: bool = True,
     suffix: str = "",
 ) -> None:
     params = {
@@ -59,19 +60,31 @@ def run_and_save_tsdr_to_each_set(
         },
     }
     for type_name, metric_types in params.items():
-        run_and_save_tsdr(dataset_id, records, phase1_method, tsdr_options, metric_types, f"{suffix}_{type_name}")
+        run_and_save_tsdr(
+            dataset_id,
+            records,
+            phase1_method,
+            tsdr_options,
+            enable_unireducer,
+            enable_multireducer,
+            metric_types,
+            f"{suffix}_{type_name}",
+        )
 
 
 def run_tsdr_as_generator(
     records: list[DatasetRecord],
     phase1_method: str = TSDR_DEFAULT_PHASE1_METHOD,
     tsdr_options: dict[str, Any] = tsdr_default_options,
+    enable_unireducer: bool = True,
+    enable_multireducer: bool = True,
     metric_types: dict[str, bool] = ALL_METRIC_TYPES,
 ) -> Generator[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame], None, None]:
     tsdr_options = dict(tsdr_default_options, **tsdr_options)
     for record in records:
-        # run tsdr
-        reducer = tsdr.Tsdr(phase1_method, **tsdr_options)
+        reducer = tsdr.Tsdr(
+            phase1_method, enable_unireducer=enable_unireducer, enable_multireducer=enable_multireducer, **tsdr_options
+        )
         tsdr_stat, _, _ = reducer.run(
             X=_filter_metrics_by_metric_type(
                 _filter_prometheus_exporter_go_metrics(record.data_df),
@@ -81,8 +94,14 @@ def run_tsdr_as_generator(
             max_workers=cpu_count(),
         )
         filtered_df: pd.DataFrame = tsdr_stat[1][0]  # simple filtered-out data
-        reduced_df = tsdr_stat[-1][0]
-        anomalous_df = tsdr_stat[-2][0]
+        if enable_unireducer:
+            anomalous_df = tsdr_stat[2][0]
+        else:
+            anomalous_df = filtered_df
+        if enable_multireducer:
+            reduced_df = tsdr_stat[-1][0]
+        else:
+            reduced_df = anomalous_df
         yield (record, filtered_df, anomalous_df, reduced_df)
 
 
@@ -90,9 +109,15 @@ def run_tsdr(
     records: list[DatasetRecord],
     phase1_method: str = TSDR_DEFAULT_PHASE1_METHOD,
     tsdr_options: dict[str, Any] = tsdr_default_options,
+    enable_unireducer: bool = True,
+    enable_multireducer: bool = True,
     metric_types: dict[str, bool] = ALL_METRIC_TYPES,
 ) -> list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
-    return list(run_tsdr_as_generator(records, phase1_method, tsdr_options, metric_types))
+    return list(
+        run_tsdr_as_generator(
+            records, phase1_method, tsdr_options, enable_unireducer, enable_multireducer, metric_types
+        )
+    )
 
 
 def run_and_save_tsdr(
@@ -100,11 +125,13 @@ def run_and_save_tsdr(
     records: list[DatasetRecord],
     phase1_method: str = TSDR_DEFAULT_PHASE1_METHOD,
     tsdr_options: dict[str, Any] = tsdr_default_options,
+    enable_unireducer: bool = True,
+    enable_multireducer: bool = True,
     metric_types: dict[str, bool] = ALL_METRIC_TYPES,
     suffix: str = "",
 ) -> None:
     for record, filtered_df, anomalous_df, reduced_df in run_tsdr_as_generator(
-        records, phase1_method, tsdr_options, metric_types
+        records, phase1_method, tsdr_options, enable_unireducer, enable_multireducer, metric_types
     ):
         save_tsdr(dataset_id, record, filtered_df, anomalous_df, reduced_df, suffix=suffix)
         del record, filtered_df, anomalous_df, reduced_df  # for memory efficiency
@@ -179,15 +206,22 @@ def load_tsdr_grouped_by_metric_type(
     return results
 
 
+def check_cache_suffix(dataset_id: str, suffix: str) -> tuple[bool, pathlib.Path]:
+    dir_name: str = f"tsdr_{dataset_id}" if suffix == "" else f"tsdr_{dataset_id}_{suffix}"
+    parent_path = DATA_DIR / dir_name
+    return parent_path.is_dir(), parent_path
+
+
 def load_tsdr(
     dataset_id: str,
     revert_normalized_time_series: bool = False,
     suffix: str = "",
     metric_types: dict[str, bool] = ALL_METRIC_TYPES,
 ) -> list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
-    dir_name: str = f"tsdr_{dataset_id}" if suffix == "" else f"tsdr_{dataset_id}_{suffix}"
+    ok, parent_path = check_cache_suffix(dataset_id, suffix)
+    if not ok:
+        raise FileNotFoundError(f"tsdr_{dataset_id} is not found")
     results = []
-    parent_path = DATA_DIR / dir_name
     for path in parent_path.iterdir():
         with (path / "record.bz2").open("rb") as f:
             record = joblib.load(f)
@@ -228,6 +262,12 @@ def save_tsdr(
     reduced_df: pd.DataFrame,
     suffix: str = "",
 ) -> None:
+    assert reduced_df.shape[1] > 0, f"{reduced_df.shape[1]} should be > 0"
+    assert (
+        record.data_df.shape[1] >= filtered_df.shape[1]
+    ), f"{record.data_df.shape[1]} should be > {filtered_df.shape[1]}"
+    assert filtered_df.shape[1] >= reduced_df.shape[1], f"{filtered_df.shape[1]} should be > {reduced_df.shape[1]}"
+
     dir_name: str = f"tsdr_{dataset_id}" if suffix == "" else f"tsdr_{dataset_id}_{suffix}"
     path = DATA_DIR / dir_name / record.chaos_case_full().replace("/", "_")
     path.mkdir(parents=True, exist_ok=True)

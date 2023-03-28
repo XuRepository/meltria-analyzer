@@ -246,13 +246,13 @@ def build_causal_graphs_with_cdt(
     pk: PriorKnowledge,
     cg_algo: str = "pc",
     pc_citest_alpha: float = 0.05,
-    pc_variant: str = "orig",
     pc_citest: str = "gaussian",
+    pc_njobs: int | None = None,
     disable_orientation: bool = False,
 ) -> nx.Graph:
     match cg_algo:
         case "pc":
-            pc = cdt_PC(CItest=pc_citest, alpha=pc_citest_alpha)
+            pc = cdt_PC(CItest=pc_citest, alpha=pc_citest_alpha, njobs=pc_njobs)
             # create_graph_from_init_graph is a patched method.
             G = pc.create_graph_from_init_graph(df, init_graph=init_g)
         case "gies":
@@ -429,9 +429,9 @@ def build_causal_graph_with_library(
                 init_g,
                 pk,
                 cg_algo=kwargs["cg_algo"],
-                pc_variant=kwargs["pc_variant"],
                 pc_citest=kwargs["pc_citest"],
                 pc_citest_alpha=kwargs["pc_citest_alpha"],
+                pc_njobs=kwargs.get("pc_njobs"),
                 disable_orientation=kwargs["disable_orientation"],
             )
         case "causallearn":

@@ -111,6 +111,8 @@ def grid_dataset(
             suffix=suffix,
         )
         logging.info(f"Processing {dataset_id} with {suffix}...")
-        df = diagnose_and_rank_multi_datasets(dataset_id, datasets, n, diag_options)
+        df = diagnose_and_rank_multi_datasets(
+            dataset_id, datasets, n, diag_options, diag_target_phase_option=diag_target_phase
+        )
         results.append(((suffix, diag_target_phase), df))
     return results

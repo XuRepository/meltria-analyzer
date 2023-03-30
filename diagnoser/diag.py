@@ -1,6 +1,7 @@
+import logging
 import time
 from itertools import combinations
-from typing import Any
+from typing import Any, Literal
 
 import networkx as nx
 import numpy as np
@@ -586,22 +587,31 @@ def walk_causal_graph_with_monitorrank(
 def build_and_walk_causal_graph(
     dataset: pd.DataFrame,
     pk: PriorKnowledge,
-    root_metric_type: str,  # "latency" or "throughput" or "error"
+    root_metric_type: Literal["latency", "throughput", "error"],
     enable_prior_knowledge: bool = True,
     **kwargs: Any,
 ) -> tuple[nx.Graph, list[tuple[str, float]]]:
     G, (root_contained_graphs, root_uncontained_graphs), stats = build_causal_graph(
         dataset, pk, enable_prior_knowledge=enable_prior_knowledge, **kwargs
     )
-    max_graph = max(root_contained_graphs, key=lambda g: g.number_of_nodes())
+    if len(root_contained_graphs) < 1:
+        logging.warning(f"root_contained_graphs is empty. root_metric_type is {root_metric_type}")
+        return nx.Graph(), []
+
+    max_graph: nx.Graph = max(root_contained_graphs, key=lambda g: g.number_of_nodes())
     if max_graph.number_of_nodes() < 2:
         return max_graph, []
 
-    target_graph = next(
-        filter(lambda g: g.has_node(pk.get_root_metric_by_type(root_metric_type)), root_contained_graphs)
-    )
-    if target_graph.number_of_nodes() < 2:  # fallback to other root metrics
+    root_metric_type_contained_graphs = [
+        g for g in root_contained_graphs if g.has_node(pk.get_root_metric_by_type(root_metric_type))
+    ]
+    target_graph: nx.Graph
+    if len(root_metric_type_contained_graphs) < 1:  # fallback to other root metrics
         target_graph = max_graph
+    else:
+        target_graph = root_metric_type_contained_graphs[0]
+        if target_graph.number_of_nodes() < 2:  # fallback to other root metrics
+            target_graph = max_graph
     ranks: list[tuple[str, float]]
     match (walk_method := kwargs["walk_method"]):
         case "monitorrank":

@@ -192,11 +192,11 @@ def load_tsdr_grouped_by_metric_type(
             anomalous_df = _group_by_metric_type(_filter_prometheus_exporter_go_metrics(joblib.load(f)))
         with (path / "reduced_df.bz2").open("rb") as f:
             reduced_df = _group_by_metric_type(_filter_prometheus_exporter_go_metrics(joblib.load(f)))
-            if revert_normalized_time_series:  # Workaround
-                for metric_name, _ in reduced_df.items():
-                    reduced_df[metric_name] = anomalous_df[metric_name]
         df_by_metric_type: dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]] = {}
         for metric_type in ALL_METRIC_TYPES.keys():
+            if revert_normalized_time_series:  # Workaround
+                for metric_name, _ in reduced_df[metric_type].items():
+                    reduced_df[metric_type][metric_name] = anomalous_df[metric_type][metric_name]
             df_by_metric_type[metric_type] = (
                 filtered_df[metric_type],
                 anomalous_df[metric_type],

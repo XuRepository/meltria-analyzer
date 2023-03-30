@@ -1,5 +1,6 @@
 import logging
 import time
+import warnings
 from itertools import combinations
 from typing import Any, Literal
 
@@ -251,19 +252,24 @@ def build_causal_graphs_with_cdt(
     pc_njobs: int | None = None,
     disable_orientation: bool = False,
 ) -> nx.Graph:
-    match cg_algo:
-        case "pc":
-            pc = cdt_PC(CItest=pc_citest, alpha=pc_citest_alpha, njobs=pc_njobs)
-            # create_graph_from_init_graph is a patched method.
-            G = pc.create_graph_from_init_graph(df, init_graph=init_g)
-        case "gies":
-            gies = cdt_GIES(score="obs")
-            G = gies.create_graph_from_init_graph(df, init_graph=init_g)
-        case "lingam":
-            lingam = LiNGAM()
-            G = lingam.create_graph_from_data(df)
-        case _:
-            raise ValueError(f"Unsupported causal graph algorithm: {cg_algo}")
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="No GPU automatically detected. Setting SETTINGS.GPU to 0, and SETTINGS.NJOBS to cpu_count.",
+        )
+        match cg_algo:
+            case "pc":
+                pc = cdt_PC(CItest=pc_citest, alpha=pc_citest_alpha, njobs=pc_njobs)
+                # create_graph_from_init_graph is a patched method.
+                G = pc.create_graph_from_init_graph(df, init_graph=init_g)
+            case "gies":
+                gies = cdt_GIES(score="obs")
+                G = gies.create_graph_from_init_graph(df, init_graph=init_g)
+            case "lingam":
+                lingam = LiNGAM()
+                G = lingam.create_graph_from_data(df)
+            case _:
+                raise ValueError(f"Unsupported causal graph algorithm: {cg_algo}")
     G = mn.relabel_graph_labels_to_node(G)
     return G if disable_orientation else fix_edge_directions_in_causal_graph(G, pk)
 
@@ -574,12 +580,14 @@ def walk_causal_graph_with_monitorrank(
     **kwargs: dict,
 ) -> tuple[nx.DiGraph, list[tuple[str, float]]]:
     modified_g, preference_vector = prepare_monitor_rank_based_random_walk(G.reverse(), dataset, pk, root_metric_type)
-    pr = nx.pagerank(
-        modified_g,
-        alpha=kwargs.get("pagerank_alpha", 0.85),  # type: ignore
-        weight="weight",
-        personalization=preference_vector,
-    )
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+        pr = nx.pagerank(
+            modified_g,
+            alpha=kwargs.get("pagerank_alpha", 0.85),  # type: ignore
+            weight="weight",
+            personalization=preference_vector,
+        )
     # sort by rank
     return modified_g, sorted(pr.items(), key=lambda item: item[1], reverse=True)
 

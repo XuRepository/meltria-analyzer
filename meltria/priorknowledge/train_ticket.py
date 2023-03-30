@@ -261,7 +261,7 @@ def generate_container_runtime() -> dict[str, tuple[str, str]]:
     return ctnr_to_runtime
 
 
-SKIP_CONTAINERS: Final[list[str]] = []
+SKIP_CONTAINERS: Final[list[str]] = ["ts-delivery-service"]
 
 DIAGNOSER_TARGET_DATA: Final[dict[str, list[str]]] = {
     "containers": [],  # all

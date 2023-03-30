@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 
 import pandas as pd
@@ -26,7 +27,9 @@ def get_ranks_by_case(sorted_results_df: DataFrameGroupBy, pk: PriorKnowledge, g
                     optional_cause=True,
                 )
                 if not ok or len(cause_metrics) == 0:
-                    print(f"no cause metrics: {dataset_id}, {target_app}, {chaos_type}, {chaos_comp}")
+                    logging.warn(
+                        f"no cause metrics: {dataset_id}, {target_app}, {chaos_type}/{chaos_comp}/{chaos_case_num}"
+                    )
                     continue
                 metrics = [m for m in metrics if not m.startswith("s-")]  # Exclude service metrics
                 ranked_metrics = MetricNodes.from_metric_names(metrics)

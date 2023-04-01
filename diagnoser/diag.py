@@ -1,8 +1,7 @@
-import logging
 import time
 import warnings
 from itertools import combinations
-from typing import Any, Literal
+from typing import Any, Callable
 
 import networkx as nx
 import numpy as np
@@ -21,6 +20,7 @@ import diagnoser.causalgraph.causallearn_cit_fisherz_patch  # noqa: F401  for on
 import diagnoser.causalgraph.cdt_PC_patch  # noqa: F401  for only patching
 import diagnoser.metric_node as mn
 from diagnoser import nx_util
+from diagnoser.causalgraph.pcalg_patch import estimate_skeleton_with_indep_test
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
 from .causalgraph.pcalg import estimate_cpdag, estimate_skeleton
@@ -193,26 +193,46 @@ def build_causal_graph_with_pcalg(
     pc_citest: str = "fisher-z",
     disable_orientation: bool = False,
     disable_ci_edge_cut: bool = False,
+    use_indep_test_instead_of_ci: bool = False,
 ) -> nx.Graph:
     """
     Build causal graph with PC algorithm.
     """
     init_g = nx.relabel_nodes(init_g, mapping=nodes.node_to_num)
     cm = np.corrcoef(dm.T)
-    ci_test = ci_test_fisher_z if pc_citest == "fisher-z" else pc_citest
-    (G, sep_set) = estimate_skeleton(
-        indep_test_func=ci_test,
-        data_matrix=dm,
-        alpha=pc_citest_alpha,
-        corr_matrix=cm,
-        init_graph=init_g,
-        method=pc_variant,
-        disable_ci_edge_cut=disable_ci_edge_cut,
-    )
+    ci_test: str | Callable
+    if pc_citest == "fisher-z":
+        ci_test = ci_test_fisher_z
+    else:
+        ci_test = pc_citest
+    if use_indep_test_instead_of_ci:
+        G = estimate_skeleton_with_indep_test(
+            indep_test_func=ci_test,
+            data_matrix=dm,
+            alpha=pc_citest_alpha,
+            corr_matrix=cm,
+            init_graph=init_g,
+            disable_ci_edge_cut=disable_ci_edge_cut,
+            use_indep_test_instead_of_ci=use_indep_test_instead_of_ci,
+        )
+    else:
+        (G, sep_set) = estimate_skeleton(
+            indep_test_func=ci_test,
+            data_matrix=dm,
+            alpha=pc_citest_alpha,
+            corr_matrix=cm,
+            init_graph=init_g,
+            method=pc_variant,
+            disable_ci_edge_cut=disable_ci_edge_cut,
+            use_indep_test_instead_of_ci=use_indep_test_instead_of_ci,
+        )
     if disable_orientation:
         return nx.relabel_nodes(G, mapping=nodes.num_to_node)
     else:
-        G = estimate_cpdag(skel_graph=G, sep_set=sep_set)
+        if use_indep_test_instead_of_ci:
+            G = G.to_directed()
+        else:
+            G = estimate_cpdag(skel_graph=G, sep_set=sep_set)
         G = nx.relabel_nodes(G, mapping=nodes.num_to_node)
         return fix_edge_directions_in_causal_graph(G, pk)
 
@@ -255,7 +275,7 @@ def build_causal_graphs_with_cdt(
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore",
-            message="No GPU automatically detected. Setting SETTINGS.GPU to 0, and SETTINGS.NJOBS to cpu_count.",
+            message=r"^No GPU automatically detected",
         )
         match cg_algo:
             case "pc":
@@ -420,6 +440,7 @@ def build_causal_graph_with_library(
                 pc_citest_alpha=kwargs["pc_citest_alpha"],
                 disable_orientation=kwargs["disable_orientation"],
                 disable_ci_edge_cut=kwargs["disable_ci_edge_cut"],
+                use_indep_test_instead_of_ci=kwargs["use_indep_test_instead_of_ci"],
             )
         case "pgmpy":
             G = build_causal_graphs_with_pgmpy(
@@ -490,13 +511,7 @@ def build_causal_graph(
             nodes,
             init_g,
             pk,
-            pc_library=kwargs["pc_library"],
-            cg_algo=kwargs["cg_algo"],
-            pc_variant=kwargs["pc_variant"],
-            pc_citest=kwargs["pc_citest"],
-            pc_citest_alpha=kwargs["pc_citest_alpha"],
-            disable_orientation=kwargs["disable_orientation"],
-            disable_ci_edge_cut=kwargs["disable_ci_edge_cut"],
+            **kwargs,
         )
 
     root_contained_graphs, root_uncontained_graphs = find_connected_subgraphs(G, pk.get_root_metrics())
@@ -595,31 +610,24 @@ def walk_causal_graph_with_monitorrank(
 def build_and_walk_causal_graph(
     dataset: pd.DataFrame,
     pk: PriorKnowledge,
-    root_metric_type: Literal["latency", "throughput", "error"],
+    root_metric_type: str,  # "latency" or "throughput" or "error"
     enable_prior_knowledge: bool = True,
     **kwargs: Any,
 ) -> tuple[nx.Graph, list[tuple[str, float]]]:
     G, (root_contained_graphs, root_uncontained_graphs), stats = build_causal_graph(
         dataset, pk, enable_prior_knowledge=enable_prior_knowledge, **kwargs
     )
-    if len(root_contained_graphs) < 1:
-        logging.warning(f"root_contained_graphs is empty. root_metric_type is {root_metric_type}")
-        return nx.Graph(), []
-
-    max_graph: nx.Graph = max(root_contained_graphs, key=lambda g: g.number_of_nodes())
+    max_graph = max(root_contained_graphs, key=lambda g: g.number_of_nodes())
     if max_graph.number_of_nodes() < 2:
         return max_graph, []
 
-    root_metric_type_contained_graphs = [
-        g for g in root_contained_graphs if g.has_node(pk.get_root_metric_by_type(root_metric_type))
-    ]
-    target_graph: nx.Graph
-    if len(root_metric_type_contained_graphs) < 1:  # fallback to other root metrics
+    target_graph = next(
+        filter(lambda g: g.has_node(pk.get_root_metric_by_type(root_metric_type)), root_contained_graphs), None,
+    )
+    if target_graph is None:
         target_graph = max_graph
-    else:
-        target_graph = root_metric_type_contained_graphs[0]
-        if target_graph.number_of_nodes() < 2:  # fallback to other root metrics
-            target_graph = max_graph
+    elif target_graph.number_of_nodes() < 2:  # fallback to other root metrics
+        target_graph = max_graph
     ranks: list[tuple[str, float]]
     match (walk_method := kwargs["walk_method"]):
         case "monitorrank":

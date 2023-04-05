@@ -12,6 +12,8 @@ from causallearn.search.ConstraintBased.CDNOD import cdnod
 from causallearn.search.ConstraintBased.FCI import fci
 from causallearn.search.ConstraintBased.PC import pc as cl_pc
 from causallearn.utils.PCUtils.BackgroundKnowledge import BackgroundKnowledge
+
+warnings.filterwarnings("ignore", message=r"^No GPU automatically detected")
 from cdt.causality.graph import GIES as cdt_GIES
 from cdt.causality.graph import PC as cdt_PC
 from cdt.causality.graph import LiNGAM
@@ -42,6 +44,19 @@ def filter_by_target_metrics(data_df: pd.DataFrame, pk: PriorKnowledge) -> pd.Da
         nodes_df = data_df.filter(regex=f"^n-.+({'|'.join(target['nodes'])})$")
     if pk.target_metric_types["middlewares"]:
         middlewares_df = data_df.filter(regex=f"^m-.+({'|'.join(target['middlewares'])})$")
+
+    if len(skip_ctnrs := pk.get_skip_containers()) > 0:
+        if containers_df is not None:
+            cols = containers_df.filter(regex=f"^c-({'|'.join(skip_ctnrs)})_.+").columns.tolist()
+            containers_df.drop(columns=cols, inplace=True)
+        if middlewares_df is not None:
+            cols = middlewares_df.filter(regex=f"^m-({'|'.join(skip_ctnrs)})_.+").columns.tolist()
+            middlewares_df.drop(columns=cols, inplace=True)
+    if len(skip_services := pk.get_skip_services()) > 0:
+        if services_df is not None:
+            cols = services_df.filter(regex=f"^s-({'|'.join(skip_services)})_.+").columns.tolist()
+            services_df.drop(columns=cols, inplace=True)
+
     return pd.concat([df for df in [containers_df, services_df, nodes_df, middlewares_df] if df is not None], axis=1)
 
 
@@ -139,7 +154,7 @@ def fix_edge_direction_based_network_call(
         # If u and v is in the same service, force bi-directed edge.
         if u.comp == v.comp:
             nx_util.set_bidirected_edge(G, u, v)
-        if (v.comp not in service_dep_graph[u.comp]) and (u.comp in service_dep_graph[v.comp]):
+        elif (v.comp not in service_dep_graph[u.comp]) and (u.comp in service_dep_graph[v.comp]):
             nx_util.reverse_edge_direction(G, u, v)
 
     # From container to container
@@ -171,6 +186,8 @@ def fix_edge_directions_in_causal_graph(
     1. Fix directions based on the system hieralchy such as a service and a container
     2. Fix directions based on the network call graph.
     """
+    if not G.is_directed():
+        G = G.to_directed()
     service_dep_graph: nx.DiGraph = pk.get_service_call_digraph().reverse()
     container_dep_graph: nx.DiGraph = pk.get_container_call_digraph().reverse()
     # Traverse the all edges of G via the neighbors
@@ -229,9 +246,7 @@ def build_causal_graph_with_pcalg(
     if disable_orientation:
         return nx.relabel_nodes(G, mapping=nodes.num_to_node)
     else:
-        if use_indep_test_instead_of_ci:
-            G = G.to_directed()
-        else:
+        if not use_indep_test_instead_of_ci:
             G = estimate_cpdag(skel_graph=G, sep_set=sep_set)
         G = nx.relabel_nodes(G, mapping=nodes.num_to_node)
         return fix_edge_directions_in_causal_graph(G, pk)
@@ -272,24 +287,19 @@ def build_causal_graphs_with_cdt(
     pc_njobs: int | None = None,
     disable_orientation: bool = False,
 ) -> nx.Graph:
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            message=r"^No GPU automatically detected",
-        )
-        match cg_algo:
-            case "pc":
-                pc = cdt_PC(CItest=pc_citest, alpha=pc_citest_alpha, njobs=pc_njobs)
-                # create_graph_from_init_graph is a patched method.
-                G = pc.create_graph_from_init_graph(df, init_graph=init_g)
-            case "gies":
-                gies = cdt_GIES(score="obs")
-                G = gies.create_graph_from_init_graph(df, init_graph=init_g)
-            case "lingam":
-                lingam = LiNGAM()
-                G = lingam.create_graph_from_data(df)
-            case _:
-                raise ValueError(f"Unsupported causal graph algorithm: {cg_algo}")
+    match cg_algo:
+        case "pc":
+            pc = cdt_PC(CItest=pc_citest, alpha=pc_citest_alpha, njobs=pc_njobs)
+            # create_graph_from_init_graph is a patched method.
+            G = pc.create_graph_from_init_graph(df, init_graph=init_g)
+        case "gies":
+            gies = cdt_GIES(score="obs")
+            G = gies.create_graph_from_init_graph(df, init_graph=init_g)
+        case "lingam":
+            lingam = LiNGAM()
+            G = lingam.create_graph_from_data(df)
+        case _:
+            raise ValueError(f"Unsupported causal graph algorithm: {cg_algo}")
     G = mn.relabel_graph_labels_to_node(G)
     return G if disable_orientation else fix_edge_directions_in_causal_graph(G, pk)
 
@@ -492,8 +502,18 @@ def build_causal_graph(
     pk: PriorKnowledge,
     enable_prior_knowledge: bool = True,
     use_call_graph: bool = False,
+    use_complete_graph: bool = False,
     **kwargs: Any,
 ) -> tuple[nx.Graph, tuple[list[nx.Graph], list[nx.Graph]], dict[str, Any]]:
+    assert not (
+        use_call_graph and use_complete_graph
+    ), "use_call_graph and use_complete_graph cannot be True at the same time"
+
+    if use_call_graph:
+        assert enable_prior_knowledge, "use_call_graph=True requires enable_prior_knowledge=True"
+    if use_complete_graph:
+        assert not enable_prior_knowledge, "use_complete_graph=True requires enable_prior_knowledge=False"
+
     dataset = filter_by_target_metrics(dataset, pk)
     if not any(label in dataset.columns for label in pk.get_root_metrics()):
         raise ValueError(f"dataset has no root metric node: {pk.get_root_metrics()}")
@@ -503,8 +523,8 @@ def build_causal_graph(
     nodes: mn.MetricNodes = mn.MetricNodes.from_dataframe(dataset)
     init_g: nx.Graph = prepare_init_graph(nodes, pk, enable_prior_knowledge=enable_prior_knowledge)
 
-    if use_call_graph:
-        G = fix_edge_directions_in_causal_graph(init_g.to_directed(), pk)
+    if use_call_graph or use_complete_graph:
+        G = fix_edge_directions_in_causal_graph(init_g, pk)
     else:
         G = build_causal_graph_with_library(
             dataset,
@@ -597,6 +617,8 @@ def walk_causal_graph_with_monitorrank(
     modified_g, preference_vector = prepare_monitor_rank_based_random_walk(G.reverse(), dataset, pk, root_metric_type)
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=DeprecationWarning)
+        warnings.filterwarnings("ignore", category=FutureWarning)
+
         pr = nx.pagerank(
             modified_g,
             alpha=kwargs.get("pagerank_alpha", 0.85),  # type: ignore
@@ -612,17 +634,29 @@ def build_and_walk_causal_graph(
     pk: PriorKnowledge,
     root_metric_type: str,  # "latency" or "throughput" or "error"
     enable_prior_knowledge: bool = True,
+    use_call_graph: bool = False,
+    use_complete_graph: bool = False,
     **kwargs: Any,
 ) -> tuple[nx.Graph, list[tuple[str, float]]]:
+    assert not (
+        use_call_graph and use_complete_graph
+    ), "use_call_graph and use_complete_graph cannot be True at the same time."
+
     G, (root_contained_graphs, root_uncontained_graphs), stats = build_causal_graph(
-        dataset, pk, enable_prior_knowledge=enable_prior_knowledge, **kwargs
+        dataset,
+        pk,
+        enable_prior_knowledge=enable_prior_knowledge,
+        use_call_graph=use_call_graph,
+        use_complete_graph=use_complete_graph,
+        **kwargs,
     )
     max_graph = max(root_contained_graphs, key=lambda g: g.number_of_nodes())
     if max_graph.number_of_nodes() < 2:
         return max_graph, []
 
     target_graph = next(
-        filter(lambda g: g.has_node(pk.get_root_metric_by_type(root_metric_type)), root_contained_graphs), None,
+        filter(lambda g: g.has_node(pk.get_root_metric_by_type(root_metric_type)), root_contained_graphs),
+        None,
     )
     if target_graph is None:
         target_graph = max_graph

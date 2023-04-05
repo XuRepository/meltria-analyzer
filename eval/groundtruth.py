@@ -563,6 +563,8 @@ def check_cause_metrics(
         nodes = cast(mn.MetricNodes, metrics)
     cause_metrics: list[mn.MetricNode] = []
     for node in nodes:
+        if node.comp in pk.get_skip_containers() or node.comp in pk.get_skip_services():
+            continue
         if node.is_container():
             role, _ = pk.get_role_and_runtime_by_container(node.comp)
             for _role in ["*", role]:

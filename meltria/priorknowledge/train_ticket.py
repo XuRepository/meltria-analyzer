@@ -180,7 +180,7 @@ SERVICE_CONTAINERS: Final[dict[str, list[str]]] = {
     "ts-consign": ["ts-consign-service", "ts-consign-mongo"],
     "ts-consign-price": ["ts-consign-price-service", "ts-consign-price-mongo"],
     "ts-contacts": ["ts-contacts-service", "ts-contacts-mongo"],
-    "ts-delivery": ["ts-delivery-service", "ts-delivery-mongo"],
+    # "ts-delivery": ["ts-delivery-service", "ts-delivery-mongo"],
     "ts-execute": ["ts-execute-service"],
     "ts-food-map": ["ts-food-map-service", "ts-food-map-mongo"],
     "ts-food": ["ts-food-service", "ts-food-mongo"],
@@ -261,7 +261,8 @@ def generate_container_runtime() -> dict[str, tuple[str, str]]:
     return ctnr_to_runtime
 
 
-SKIP_CONTAINERS: Final[list[str]] = ["ts-delivery-service"]
+SKIP_CONTAINERS: Final[list[str]] = ["ts-delivery-service", "ts-delivery-mongo"]
+SKIP_SERVICES: Final[list[str]] = ["ts-delivery"]
 
 DIAGNOSER_TARGET_DATA: Final[dict[str, list[str]]] = {
     "containers": [],  # all

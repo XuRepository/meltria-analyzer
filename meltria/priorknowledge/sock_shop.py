@@ -120,6 +120,7 @@ CONTAINER_TO_RUNTIME: dict[str, tuple[str, str]] = {
 }
 
 SKIP_CONTAINERS: Final[list[str]] = ["queue-master", "rabbitmq", "session-db"]
+SKIP_SERVICES: Final[list[str]] = [""]
 
 DIAGNOSER_TARGET_DATA: Final[dict[str, list[str]]] = {
     "containers": [],  # all

@@ -77,6 +77,10 @@ class PriorKnowledge(ABC):
         pass
 
     @abstractmethod
+    def get_skip_services(self) -> list[str]:
+        pass
+
+    @abstractmethod
     def get_diagnoser_target_data(self) -> dict[str, list[str]]:
         pass
 
@@ -240,6 +244,9 @@ class SockShopKnowledge(PriorKnowledge):
     def get_skip_containers(self) -> list[str]:
         return sock_shop.SKIP_CONTAINERS
 
+    def get_skip_services(self) -> list[str]:
+        return sock_shop.SKIP_SERVICES
+
     def get_diagnoser_target_data(self) -> dict[str, list[str]]:
         return sock_shop.DIAGNOSER_TARGET_DATA
 
@@ -294,6 +301,9 @@ class TrainTicketKnowledge(PriorKnowledge):
 
     def get_skip_containers(self) -> list[str]:
         return train_ticket.SKIP_CONTAINERS
+
+    def get_skip_services(self) -> list[str]:
+        return train_ticket.SKIP_SERVICES
 
     def get_role_and_runtime_by_container(self, ctnr: str) -> tuple[str, str]:
         ctnr_runtime = train_ticket.generate_container_runtime()

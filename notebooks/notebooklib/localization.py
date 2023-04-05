@@ -1,22 +1,32 @@
+import datetime
 import logging
+import os
+import warnings
+from collections import defaultdict
 from enum import IntEnum
 from typing import Any, Final
 
 import joblib
+import neptune
 import networkx as nx
+import numpy as np
 import pandas as pd
 from notebooklib import rank, save
 
 from diagnoser import diag
 from meltria.loader import DatasetRecord
 
+warnings.simplefilter(action="ignore", category=pd.errors.SettingWithCopyWarning)
+
 
 class DiagTargetPhaseOption(IntEnum):
     FIRST = -2
     LAST = -1
+    RAW = 0
 
 
 DEFAULT_DIAG_TARGET_PHASE_OPTION: Final[DiagTargetPhaseOption] = DiagTargetPhaseOption.LAST
+DEFAULT_RESULT_GROUPBY: Final[dict[str, bool]] = dict(group_by_cause_type=False, group_by_cause_comp=False)
 
 DIAG_DEFAULT_OPTIONS: Final[dict[str, str | float | bool]] = dict(
     enable_prior_knowledge=False,
@@ -42,8 +52,10 @@ def diagnose_and_rank(
     G, ranks = diag.build_and_walk_causal_graph(
         reduced_df,
         record.pk,
-        root_metric_type=opts.pop("root_metric_type"),
-        enable_prior_knowledge=opts.pop("enable_prior_knowledge"),
+        # root_metric_type=opts.pop("root_metric_type"),
+        # enable_prior_knowledge=opts.pop("enable_prior_knowledge"),
+        # use_call_graph=opts.pop("use_call_graph"),
+        # use_complete_graph=opts.pop("use_complete_graph"),
         **opts,
     )
     if len(ranks) == 0:
@@ -55,13 +67,11 @@ def diagnose_and_rank(
 def diagnose_and_rank_multi_datasets(
     dataset_id: str,
     datasets: dict,
-    n: int,
     diag_options: dict[str, float | bool | int],
     diag_target_phase_option: DiagTargetPhaseOption = DEFAULT_DIAG_TARGET_PHASE_OPTION,
-) -> pd.DataFrame:
+) -> list:
     assert len(datasets) != 0
 
-    pk = list(datasets.values())[0][0][0].pk
     records = []
     for (_, _), somethings_records in datasets.items():
         for record, data_df_by_metric_type in somethings_records:
@@ -86,10 +96,106 @@ def diagnose_and_rank_multi_datasets(
     results = [result for result in results if result is not None]
     assert results is not None
     assert len(results) != 0
-    return rank.create_localization_score_as_dataframe([_[1] for _ in results], pk=pk, k=n)
+    return [_[1] for _ in results]
+
+
+def calculate_reduction(datasets: dict) -> dict[str, dict[str, int]]:
+    results: dict[str, dict[str, dict[str, int]]] = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: 0)))
+    for (_, _), somethings_records in datasets.items():
+        for record, data_df_by_metric_type in somethings_records:
+            for comp_group in ["services", "containers", "middlewares", "nodes"]:
+                dfs = data_df_by_metric_type[comp_group]
+                for i in range(len(dfs)):
+                    results[record.chaos_case_full()][comp_group][str(i)] = dfs[i].shape[1]
+                    results[record.chaos_case_full()]["all"][str(i)] += dfs[i].shape[1]
+
+    avg_reductions: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(lambda: 0))
+    for _, result in results.items():
+        for comp_group in ["services", "containers", "middlewares", "nodes", "all"]:
+            for phase, val in result[comp_group].items():
+                avg_reductions[comp_group][phase] += val
+    for comp_group in ["services", "containers", "middlewares", "nodes", "all"]:
+        for phase in avg_reductions[comp_group]:
+            avg_reductions[comp_group][phase] = int(avg_reductions[comp_group][phase] / len(results))
+    return avg_reductions
+
+
+def wrap_diagnose_with_neptune(
+    expriment_id: str,
+    dataset_id: str,
+    datasets: dict,
+    n: int,
+    diag_options: dict[str, float | bool | int],
+    suffix: str,
+    diag_target_phase_option: DiagTargetPhaseOption = DEFAULT_DIAG_TARGET_PHASE_OPTION,
+) -> list:
+    first_record = list(datasets.values())[0][0][0]
+    pk = first_record.pk
+
+    run = neptune.init_run(
+        project=os.environ["TSDR_LOCALIZATION_NEPTUNE_PROJECT"],
+        api_token=os.environ["NEPTUNE_API_TOKEN"],
+    )
+    run["experiment_id"] = expriment_id
+    run["dataset"] = {
+        "dataset_id": dataset_id,
+        "target_app": first_record.target_app(),
+        "suffix": suffix,
+    }
+    run["parameters"] = diag_options
+    run["reduction"] = calculate_reduction(datasets)
+
+    data_dfs_by_metric_type = diagnose_and_rank_multi_datasets(
+        dataset_id,
+        datasets,
+        diag_options,
+        diag_target_phase_option=diag_target_phase_option,
+    )
+
+    df = rank.create_localization_score_as_dataframe(data_dfs_by_metric_type, pk=pk, k=n)
+    run["scores/metric/num_cases"] = df.at[1, "#cases (metric)"]
+    run["scores/container/num_cases"] = df.at[1, "#cases (container)"]
+    run["scores/service/num_cases"] = df.at[1, "#cases (service)"]
+    for ind, row in df.iterrows():
+        for name in ["AC", "AVG"]:
+            run[f"scores/metric/{name}_{ind}"] = row[f"{name}@K (metric)"]
+            run[f"scores/container/{name}_{ind}"] = row[f"{name}@K (container)"]
+            run[f"scores/service/{name}_{ind}"] = row[f"{name}@K (service)"]
+    run["eval/score-df"] = neptune.types.File.as_html(df)
+    run["eval/score-df-by-cause-comp"] = neptune.types.File.as_html(
+        rank.create_localization_score_as_dataframe(
+            data_dfs_by_metric_type,
+            pk=pk,
+            k=n,
+            group_by_cause_comp=True,
+            group_by_cause_type=False,
+        )
+    )
+    run["eval/score-df-by-cause-type"] = neptune.types.File.as_html(
+        rank.create_localization_score_as_dataframe(
+            data_dfs_by_metric_type,
+            pk=pk,
+            k=n,
+            group_by_cause_comp=False,
+            group_by_cause_type=True,
+        )
+    )
+    run["eval/score-df-by-cause-comp-and-type"] = neptune.types.File.as_html(
+        rank.create_localization_score_as_dataframe(
+            data_dfs_by_metric_type,
+            pk=pk,
+            k=n,
+            group_by_cause_comp=True,
+            group_by_cause_type=True,
+        )
+    )
+    run.stop()
+
+    return data_dfs_by_metric_type
 
 
 def grid_dataset(
+    expriment_id: str,
     dataset_cache_suffixs: list[str | tuple[str, DiagTargetPhaseOption]],
     dataset_id: str,
     n: int,
@@ -111,8 +217,30 @@ def grid_dataset(
             suffix=suffix,
         )
         logging.info(f"Processing {dataset_id} with {suffix}...")
-        df = diagnose_and_rank_multi_datasets(
-            dataset_id, datasets, n, diag_options, diag_target_phase_option=diag_target_phase
+        df = wrap_diagnose_with_neptune(
+            expriment_id,
+            dataset_id,
+            datasets,
+            n=n,
+            diag_options=diag_options,
+            suffix=suffix,
+            diag_target_phase_option=diag_target_phase,
         )
         results.append(((suffix, diag_target_phase), df))
+
+    return results
+
+
+def grid_dataset_with_multi_diag_options(
+    dataset_cache_suffixs: list[str | tuple[str, DiagTargetPhaseOption]],
+    dataset_id: str,
+    n: int,
+    list_of_diag_options: list[dict[str, Any]],
+) -> list[tuple[tuple[str, DiagTargetPhaseOption, dict], pd.DataFrame]]:
+    experiment_id: str = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+    results = []
+    for diag_options in list_of_diag_options:
+        res = grid_dataset(experiment_id, dataset_cache_suffixs, dataset_id, n, diag_options)
+        for (suffix, diag_target_phase), df in res:
+            results.append(((suffix, diag_target_phase, diag_options), df))
     return results

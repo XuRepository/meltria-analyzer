@@ -27,7 +27,7 @@ def get_ranks_by_case(sorted_results_df: DataFrameGroupBy, pk: PriorKnowledge, g
                     optional_cause=True,
                 )
                 if not ok or len(cause_metrics) == 0:
-                    logging.warn(
+                    logging.info(
                         f"no cause metrics: {dataset_id}, {target_app}, {chaos_type}/{chaos_comp}/{chaos_case_num}"
                     )
                     continue

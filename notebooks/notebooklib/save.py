@@ -1,5 +1,6 @@
 import math
 import pathlib
+import tempfile
 from collections import defaultdict
 from multiprocessing import cpu_count
 from typing import Any, Final, Generator
@@ -86,7 +87,7 @@ def run_tsdr_as_generator(
             phase1_method, enable_unireducer=enable_unireducer, enable_multireducer=enable_multireducer, **tsdr_options
         )
         tsdr_stat, _, _ = reducer.run(
-            X=_filter_metrics_by_metric_type(
+            X=filter_metrics_by_metric_type(
                 _filter_prometheus_exporter_go_metrics(record.data_df),
                 metric_types,
             ),
@@ -137,7 +138,7 @@ def run_and_save_tsdr(
         del record, filtered_df, anomalous_df, reduced_df  # for memory efficiency
 
 
-def _filter_metrics_by_metric_type(df: pd.DataFrame, metric_types: dict[str, bool]) -> pd.DataFrame:
+def filter_metrics_by_metric_type(df: pd.DataFrame, metric_types: dict[str, bool]) -> pd.DataFrame:
     return df[
         [
             metric_name
@@ -155,7 +156,7 @@ def _filter_prometheus_exporter_go_metrics(df: pd.DataFrame) -> pd.DataFrame:
 def _group_by_metric_type(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
     result = {}
     for metric_type, _ in ALL_METRIC_TYPES.items():
-        result[metric_type] = _filter_metrics_by_metric_type(df, {metric_type: True})
+        result[metric_type] = filter_metrics_by_metric_type(df, {metric_type: True})
     return result
 
 
@@ -227,15 +228,15 @@ def load_tsdr(
             record = joblib.load(f)
         with (path / "filtered_df.bz2").open("rb") as f:
             filtered_df = _filter_prometheus_exporter_go_metrics(
-                _filter_metrics_by_metric_type(joblib.load(f), metric_types)
+                filter_metrics_by_metric_type(joblib.load(f), metric_types)
             )
         with (path / "anomalous_df.bz2").open("rb") as f:
             anomalous_df = _filter_prometheus_exporter_go_metrics(
-                _filter_metrics_by_metric_type(joblib.load(f), metric_types)
+                filter_metrics_by_metric_type(joblib.load(f), metric_types)
             )
         with (path / "reduced_df.bz2").open("rb") as f:
             reduced_df = _filter_prometheus_exporter_go_metrics(
-                _filter_metrics_by_metric_type(joblib.load(f), metric_types)
+                filter_metrics_by_metric_type(joblib.load(f), metric_types)
             )
             if revert_normalized_time_series:  # Workaround
                 for metric_name, _ in reduced_df.items():
@@ -364,3 +365,11 @@ def plot_figures_of_cause_metrics(
         ]
         _plot_figure_of_cause_metrics(anomalous_df, row, "anomalous")
         _plot_figure_of_cause_metrics(reduced_df, row, "clustered")
+
+
+def save_obj_including_df_to_tmp_file(objs: list[tuple[Any, pd.DataFrame]]) -> str:
+    with tempfile.NamedTemporaryFile(mode="w", dir=DATA_DIR / "tmp", suffix=".csv", delete=False) as f:
+        for obj, df in objs:
+            f.writelines([str(obj)])
+            f.write(df.to_csv(sep="\t"))
+        return f.name

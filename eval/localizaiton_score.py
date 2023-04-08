@@ -9,13 +9,16 @@ from eval.groundtruth import check_cause_metrics
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
 
-def get_ranks_by_case(sorted_results_df: DataFrameGroupBy, pk: PriorKnowledge, granularity: str = "metric"):
+def get_ranks_by_case(
+    sorted_results_df: DataFrameGroupBy, pk: PriorKnowledge, granularity: str = "metric"
+) -> tuple[dict[tuple[str, str, int], list[int]], int]:
     ranks_by_case: dict[tuple[str, str, int], list[int]] = defaultdict(list)
     n_cases: int = 0
     for (dataset_id, target_app, chaos_type, chaos_comp, chaos_case_num), row in sorted_results_df:
         if chaos_comp in pk.get_skip_containers():
             continue
         metrics = [str(m) for m in row["metric_name"].values.tolist()]
+        n_cases += 1
         ranks: list[int]
         match granularity:
             case "metric":
@@ -46,7 +49,6 @@ def get_ranks_by_case(sorted_results_df: DataFrameGroupBy, pk: PriorKnowledge, g
             case _:
                 assert False, f"Unknown detect_unit: {granularity}"
         ranks_by_case[(chaos_type, chaos_comp, chaos_case_num)] = ranks
-        n_cases += 1
     return ranks_by_case, n_cases
 
 

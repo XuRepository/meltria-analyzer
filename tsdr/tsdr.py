@@ -77,6 +77,8 @@ class Tsdr:
         pk: PriorKnowledge,
         max_workers: int,
     ) -> tuple[list[tuple[pd.DataFrame, pd.DataFrame, float]], dict[str, Any], dict[str, np.ndarray],]:
+        assert X.columns.size == np.unique(X.columns).size
+
         stat: list[tuple[pd.DataFrame, pd.DataFrame, float]] = []
         stat.append((X, count_metrics(X), 0.0))
 

@@ -513,7 +513,7 @@ def main(cfg: DictConfig) -> None:
     logging.basicConfig(format="%(asctime)s %(levelname)s:%(message)s", level=logging.INFO)
 
     # Setup neptune.ai client
-    run: neptune.Run = neptune.init(
+    run: neptune.Run = neptune.init_run(
         project=os.environ["TSDR_NEPTUNE_PROJECT"],
         api_token=os.environ["TSDR_NEPTUNE_API_TOKEN"],
         mode=cfg.neptune.mode,

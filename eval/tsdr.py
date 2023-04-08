@@ -54,12 +54,6 @@ def sweep_tsdr_and_save_as_cache(
     metric_types_pairs = [
         {
             "services": True,
-            "containers": False,
-            "middlewares": False,
-            "nodes": False,
-        },
-        {
-            "services": True,
             "containers": True,
             "middlewares": False,
             "nodes": False,
@@ -95,7 +89,6 @@ def run_tsdr_and_save_as_cache(
     file_path_suffix = generate_file_path_suffix_as_id(
         tsdr_options, metric_types, use_manually_selected_metrics=use_manually_selected_metrics
     )
-    print(tsdr_options)
 
     run = neptune.init_run(project=os.environ["TSDR_NEPTUNE_PROJECT"])
     run["experiment_id"] = experiment_id
@@ -174,6 +167,7 @@ def calculate_scores_from_tsdr_result(
             metrics=list(reduced_df.columns),
             chaos_type=record.chaos_type(),
             chaos_comp=record.chaos_comp(),
+            optional_cause=True,
         )
         num_series_by_type: dict[str, int] = {}
         for metric_type, enable in metric_types.items():

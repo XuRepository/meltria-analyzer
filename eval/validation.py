@@ -1,25 +1,25 @@
 import math
 from typing import Any
 
+import joblib
 import numpy as np
 import pandas as pd
 from ads_evt import biSPOT
-import joblib
 
-from eval.groundtruth import check_route, select_ground_truth_metrics_in_routes, check_cause_metrics
+from eval.groundtruth import check_cause_metrics, check_route, select_ground_truth_metrics_in_routes
 from meltria.loader import DatasetRecord
 from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
 
 
-def spot(train_y: np.ndarray, test_y: np.ndarray, proba: float = 1e-4, n_points: int = 10) -> tuple[np.ndarray, np.ndarray]:
+def spot(
+    train_y: np.ndarray, test_y: np.ndarray, proba: float = 1e-4, n_points: int = 10
+) -> tuple[np.ndarray, np.ndarray]:
     model = biSPOT(q=proba, n_points=n_points)
     model.fit(init_data=train_y, data=test_y)
     model.initialize()
     results = model.run(with_alarm=True)
     scores: list[float] = []
-    for index, (upper, lower) in enumerate(
-        zip(results["upper_thresholds"], results["lower_thresholds"])
-    ):
+    for index, (upper, lower) in enumerate(zip(results["upper_thresholds"], results["lower_thresholds"])):
         width: float = upper - lower
         if width <= 0:
             width = 1
@@ -61,9 +61,10 @@ def find_records_detected_anomalies_of_cause_metrics(
     records: list[DatasetRecord],
     faulty_datapoints: int,
 ) -> list[DatasetRecord]:
-
     def _detect_anomalous_cause_metrics(record: DatasetRecord, faulty_datapoints: int) -> bool:
-        ok, cause_metrics = check_cause_metrics(record.pk, record.data_df.columns.tolist(), record.chaos_type(), record.chaos_comp(), optional_cause=True)
+        ok, cause_metrics = check_cause_metrics(
+            record.pk, record.data_df.columns.tolist(), record.chaos_type(), record.chaos_comp(), optional_cause=True
+        )
         anomalies: list[bool] = []
         for metric in cause_metrics.tolist():
             x = record.data_df.loc[:, metric].to_numpy()
@@ -161,3 +162,12 @@ def check_valid_dataset(
     if df is None:
         return False
     return df.loc[(record.chaos_type(), record.chaos_comp(), record.basename_of_metrics_file()), :]["ok"].any()
+
+
+def examine_correlation_of_sli_and_cause_metrics(record: DatasetRecord) -> pd.DataFrame:
+    slis = record.pk.get_root_metrics()
+    ok, cause_metrics = check_cause_metrics(
+        record.pk, record.data_df.columns.tolist(), record.chaos_type(), record.chaos_comp(), optional_cause=True
+    )
+    assert ok, f"cause metrics not found: {record.chaos_case_full()}"
+    return record.data_df.loc[:, list(slis) + cause_metrics.tolist()].corr()

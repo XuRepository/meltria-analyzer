@@ -4713,6 +4713,29 @@ files = [
 ]
 
 [[package]]
+name = "tigramite"
+version = "5.2.0.0"
+description = "Tigramite causal inference for time series"
+category = "main"
+optional = false
+python-versions = "*"
+files = [
+    {file = "tigramite-5.2.0.0-py3-none-any.whl", hash = "sha256:1093e30b2a38a26c1a22295484af63644f208487af7b0113eda5f423c2f46e96"},
+    {file = "tigramite-5.2.0.0.tar.gz", hash = "sha256:7b7a00c1e6a77113aa03ed8c6388cdd22d1b626fcafe65c0e4b6fe5420a73bac"},
+]
+
+[package.dependencies]
+numba = "0.56.4"
+numpy = ">=1.18,<1.24"
+scipy = ">=1.10.0"
+six = "*"
+
+[package.extras]
+all = ["dcor (>=0.6)", "gpytorch (>=1.9.1)", "joblib (>=1.2.0)", "matplotlib (>=3.7.0)", "networkx (>=3.0)", "pytorch (>=1.13.1)", "scikit-learn (>=1.2)", "seaborn (>=0.12.2)"]
+dev = ["dcor (>=0.6)", "gpytorch (>=1.9.1)", "joblib (>=1.2.0)", "matplotlib (>=3.7.0)", "networkx (>=3.0)", "pytorch (>=1.13.1)", "scikit-learn (>=1.2)", "seaborn (>=0.12.2)"]
+test = ["dcor (>=0.6)", "gpytorch (>=1.9.1)", "networkx (>=3.0)", "nose", "pytest", "pytorch (>=1.13.1)", "scikit-learn (>=1.2)"]
+
+[[package]]
 name = "tinycss2"
 version = "1.2.1"
 description = "A tiny CSS parser"
@@ -5175,4 +5198,4 @@ test = ["mypy", "pre-commit", "pytest", "pytest-asyncio", "websockets (>=10.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.11"
-content-hash = "2d7bb99682d55a45d991d0d6969eb261f06a50c369c6906ce2b666b257132458"
+content-hash = "35be7c42c425dad95d2b206abf81314400789dcb9cdbdb113fa8f8d12567e1d8"

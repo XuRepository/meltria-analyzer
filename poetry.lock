@@ -496,6 +496,29 @@ statsmodels = "*"
 tqdm = "*"
 
 [[package]]
+name = "causality"
+version = "0.0.10"
+description = "Tools for causal inference"
+category = "main"
+optional = false
+python-versions = "*"
+files = [
+    {file = "causality-0.0.10.tar.gz", hash = "sha256:ff860bafbfdab72297cd68ff8a2336717afce35ef4a48046af5f11b3accfd993"},
+]
+
+[package.dependencies]
+decorator = "*"
+networkx = "*"
+numpy = "*"
+pandas = "*"
+patsy = "*"
+python-dateutil = "*"
+pytz = "*"
+scipy = "*"
+six = "*"
+statsmodels = "*"
+
+[[package]]
 name = "causalnex"
 version = "0.11.1"
 description = "Toolkit for causal reasoning (Bayesian Networks / Inference)"
@@ -5152,4 +5175,4 @@ test = ["mypy", "pre-commit", "pytest", "pytest-asyncio", "websockets (>=10.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.11"
-content-hash = "83b5801c3a02bd2036846671ad3b2e330d543473f515f705c59faf7acec160fb"
+content-hash = "2d7bb99682d55a45d991d0d6969eb261f06a50c369c6906ce2b666b257132458"

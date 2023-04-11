@@ -7,6 +7,8 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 import scipy
+from causality.inference.independence_tests import RobustRegressionTest
+from causality.inference.search import IC
 from causallearn.graph.GraphNode import GraphNode
 from causallearn.search.ConstraintBased.CDNOD import cdnod
 from causallearn.search.ConstraintBased.FCI import fci
@@ -29,6 +31,7 @@ from .causalgraph.pcalg import estimate_cpdag, estimate_skeleton
 from .causalgraph.pgmpy_PC import PC
 from .citest.fisher_z import ci_test_fisher_z
 from .citest.fisher_z_pgmpy import fisher_z
+from .citest.rlm import citest_rlm
 
 
 def filter_by_target_metrics(data_df: pd.DataFrame, pk: PriorKnowledge) -> pd.DataFrame:
@@ -179,7 +182,7 @@ def fix_edge_direction_based_network_call(
 
 
 def fix_edge_directions_in_causal_graph(
-    G: nx.DiGraph,
+    G: nx.Graph | nx.DiGraph,
     pk: PriorKnowledge,
 ) -> nx.DiGraph:
     """Fix the edge directions in the causal graphs.
@@ -218,10 +221,13 @@ def build_causal_graph_with_pcalg(
     init_g = nx.relabel_nodes(init_g, mapping=nodes.node_to_num)
     cm = np.corrcoef(dm.T)
     ci_test: str | Callable
-    if pc_citest == "fisher-z":
-        ci_test = ci_test_fisher_z
-    else:
-        ci_test = pc_citest
+    match pc_citest:
+        case "fisher-z":
+            ci_test = ci_test_fisher_z
+        case "rlm":
+            ci_test = citest_rlm
+        case _:
+            ci_test = pc_citest
     if use_indep_test_instead_of_ci:
         G = estimate_skeleton_with_indep_test(
             indep_test_func=ci_test,
@@ -360,6 +366,21 @@ def build_causal_graphs_with_causallearn(
     return G if disable_orientation else fix_edge_directions_in_causal_graph(G, pk)
 
 
+def build_causal_graph_with_causality(
+    df: pd.DataFrame,
+    init_g: nx.Graph,
+    pk: PriorKnowledge,
+    pc_citest_alpha: float = 0.05,
+    disable_orientation: bool = False,
+) -> nx.Graph:
+    variable_types = {col: "c" for col in df.columns}
+    ic_algorithm = IC(RobustRegressionTest, alpha=pc_citest_alpha)
+    G = ic_algorithm.search(df, variable_types)
+    assert G is not None, "IC algorithm failed to find a causal graph"
+    G = mn.relabel_graph_labels_to_node(G)
+    return G if disable_orientation else fix_edge_directions_in_causal_graph(G, pk)
+
+
 def fisher_z_two_var(dm, cm, x, y) -> float:
     m = dm.shape[0]
     r = cm[x, y]
@@ -480,6 +501,14 @@ def build_causal_graph_with_library(
                 pk,
                 cg_algo=kwargs["cg_algo"],
                 pc_citest=kwargs["pc_citest"],
+                pc_citest_alpha=kwargs["pc_citest_alpha"],
+                disable_orientation=kwargs["disable_orientation"],
+            )
+        case "causality":
+            G = build_causal_graph_with_causality(
+                dataset,
+                init_g=init_g,
+                pk=pk,
                 pc_citest_alpha=kwargs["pc_citest_alpha"],
                 disable_orientation=kwargs["disable_orientation"],
             )

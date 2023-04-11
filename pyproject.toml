@@ -57,6 +57,7 @@ jupyter = "^1.0.0"
 jupyter-core = "^5.3.0"
 neptune = "^1.1.1"
 jupyter-server = "^2.5.0"
+causality = "^0.0.10"
 
 [tool.poetry.group.dev.dependencies]
 flake8 = "^5.0.4"

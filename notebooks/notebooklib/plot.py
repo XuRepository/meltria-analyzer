@@ -6,6 +6,7 @@ import pandas as pd
 import scipy.stats
 from pandas.core.groupby.generic import DataFrameGroupBy
 
+from eval.groundtruth import check_cause_metrics
 from meltria.loader import DatasetRecord
 
 
@@ -47,6 +48,27 @@ def plot_dataset_dataframe(
     graph_height: float = 2.7,
     ncols: int = 3,
 ) -> None:
+    nrows = math.ceil(data_df.shape[1] / ncols)
+    fig, axs = plt.subplots(figsize=(fig_width, graph_height * nrows), nrows=nrows, ncols=ncols)
+    for (label, data), ax in zip(data_df.items(), axs.flatten()):  # type: ignore
+        ax.plot(data.to_numpy())
+        ax.set_title(f"{record.chaos_case_full()}: {label}")
+    plt.show()
+
+
+def plot_sli_and_causal_metrics(
+    record: DatasetRecord,
+    fig_width: float = 20,
+    graph_height: float = 2.7,
+    ncols: int = 3,
+) -> None:
+    root_metrics = list(record.pk.get_root_metrics())
+    ok, cause_metrics = check_cause_metrics(
+        record.pk, record.data_df.columns.tolist(), record.chaos_type(), record.chaos_comp(), optional_cause=True
+    )
+    assert ok, "The causal metrics are not correct."
+
+    data_df = record.data_df.loc[:, root_metrics + cause_metrics.tolist()]
     nrows = math.ceil(data_df.shape[1] / ncols)
     fig, axs = plt.subplots(figsize=(fig_width, graph_height * nrows), nrows=nrows, ncols=ncols)
     for (label, data), ax in zip(data_df.items(), axs.flatten()):  # type: ignore

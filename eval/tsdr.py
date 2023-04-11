@@ -1,5 +1,6 @@
 import datetime
 import hashlib
+import logging
 import os
 import pathlib
 from collections import defaultdict
@@ -86,6 +87,15 @@ def run_tsdr_and_save_as_cache(
     tsdr_options: dict[str, Any] = tsdr_default_options,
     use_manually_selected_metrics: bool = False,
 ) -> None:
+    # Workaround
+    if (
+        metric_types["middlewares"]
+        and tsdr_options.get("step2_dbscan_algorithm") == "dbscan"
+        and tsdr_options.get("step2_dbscan_dist_type") == "pearsonr"
+    ):
+        logging.info("Skip dbscan with pearsonr to dataset including middlewares because it takes too long time.")
+        return
+
     file_path_suffix = generate_file_path_suffix_as_id(
         tsdr_options, metric_types, use_manually_selected_metrics=use_manually_selected_metrics
     )
@@ -174,8 +184,12 @@ def calculate_scores_from_tsdr_result(
             if not enable:
                 continue
             num_series_by_type[f"num_series/{metric_type}/raw"] = tsdr_stat[0][1].loc[metric_type]["count"].sum()
-            num_series_by_type[f"num_series/{metric_type}/filtered"] = tsdr_stat[1][1].loc[metric_type]["count"].sum()
-            num_series_by_type[f"num_series/{metric_type}/reduced"] = stat_df.loc[metric_type]["count"].sum()
+            num_series_by_type[f"num_series/{metric_type}/filtered"] = (
+                tsdr_stat[1][1].loc[metric_type]["count"].sum() if metric_type in tsdr_stat[1][1] else 0
+            )
+            num_series_by_type[f"num_series/{metric_type}/reduced"] = (
+                stat_df.loc[metric_type]["count"].sum() if metric_type in stat_df else 0
+            )
         tests.append(
             {
                 "chaos_type": record.chaos_type(),
@@ -319,13 +333,16 @@ def _group_by_metric_type(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
 
 def load_tsdr_by_chaos(
     dataset_id: str,
+    metric_types: dict[str, bool],
     revert_normalized_time_series: bool = False,
-    suffix: str = "",
-    manually_selected: bool = False,
+    tsdr_options: dict[str, Any] = tsdr_default_options,
+    use_manually_selected_metrics: bool = False,
 ) -> dict[
     tuple[str, str], list[tuple[DatasetRecord, dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]]]
 ]:  # (chaos_type, chaos_comp)
-    datasets = load_tsdr_grouped_by_metric_type(dataset_id, revert_normalized_time_series, suffix, manually_selected)
+    datasets = load_tsdr_grouped_by_metric_type(
+        dataset_id, metric_types, revert_normalized_time_series, tsdr_options, use_manually_selected_metrics
+    )
     results = defaultdict(list)
     for record, df_by_metric_type in datasets:
         results[(record.chaos_type(), record.chaos_comp())].append((record, df_by_metric_type))
@@ -334,35 +351,31 @@ def load_tsdr_by_chaos(
 
 def load_tsdr_grouped_by_metric_type(
     dataset_id: str,
+    metric_types: dict[str, Any],
     revert_normalized_time_series: bool = False,
-    suffix: str = "",
-    manually_selected: bool = False,
+    tsdr_options: dict[str, Any] = tsdr_default_options,
+    use_manually_selected_metrics: bool = False,
 ) -> list[tuple[DatasetRecord, dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]]]:
-    dir_name: str = f"tsdr_{dataset_id}" if suffix == "" else f"tsdr_{dataset_id}_{suffix}"
+    ok, parent_path = check_cache_suffix(dataset_id, metric_types, tsdr_options, use_manually_selected_metrics)
+    if not ok:
+        raise ValueError(
+            f"Dataset {dataset_id} is not cached, {parent_path} does not exist. {metric_types}, {tsdr_options}, {use_manually_selected_metrics}"
+        )
     results = []
-    parent_path = DATA_DIR / dir_name
     for path in parent_path.iterdir():
         if not any(path.iterdir()):  # check empty
             continue
         with (path / "record.bz2").open("rb") as f:
             record = joblib.load(f)
             record.data_df = _filter_prometheus_exporter_go_metrics(record.data_df)
-            if manually_selected:
-                record.data_df = filter_manually_selected_metrics(record.data_df)
         with (path / "filtered_df.bz2").open("rb") as f:
             filtered_df = joblib.load(f)
-            if manually_selected:
-                filtered_df = filter_manually_selected_metrics(filtered_df)
             filtered_df = _group_by_metric_type(_filter_prometheus_exporter_go_metrics(filtered_df))
         with (path / "anomalous_df.bz2").open("rb") as f:
             anomalous_df = joblib.load(f)
-            if manually_selected:
-                anomalous_df = filter_manually_selected_metrics(anomalous_df)
             anomalous_df = _group_by_metric_type(_filter_prometheus_exporter_go_metrics(anomalous_df))
         with (path / "reduced_df.bz2").open("rb") as f:
             reduced_df = joblib.load(f)
-            if manually_selected:
-                reduced_df = filter_manually_selected_metrics(reduced_df)
             reduced_df = _group_by_metric_type(_filter_prometheus_exporter_go_metrics(reduced_df))
         df_by_metric_type: dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]] = {}
         for metric_type in ALL_METRIC_TYPES.keys():
@@ -378,45 +391,53 @@ def load_tsdr_grouped_by_metric_type(
     return results
 
 
-def check_cache_suffix(dataset_id: str, suffix: str) -> tuple[bool, pathlib.Path]:
-    dir_name: str = f"tsdr_{dataset_id}" if suffix == "" else f"tsdr_{dataset_id}_{suffix}"
+def check_cache_suffix(
+    dataset_id: str,
+    metric_types: dict[str, Any],
+    tsdr_options: dict[str, Any] = tsdr_default_options,
+    use_manually_selected_metrics: bool = False,
+) -> tuple[bool, pathlib.Path]:
+    file_path_suffix = generate_file_path_suffix_as_id(
+        tsdr_options, metric_types, use_manually_selected_metrics=use_manually_selected_metrics
+    )
+    dir_name: str = f"tsdr_{dataset_id}_{file_path_suffix}"
     parent_path = DATA_DIR / dir_name
     return parent_path.is_dir(), parent_path
 
 
-def load_tsdr(
-    dataset_id: str,
-    revert_normalized_time_series: bool = False,
-    suffix: str = "",
-    metric_types: dict[str, bool] = ALL_METRIC_TYPES,
-) -> list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
-    ok, parent_path = check_cache_suffix(dataset_id, suffix)
-    if not ok:
-        raise FileNotFoundError(f"tsdr_{dataset_id} is not found")
-    results = []
-    for path in parent_path.iterdir():
-        with (path / "record.bz2").open("rb") as f:
-            record = joblib.load(f)
-            record.data_df = _filter_prometheus_exporter_go_metrics(
-                filter_metrics_by_metric_type(record.data_df, metric_types)
-            )
-        with (path / "filtered_df.bz2").open("rb") as f:
-            filtered_df = _filter_prometheus_exporter_go_metrics(
-                filter_metrics_by_metric_type(joblib.load(f), metric_types)
-            )
-        with (path / "anomalous_df.bz2").open("rb") as f:
-            anomalous_df = _filter_prometheus_exporter_go_metrics(
-                filter_metrics_by_metric_type(joblib.load(f), metric_types)
-            )
-        with (path / "reduced_df.bz2").open("rb") as f:
-            reduced_df = _filter_prometheus_exporter_go_metrics(
-                filter_metrics_by_metric_type(joblib.load(f), metric_types)
-            )
-            if revert_normalized_time_series:  # Workaround
-                for metric_name, _ in reduced_df.items():
-                    reduced_df[metric_name] = anomalous_df[metric_name]
-        results.append((record, filtered_df, anomalous_df, reduced_df))
-    return results
+# def load_tsdr(
+#     dataset_id: str,
+#     revert_normalized_time_series: bool = False,
+#     suffix: str = "",
+#     metric_types: dict[str, bool] = ALL_METRIC_TYPES,
+# ) -> list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
+#     ok, parent_path = check_cache_suffix(dataset_id, suffix)
+#     if not ok:
+#         raise FileNotFoundError(f"tsdr_{dataset_id} is not found")
+#     results = []
+#     for path in parent_path.iterdir():
+#         with (path / "record.bz2").open("rb") as f:
+#             record = joblib.load(f)
+#             record.data_df = _filter_prometheus_exporter_go_metrics(
+#                 filter_metrics_by_metric_type(record.data_df, metric_types)
+#             )
+#         with (path / "filtered_df.bz2").open("rb") as f:
+#             filtered_df = _filter_prometheus_exporter_go_metrics(
+#                 filter_metrics_by_metric_type(joblib.load(f), metric_types)
+#             )
+#         with (path / "anomalous_df.bz2").open("rb") as f:
+#             anomalous_df = _filter_prometheus_exporter_go_metrics(
+#                 filter_metrics_by_metric_type(joblib.load(f), metric_types)
+#             )
+#         with (path / "reduced_df.bz2").open("rb") as f:
+#             reduced_df = _filter_prometheus_exporter_go_metrics(
+#                 filter_metrics_by_metric_type(joblib.load(f), metric_types)
+#             )
+#             if revert_normalized_time_series:  # Workaround
+#                 for metric_name, _ in reduced_df.items():
+#                     reduced_df[metric_name] = anomalous_df[metric_name]
+#         results.append((record, filtered_df, anomalous_df, reduced_df))
+#     return results
 
 
 def save_tsdr(

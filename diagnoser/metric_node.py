@@ -127,11 +127,11 @@ class MetricNodes(object):
         return {n.label: n for n in self.nodes}
 
 
-def relabel_graph_nodes_to_label(G: nx.DiGraph) -> nx.DiGraph:
+def relabel_graph_nodes_to_label(G: nx.Graph) -> nx.Graph:
     mapping = MetricNodes.from_list_of_metric_node(list(G.nodes)).node_to_label()
     return nx.relabel_nodes(G, mapping, copy=True)
 
 
-def relabel_graph_labels_to_node(G: nx.DiGraph) -> nx.DiGraph:
+def relabel_graph_labels_to_node(G: nx.Graph) -> nx.Graph:
     mapping = MetricNodes.from_metric_names(list(G.nodes)).label_to_node()
     return nx.relabel_nodes(G, mapping, copy=True)

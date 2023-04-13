@@ -18,6 +18,20 @@ from tsdr import tsdr
 
 DATA_DIR = pathlib.Path(__file__).parent.parent / "dataset" / "data"
 TSDR_DEFAULT_PHASE1_METHOD: Final[str] = "residual_integral"
+METRIC_TYPES_PAIRS: Final[list[dict[str, bool]]] = [
+    {
+        "services": True,
+        "containers": True,
+        "middlewares": False,
+        "nodes": False,
+    },
+    {
+        "services": True,
+        "containers": True,
+        "middlewares": True,
+        "nodes": False,
+    },
+]
 
 tsdr_default_options: Final[dict[str, Any]] = {
     "step1_method_name": "residual_integral",
@@ -52,22 +66,8 @@ def sweep_tsdr_and_save_as_cache(
 ) -> None:
     experiment_id = experiment_id or datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 
-    metric_types_pairs = [
-        {
-            "services": True,
-            "containers": True,
-            "middlewares": False,
-            "nodes": False,
-        },
-        {
-            "services": True,
-            "containers": True,
-            "middlewares": True,
-            "nodes": False,
-        },
-    ]
     for tsdr_options in list_of_tsdr_options:
-        for metric_types in metric_types_pairs:
+        for metric_types in METRIC_TYPES_PAIRS:
             for use_manually_selected_metric in use_manually_selected_metrics:
                 run_tsdr_and_save_as_cache(
                     experiment_id=experiment_id,

@@ -582,11 +582,27 @@ def build_causal_graph(
     return G, (root_contained_graphs, root_uncontained_graphs), stats
 
 
+def max_xcorr_pair(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    a_dev = a - a.mean()
+    b_dev = b - b.mean()
+    xc_ab = np.correlate(a_dev, b_dev, mode="full")
+    xc_ab /= np.linalg.norm(a_dev, ord=2) * np.linalg.norm(b_dev, ord=2)  # normalize
+    return np.max(np.abs(xc_ab))
+
+
+def xcorr(X: np.ndarray, y: np.ndarray) -> np.ndarray:
+    # expected X is 2darray, y is 1darray
+    assert X.ndim == 2, f"X.ndim must be 2, but {X.ndim}"
+    assert y.ndim == 1, f"y.ndim must be 1, but {y.ndim}"
+    return np.apply_along_axis(lambda x: max_xcorr_pair(x, y), axis=1, arr=X)
+
+
 def prepare_monitor_rank_based_random_walk(
     G: nx.DiGraph,
     dataset: pd.DataFrame,
     pk: PriorKnowledge,
     root_metric_type: str,
+    corr_method: str = "pearsonr",  # or "xcorr"
 ) -> tuple[nx.DiGraph, dict[str, float]]:
     """MonitorRank-based ranked algorithm
     G must be a call graph, not causal graph
@@ -603,8 +619,17 @@ def prepare_monitor_rank_based_random_walk(
     start_front_root_metric_id = data.columns.tolist().index(start_front_root_metric)
     assert start_front_root_metric_id >= 0, f"dataset has no root metric node: {start_front_root_metric}"
 
-    corr = np.corrcoef(data.values.T)  # calculate pearson correlation
-    sim = [abs(x) for x in corr[start_front_root_metric_id]]  # similarity to front root metric
+    match corr_method:
+        case "pearsonr":
+            corr = np.corrcoef(data.values.T)  # calculate pearson correlation
+            corr = corr[start_front_root_metric_id]
+        case "xcorr":
+            corr = np.corrcoef(data.values.T)  # calculate pearson correlation
+            corr = xcorr(data.values.T, data.values[:, start_front_root_metric_id])  # calculate cross correlation
+        case _:
+            raise ValueError(f"corr_method must be 'pearsonr' or 'xcorr', but {corr_method}")
+
+    sim = [abs(x) for x in corr]  # similarity to front root metric
     rho = 0.1
     # 'weight' of each edge means "transition probability"
     for i in G.nodes:
@@ -641,9 +666,15 @@ def walk_causal_graph_with_monitorrank(
     dataset: pd.DataFrame,
     pk: PriorKnowledge,
     root_metric_type: str,
-    **kwargs: dict,
+    **kwargs: dict[str, Any],
 ) -> tuple[nx.DiGraph, list[tuple[str, float]]]:
-    modified_g, preference_vector = prepare_monitor_rank_based_random_walk(G.reverse(), dataset, pk, root_metric_type)
+    modified_g, preference_vector = prepare_monitor_rank_based_random_walk(
+        G.reverse(),
+        dataset,
+        pk,
+        root_metric_type,
+        corr_method=kwargs["corr_method"],  # type: ignore
+    )
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         warnings.filterwarnings("ignore", category=FutureWarning)
@@ -665,7 +696,7 @@ def build_and_walk_causal_graph(
     enable_prior_knowledge: bool = True,
     use_call_graph: bool = False,
     use_complete_graph: bool = False,
-    **kwargs: Any,
+    **kwargs: dict[str, Any],
 ) -> tuple[nx.Graph, list[tuple[str, float]]]:
     assert not (
         use_call_graph and use_complete_graph

@@ -215,7 +215,6 @@ def grid_dataset(
             dataset_id,
             revert_normalized_time_series=True,
             suffix=suffix,
-            manually_selected=use_manually_selected_metrics,
         )
         logging.info(f"Processing {dataset_id} with {suffix}...")
         df = wrap_diagnose_with_neptune(
@@ -244,7 +243,11 @@ def grid_dataset_with_multi_diag_options(
     results = []
     for diag_options in list_of_diag_options:
         res = grid_dataset(
-            experiment_id, dataset_cache_suffixs, dataset_id, n, diag_options,
+            experiment_id,
+            dataset_cache_suffixs,
+            dataset_id,
+            n,
+            diag_options,
         )
         for (suffix, diag_target_phase), df in res:
             results.append(((suffix, diag_target_phase, diag_options), df))

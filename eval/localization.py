@@ -13,7 +13,7 @@ import networkx as nx
 import pandas as pd
 
 from diagnoser import diag
-from eval.localizaiton_score import create_localization_score_as_dataframe
+from eval.localizaiton_score import create_localization_score_as_dataframe, create_rank_as_dataframe
 from eval.tsdr import METRIC_TYPES_PAIRS, check_cache_suffix, load_tsdr_by_chaos
 from meltria.loader import DatasetRecord
 

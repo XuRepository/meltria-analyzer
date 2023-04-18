@@ -57,6 +57,7 @@ def plot_dataset_dataframe(
 
 
 def plot_sli_and_causal_metrics(
+    data_df: pd.DataFrame,
     record: DatasetRecord,
     fig_width: float = 20,
     graph_height: float = 2.7,
@@ -64,7 +65,7 @@ def plot_sli_and_causal_metrics(
 ) -> None:
     root_metrics = list(record.pk.get_root_metrics())
     ok, cause_metrics = check_cause_metrics(
-        record.pk, record.data_df.columns.tolist(), record.chaos_type(), record.chaos_comp(), optional_cause=True
+        record.pk, data_df.columns.tolist(), record.chaos_type(), record.chaos_comp(), optional_cause=True
     )
     assert ok, "The causal metrics are not correct."
 

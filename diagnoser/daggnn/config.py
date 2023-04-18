@@ -10,7 +10,8 @@ class Config:
     epochs: int = 1000  # 1000 in paper
 
     # Batch size (note: should be divisible by sample size, otherwise throw an error)
-    batch_size: int = 120
+    # batch_size: int = 50
+    sample_to_batch_size_factor: int = 5
 
     # Learning rate (baseline rate = 1e-3)
     lr: float = 1e-3
@@ -22,16 +23,16 @@ class Config:
     tau_A: float = 0.0
     lambda_A: float = 0.0
     c_A: int = 1  # penalty parameter
-    c_A_ul: float = 1e10  # c_A upper litmit (default 1e20)
-    use_A_connect_loss: int = 0
-    use_A_positiver_loss: int = 0
+    c_A_ul: float = 1e20  # c_A upper litmit (default 1e20)
+    use_A_connect_loss: int = 1  # default 0
+    use_A_positiver_loss: int = 1  # default 0
     cuda: bool = False
     # no_cuda = True
     seed: int = 42
     encoder_hidden: int = 64
     decoder_hidden: int = 64
     temp: float = 0.5
-    k_max_iter: float = 1e1  # default 1e2
+    k_max_iter: float = 5  # default 1e2
     encoder: str = "mlp"
     decoder: str = "mlp"
     encoder_dropout: float = 0.0

@@ -12,25 +12,37 @@ import torch.optim as optim
 from sknetwork.ranking import PageRank
 from torch import nn
 from torch.optim import lr_scheduler
-from tqdm.notebook import tqdm, trange
 
 from diagnoser.daggnn.config import Config
 from diagnoser.daggnn.modules import MLPDecoder, MLPEncoder, SEMDecoder, SEMEncoder
-from diagnoser.daggnn.utils import *
+from diagnoser.daggnn.utils import (
+    A_connect_loss,
+    A_positive_loss,
+    Variable,
+    get_tril_offdiag_indices,
+    get_triu_offdiag_indices,
+    kl_gaussian_sem,
+    matrix_poly,
+    nll_gaussian,
+)
 
 
 class CausalRCA:
-    def __init__(self, data: pd.DataFrame, conf: Config):
+    def __init__(self, data: pd.DataFrame, conf: Config, num_threads: int = 1):
         self.conf = conf
+
         conf.cuda = torch.cuda.is_available()
         torch.manual_seed(conf.seed)
         if conf.cuda:
             torch.cuda.manual_seed(conf.seed)
+        torch.set_num_threads(num_threads)
 
         self.data = data
         self.data_sample_size = data.shape[0]
         self.data_variable_size = data.shape[1]
         self.train_data = data
+
+        batch_size: int = self.data_sample_size * self.conf.sample_to_batch_size_factor
         # off_diag = np.ones([self.data_variable_size, self.data_variable_size]) - np.eye(self.data_variable_size)
 
         # add adjacency matrix A
@@ -44,7 +56,7 @@ class CausalRCA:
                     conf.encoder_hidden,
                     conf.z_dims,
                     adj_A,
-                    batch_size=conf.batch_size,
+                    batch_size=batch_size,
                     do_prob=conf.encoder_dropout,
                     factor=conf.factor,
                 ).double()
@@ -54,7 +66,7 @@ class CausalRCA:
                     conf.encoder_hidden,
                     conf.z_dims,
                     adj_A,
-                    batch_size=conf.batch_size,
+                    batch_size=batch_size,
                     do_prob=conf.encoder_dropout,
                     factor=conf.factor,
                 ).double()
@@ -69,7 +81,7 @@ class CausalRCA:
                     conf.x_dims,
                     self.encoder,
                     data_variable_size=self.data_variable_size,
-                    batch_size=conf.batch_size,
+                    batch_size=batch_size,
                     n_hid=conf.decoder_hidden,
                     do_prob=conf.decoder_dropout,
                 ).double()
@@ -80,7 +92,7 @@ class CausalRCA:
                     2,
                     self.encoder,
                     data_variable_size=self.data_variable_size,
-                    batch_size=conf.batch_size,
+                    batch_size=batch_size,
                     n_hid=conf.decoder_hidden,
                     do_prob=conf.decoder_dropout,
                 ).double()

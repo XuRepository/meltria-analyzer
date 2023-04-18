@@ -60,6 +60,7 @@ jupyter-server = "^2.5.0"
 causality = "^0.0.10"
 tigramite = "^5.2.0.0"
 pingouin = "^0.5.3"
+scikit-network = "^0.30.0"
 
 [tool.poetry.group.dev.dependencies]
 flake8 = "^5.0.4"

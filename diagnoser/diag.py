@@ -23,14 +23,13 @@ from cdt.causality.graph import LiNGAM
 import diagnoser.causalgraph.causallearn_cit_fisherz_patch  # noqa: F401  for only patching
 import diagnoser.causalgraph.cdt_PC_patch  # noqa: F401  for only patching
 import diagnoser.metric_node as mn
-from diagnoser import nx_util
+from diagnoser import causalrca, nx_util
+from diagnoser.causalgraph.pcalg import estimate_cpdag, estimate_skeleton
 from diagnoser.causalgraph.pcalg_patch import estimate_skeleton_with_indep_test
+from diagnoser.causalgraph.pgmpy_PC import PC
+from diagnoser.citest.fisher_z import ci_test_fisher_z
+from diagnoser.citest.fisher_z_pgmpy import fisher_z
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
-
-from .causalgraph.pcalg import estimate_cpdag, estimate_skeleton
-from .causalgraph.pgmpy_PC import PC
-from .citest.fisher_z import ci_test_fisher_z
-from .citest.fisher_z_pgmpy import fisher_z
 
 # from .citest.rlm import citest_rlm
 
@@ -697,11 +696,15 @@ def build_and_walk_causal_graph(
     enable_prior_knowledge: bool = True,
     use_call_graph: bool = False,
     use_complete_graph: bool = False,
+    use_causalrca: bool = False,
     **kwargs: dict[str, Any],
 ) -> tuple[nx.Graph, list[tuple[str, float]]]:
     assert not (
         use_call_graph and use_complete_graph
     ), "use_call_graph and use_complete_graph cannot be True at the same time."
+
+    if use_causalrca:
+        return causalrca.build_and_walk_causal_graph(dataset, **kwargs)
 
     G, (root_contained_graphs, root_uncontained_graphs), stats = build_causal_graph(
         dataset,

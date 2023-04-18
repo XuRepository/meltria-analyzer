@@ -217,14 +217,18 @@ def sweep_localization_and_save_as_cache(
                 f"None of cache is available for {metric_types}, use_manually_selected_metric={use_manually_selected_metrics}, {tsdr_options}"
             )
 
-    for diag_options, tsdr_options, metric_types, use_manually_selected_metrics in itertools.product(
-        list_of_diag_options,
-        list_of_tsdr_options,
-        METRIC_TYPES_PAIRS,
-        pair_of_use_manually_selected_metrics,
-    ):
+    params = list(
+        itertools.product(
+            list_of_diag_options,
+            list_of_tsdr_options,
+            METRIC_TYPES_PAIRS,
+            pair_of_use_manually_selected_metrics,
+        )
+    )
+    n_params = len(params)
+    for i, (diag_options, tsdr_options, metric_types, use_manually_selected_metrics) in enumerate(params):
         logging.info(
-            f"Processing {metric_types}, manually_selected?={use_manually_selected_metrics}, {tsdr_options}, {diag_options}"
+            f"Processing Pattern:{i+1}/{n_params} {metric_types}, manually_selected?={use_manually_selected_metrics}, {tsdr_options}, {diag_options}"
         )
         load_tsdr_and_localize(
             experiment_id=experiment_id,

@@ -1,0 +1,3 @@
+[submodule "rcd"]
+	path = rcd
+	url = git@github.com:yuuki/rcd.git

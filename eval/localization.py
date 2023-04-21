@@ -2,6 +2,7 @@ import datetime
 import itertools
 import logging
 import os
+import time
 import warnings
 from collections import defaultdict
 from enum import IntEnum
@@ -48,17 +49,23 @@ def diagnose_and_rank(
     reduced_df: pd.DataFrame,
     record: DatasetRecord,
     diag_options: dict[str, str | float | bool] = DIAG_DEFAULT_OPTIONS,
-) -> tuple[nx.Graph, pd.DataFrame] | None:
+) -> tuple[nx.Graph, pd.DataFrame, float] | None:
+    sta: float = time.perf_counter()
+
     opts = dict(DIAG_DEFAULT_OPTIONS, **diag_options)
     G, ranks = diag.build_and_walk_causal_graph(
         reduced_df,
         record.pk,
         **opts,
     )
+
+    end: float = time.perf_counter()
+    elapsed: float = end - sta
+
     if len(ranks) == 0:
         logging.error(f"Failed to diagnose {record.chaos_case_full()} with {len(ranks)} ranks")
         return None
-    return G, create_rank_as_dataframe(ranks, dataset_id, record)
+    return G, create_rank_as_dataframe(ranks, dataset_id, record), elapsed
 
 
 def diagnose_and_rank_multi_datasets(
@@ -66,7 +73,7 @@ def diagnose_and_rank_multi_datasets(
     datasets: dict,
     diag_options: dict[str, float | bool | int],
     diag_target_phase_option: DiagTargetPhaseOption = DEFAULT_DIAG_TARGET_PHASE_OPTION,
-) -> list:
+) -> tuple[list, dict[tuple[str, str, int], float]]:
     assert len(datasets) != 0
 
     records = []
@@ -93,7 +100,13 @@ def diagnose_and_rank_multi_datasets(
     results = [result for result in results if result is not None]
     assert results is not None
     assert len(results) != 0
-    return [_[1] for _ in results]
+
+    elapsed_times: dict[tuple[str, str, int], float] = {
+        (record.chaos_type(), record.chaos_comp(), record.chaos_case_num()): elapsed
+        for (_, _, elapsed), (record, _) in zip(results, records)
+    }
+
+    return [_[1] for _ in results], elapsed_times
 
 
 def calculate_reduction(datasets: dict) -> dict[str, dict[str, int]]:
@@ -115,6 +128,20 @@ def calculate_reduction(datasets: dict) -> dict[str, dict[str, int]]:
         for phase in avg_reductions[comp_group]:
             avg_reductions[comp_group][phase] = int(avg_reductions[comp_group][phase] / len(results))
     return avg_reductions
+
+
+def calculate_mean_elapsed_time(elapsed_times: dict[tuple[str, str, int], float]) -> dict:
+    df = pd.DataFrame(
+        [(_[0], _[1], _[2], elapsed) for _, elapsed in elapsed_times.items()],
+        columns=["chaos_type", "chaos_comp", "chaos_case_num", "elapsed_time"],
+    )
+    return {
+        "mean_by_chaos_type-df": df.groupby(["chaos_type"]).mean()["elapsed_time"],
+        "mean_by_chaos_comp-df": df.groupby(["chaos_comp"]).mean(),
+        "mean_by_chaos_type_and_chaos_comp": df.groupby(["chaos_type", "chaos_comp"]).mean(),
+        "mean": df.mean(),
+        "elapsed-df": df,
+    }
 
 
 def load_tsdr_and_localize(
@@ -152,7 +179,7 @@ def load_tsdr_and_localize(
     run["parameters"] = diag_options
     run["reduction"] = calculate_reduction(datasets)
 
-    data_dfs_by_metric_type = diagnose_and_rank_multi_datasets(
+    data_dfs_by_metric_type, elapsed_times = diagnose_and_rank_multi_datasets(
         dataset_id,
         datasets,
         diag_options,
@@ -162,6 +189,7 @@ def load_tsdr_and_localize(
     run["scores/metric/num_cases"] = df.at[1, "#cases (metric)"]
     run["scores/container/num_cases"] = df.at[1, "#cases (container)"]
     run["scores/service/num_cases"] = df.at[1, "#cases (service)"]
+    run["scores/elapsed_time"] = calculate_mean_elapsed_time(elapsed_times)
     for ind, row in df.iterrows():
         for name in ["AC", "AVG"]:
             run[f"scores/metric/{name}_{ind}"] = row[f"{name}@K (metric)"]
@@ -204,6 +232,7 @@ def sweep_localization_and_save_as_cache(
     list_of_tsdr_options: list[dict[str, Any]],
     list_of_diag_options: list[dict[str, Any]],
     pair_of_use_manually_selected_metrics: list[bool],
+    metric_types_pairs: list[dict[str, bool]] = METRIC_TYPES_PAIRS,
     experiment_id: str = "",
 ) -> None:
     if experiment_id == "":

@@ -473,14 +473,14 @@ swagger-spec-validator = ">=2.0.1"
 
 [[package]]
 name = "causal-learn"
-version = "0.1.3.3"
+version = "0.1.2.3"
 description = "causal-learn Python Package"
 category = "main"
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.6"
 files = [
-    {file = "causal-learn-0.1.3.3.tar.gz", hash = "sha256:bef2f4a449fed723bf9025f64a7ae58fa812af28aff98ff5e4fb3cbf0d4bbbb3"},
-    {file = "causal_learn-0.1.3.3-py3-none-any.whl", hash = "sha256:c3da164aca6d951ac131330c8b8d160d43a87cc087387ee4573c090dc6576175"},
+    {file = "causal-learn-0.1.2.3.tar.gz", hash = "sha256:781131cf888f84638965be50ba98208e22069538fd6c3fccbb037b8e2977dfb8"},
+    {file = "causal_learn-0.1.2.3-py3-none-any.whl", hash = "sha256:8a3bb80a164a7dc2a1a6f95653ec1228268a38f1e9253201b9224118662a9a42"},
 ]
 
 [package.dependencies]
@@ -5336,4 +5336,4 @@ test = ["mypy", "pre-commit", "pytest", "pytest-asyncio", "websockets (>=10.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.11"
-content-hash = "7aa8d9e799dc6ba74d0cde193a94967c395d61630fc290b1ad185d0380c1d584"
+content-hash = "f0ec32ed7c573233ae26339ee63fd6f399e6e32bcdfc20cb5c498459d88bdf2e"

@@ -1,5 +1,7 @@
+import sys
 import time
 import warnings
+from collections import defaultdict
 from itertools import combinations
 from typing import Any, Callable
 
@@ -14,13 +16,15 @@ from causallearn.search.ConstraintBased.CDNOD import cdnod
 from causallearn.search.ConstraintBased.FCI import fci
 from causallearn.search.ConstraintBased.PC import pc as cl_pc
 from causallearn.utils.PCUtils.BackgroundKnowledge import BackgroundKnowledge
+from scipy.stats import zscore
 
 warnings.filterwarnings("ignore", message=r"^No GPU automatically detected")
+
 from cdt.causality.graph import GIES as cdt_GIES
 from cdt.causality.graph import PC as cdt_PC
 from cdt.causality.graph import LiNGAM
 
-import diagnoser.causalgraph.causallearn_cit_fisherz_patch  # noqa: F401  for only patching
+# import diagnoser.causalgraph.causallearn_cit_fisherz_patch  # noqa: F401  for only patching
 import diagnoser.causalgraph.cdt_PC_patch  # noqa: F401  for only patching
 import diagnoser.metric_node as mn
 from diagnoser import causalrca, nx_util
@@ -30,6 +34,11 @@ from diagnoser.causalgraph.pgmpy_PC import PC
 from diagnoser.citest.fisher_z import ci_test_fisher_z
 from diagnoser.citest.fisher_z_pgmpy import fisher_z
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
+
+sys.path.append("../rcd")
+import utils as rcdutils
+
+import rcd
 
 # from .citest.rlm import citest_rlm
 
@@ -689,6 +698,29 @@ def walk_causal_graph_with_monitorrank(
     return modified_g, sorted(pr.items(), key=lambda item: item[1], reverse=True)
 
 
+def build_and_walk_causal_graph_with_rcd(dataset: pd.DataFrame, **kwargs) -> list[tuple[str, float]]:
+    # _remove_last_seen = lambda df: df.loc[:, ~df.columns.str.endswith('last_seen')]
+    # dataset = _remove_last_seen(dataset).apply(zscore).dropna(how="any", axis=1)
+    dataset = dataset.apply(zscore).dropna(how="any", axis=1)
+    normal_df = dataset[dataset.index < kwargs["rcd_boundary_index"]]
+    anomalous_df = dataset[dataset.index >= kwargs["rcd_boundary_index"]]
+
+    df = rcdutils.add_fnode(normal_df, anomalous_df)
+    n_df = df[df[rcdutils.F_NODE] == "0"].drop(columns=[rcdutils.F_NODE])
+    a_df = df[df[rcdutils.F_NODE] == "1"].drop(columns=[rcdutils.F_NODE])
+
+    n_iters: int = kwargs["rcd_n_iters"]
+    bins: int = kwargs["rcd_bins"]
+    localized: bool = kwargs["rcd_localized"]
+    k: int = kwargs["rcd_topk"]
+    results: dict[str, int] = defaultdict(int)
+    for i in range(n_iters):
+        result = rcd.rca_with_rcd(n_df, a_df, bins=bins, gamma=kwargs["rcd_gamma"], localized=localized)
+        for m in result["root_cause"][:k]:
+            results[m] += 1
+    return sorted([(metric, n / n_iters) for (metric, n) in results.items()], key=lambda x: x[1], reverse=True)
+
+
 def build_and_walk_causal_graph(
     dataset: pd.DataFrame,
     pk: PriorKnowledge,
@@ -697,14 +729,18 @@ def build_and_walk_causal_graph(
     use_call_graph: bool = False,
     use_complete_graph: bool = False,
     use_causalrca: bool = False,
+    use_rcd: bool = False,
     **kwargs: dict[str, Any],
 ) -> tuple[nx.Graph, list[tuple[str, float]]]:
     assert not (
         use_call_graph and use_complete_graph
     ), "use_call_graph and use_complete_graph cannot be True at the same time."
 
+    assert not (use_causalrca and use_rcd), "use_causalrca and use_rcd cannot be True at the same time."
     if use_causalrca:
         return causalrca.build_and_walk_causal_graph(dataset, **kwargs)
+    if use_rcd:
+        return nx.empty_graph(n=0), build_and_walk_causal_graph_with_rcd(dataset, **kwargs)
 
     G, (root_contained_graphs, root_uncontained_graphs), stats = build_causal_graph(
         dataset,

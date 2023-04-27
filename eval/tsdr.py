@@ -47,11 +47,14 @@ tsdr_default_options: Final[dict[str, Any]] = {
 }
 
 
-def generate_file_path_suffix_as_id(tsdr_options: dict[str, Any], metric_types: dict[str, bool], **kwargs: Any) -> str:
+def generate_file_path_suffix_as_id(
+    tsdr_options: dict[str, Any], metric_types: dict[str, bool], time_range: tuple[int, int], **kwargs: Any
+) -> str:
     return hashlib.md5(
         "".join(
             [f"{k}{v}" for k, v in sorted(tsdr_options.items())]
             + [f"{k}{v}" for k, v in sorted(metric_types.items())]
+            + ([f"time_range{time_range[0]}{time_range[1]}"] if time_range[0] == 0 and time_range[1] == 0 else [])
             + [f"{k}{v}" for k, v in sorted(kwargs.items())]
         ).encode()
     ).hexdigest()
@@ -62,6 +65,7 @@ def sweep_tsdr_and_save_as_cache(
     records: list[DatasetRecord],
     list_of_tsdr_options: list[dict[str, Any]],
     use_manually_selected_metrics: list[bool] = [True, False],
+    time_range: tuple[int, int] = (0, 0),
     experiment_id: str = "",
 ) -> None:
     experiment_id = experiment_id or datetime.datetime.now().strftime("%Y%m%d%H%M%S")
@@ -75,6 +79,7 @@ def sweep_tsdr_and_save_as_cache(
                     metric_types=metric_types,
                     records=records,
                     tsdr_options=tsdr_options,
+                    time_range=time_range,
                     use_manually_selected_metrics=use_manually_selected_metric,
                 )
 
@@ -86,6 +91,7 @@ def run_tsdr_and_save_as_cache(
     records: list[DatasetRecord],
     tsdr_options: dict[str, Any] = tsdr_default_options,
     use_manually_selected_metrics: bool = False,
+    time_range: tuple[int, int] = (0, 0),
 ) -> None:
     # Workaround
     if (
@@ -97,7 +103,7 @@ def run_tsdr_and_save_as_cache(
         return
 
     file_path_suffix = generate_file_path_suffix_as_id(
-        tsdr_options, metric_types, use_manually_selected_metrics=use_manually_selected_metrics
+        tsdr_options, metric_types, time_range=time_range, use_manually_selected_metrics=use_manually_selected_metrics
     )
 
     run = neptune.init_run(project=os.environ["TSDR_NEPTUNE_PROJECT"])
@@ -105,6 +111,8 @@ def run_tsdr_and_save_as_cache(
     run["dataset/dataset_id"] = dataset_id
     run["dataset/metric_types"] = metric_types
     run["dataset/use_manually_selected_metrics"] = use_manually_selected_metrics
+    run["dataset/time_range/start"] = time_range[0]
+    run["dataset/time_range/end"] = time_range[1]
     run["parameters"] = tsdr_options
 
     score_dfs: list[pd.DataFrame] = []
@@ -115,6 +123,7 @@ def run_tsdr_and_save_as_cache(
         enable_multireducer=tsdr_options["enable_multireducer"],
         metric_types=metric_types,
         use_manually_selected_metrics=use_manually_selected_metrics,
+        time_range=time_range,
     ):
         score_dfs.append(calculate_scores_from_tsdr_result(tsdr_stat, record, metric_types))
 
@@ -132,6 +141,7 @@ def run_tsdr_as_generator(
     enable_multireducer: bool = True,
     metric_types: dict[str, bool] = ALL_METRIC_TYPES,
     use_manually_selected_metrics: bool = False,
+    time_range: tuple[int, int] = (0, 0),
 ) -> Generator[
     tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame, list[tuple[pd.DataFrame, pd.DataFrame, float]]],
     None,
@@ -140,15 +150,17 @@ def run_tsdr_as_generator(
     tsdr_options = dict(tsdr_default_options, **tsdr_options)
 
     for record in records:
-        reducer = tsdr.Tsdr(
-            tsdr_options["step1_method_name"],
-            **tsdr_options,
-        )
         prefiltered_data_df = _filter_prometheus_exporter_go_metrics(record.data_df)
         if use_manually_selected_metrics:
             prefiltered_data_df = filter_manually_selected_metrics(prefiltered_data_df)
+
+        start, end = time_range
+        if end == 0:
+            end = prefiltered_data_df.shape[0]
+
+        reducer = tsdr.Tsdr(tsdr_options["step1_method_name"], **tsdr_options)
         tsdr_stat, _, _ = reducer.run(
-            X=filter_metrics_by_metric_type(prefiltered_data_df, metric_types),
+            X=filter_metrics_by_metric_type(prefiltered_data_df.iloc[start:end, :], metric_types),
             pk=record.pk,
             max_workers=cpu_count(),
         )
@@ -337,11 +349,17 @@ def load_tsdr_by_chaos(
     revert_normalized_time_series: bool = False,
     tsdr_options: dict[str, Any] = tsdr_default_options,
     use_manually_selected_metrics: bool = False,
+    time_range: tuple[int, int] = (0, 0),
 ) -> dict[
     tuple[str, str], list[tuple[DatasetRecord, dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]]]
 ]:  # (chaos_type, chaos_comp)
     datasets = load_tsdr_grouped_by_metric_type(
-        dataset_id, metric_types, revert_normalized_time_series, tsdr_options, use_manually_selected_metrics
+        dataset_id,
+        metric_types,
+        revert_normalized_time_series,
+        tsdr_options,
+        use_manually_selected_metrics,
+        time_range,
     )
     results = defaultdict(list)
     for record, df_by_metric_type in datasets:
@@ -355,8 +373,15 @@ def load_tsdr_grouped_by_metric_type(
     revert_normalized_time_series: bool = False,
     tsdr_options: dict[str, Any] = tsdr_default_options,
     use_manually_selected_metrics: bool = False,
+    time_range: tuple[int, int] = (0, 0),
 ) -> list[tuple[DatasetRecord, dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]]]:
-    ok, parent_path = check_cache_suffix(dataset_id, metric_types, tsdr_options, use_manually_selected_metrics)
+    ok, parent_path = check_cache_suffix(
+        dataset_id,
+        metric_types,
+        tsdr_options,
+        use_manually_selected_metrics,
+        time_range,
+    )
     if not ok:
         raise ValueError(
             f"Dataset {dataset_id} is not cached, {parent_path} does not exist. {metric_types}, {tsdr_options}, {use_manually_selected_metrics}"
@@ -396,9 +421,10 @@ def check_cache_suffix(
     metric_types: dict[str, Any],
     tsdr_options: dict[str, Any] = tsdr_default_options,
     use_manually_selected_metrics: bool = False,
+    time_range: tuple[int, int] = (0, 0),
 ) -> tuple[bool, pathlib.Path]:
     file_path_suffix = generate_file_path_suffix_as_id(
-        tsdr_options, metric_types, use_manually_selected_metrics=use_manually_selected_metrics
+        tsdr_options, metric_types, time_range=time_range, use_manually_selected_metrics=use_manually_selected_metrics
     )
     dir_name: str = f"tsdr_{dataset_id}_{file_path_suffix}"
     parent_path = DATA_DIR / dir_name

@@ -155,6 +155,7 @@ def load_tsdr_and_localize(
     tsdr_options: dict[str, Any],
     diag_options: dict[str, Any] = DIAG_DEFAULT_OPTIONS,
     use_manually_selected_metrics: bool = False,
+    time_range: tuple[int, int] = (0, 0),
 ) -> None:
     datasets = load_tsdr_by_chaos(
         dataset_id,
@@ -162,6 +163,7 @@ def load_tsdr_and_localize(
         revert_normalized_time_series=True,
         tsdr_options=tsdr_options,
         use_manually_selected_metrics=use_manually_selected_metrics,
+        time_range=time_range,
     )
 
     first_record = list(datasets.values())[0][0][0]
@@ -238,13 +240,14 @@ def sweep_localization_and_save_as_cache(
     list_of_diag_options: list[dict[str, Any]],
     pair_of_use_manually_selected_metrics: list[bool],
     metric_types_pairs: list[dict[str, bool]] = METRIC_TYPES_PAIRS,
+    time_ranges: list[tuple[int, int]] = [(0, 0)],
     experiment_id: str = "",
 ) -> None:
     if experiment_id == "":
         experiment_id = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 
     for tsdr_options, metric_types, use_manually_selected_metrics in itertools.product(
-        list_of_tsdr_options, METRIC_TYPES_PAIRS, pair_of_use_manually_selected_metrics
+        list_of_tsdr_options, metric_types_pairs, pair_of_use_manually_selected_metrics
     ):
         if not check_cache_suffix(dataset_id, metric_types, tsdr_options, use_manually_selected_metrics):
             raise ValueError(
@@ -255,7 +258,7 @@ def sweep_localization_and_save_as_cache(
         itertools.product(
             list_of_diag_options,
             list_of_tsdr_options,
-            METRIC_TYPES_PAIRS,
+            metric_types_pairs,
             pair_of_use_manually_selected_metrics,
         )
     )
@@ -272,4 +275,5 @@ def sweep_localization_and_save_as_cache(
             tsdr_options=tsdr_options,
             diag_options=diag_options,
             use_manually_selected_metrics=use_manually_selected_metrics,
+            time_range=time_range,
         )

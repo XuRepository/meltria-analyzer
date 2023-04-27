@@ -10,6 +10,7 @@ from typing import Any, Final
 
 import joblib
 import neptune
+import neptune.types
 import networkx as nx
 import pandas as pd
 
@@ -136,11 +137,13 @@ def calculate_mean_elapsed_time(elapsed_times: dict[tuple[str, str, int], float]
         columns=["chaos_type", "chaos_comp", "chaos_case_num", "elapsed_time"],
     )
     return {
-        "mean_by_chaos_type-df": df.groupby(["chaos_type"]).mean()["elapsed_time"],
-        "mean_by_chaos_comp-df": df.groupby(["chaos_comp"]).mean(),
-        "mean_by_chaos_type_and_chaos_comp": df.groupby(["chaos_type", "chaos_comp"]).mean(),
-        "mean": df.mean(),
-        "elapsed-df": df,
+        "mean_by_chaos_type-df": neptune.types.File.as_html(df.groupby(["chaos_type"]).mean()),
+        "mean_by_chaos_comp-df": neptune.types.File.as_html(df.groupby(["chaos_comp"]).mean()),
+        "mean_by_chaos_type_and_chaos_comp": neptune.types.File.as_html(
+            df.groupby(["chaos_type", "chaos_comp"]).mean()
+        ),
+        "mean": df.mean().to_dict(),
+        "elapsed-df": neptune.types.File.as_html(df),
     }
 
 
@@ -185,16 +188,18 @@ def load_tsdr_and_localize(
         diag_options,
     )
 
+    run["elapsed_time"] = calculate_mean_elapsed_time(elapsed_times)
+
     df = create_localization_score_as_dataframe(data_dfs_by_metric_type, pk=pk, k=n)
     run["scores/metric/num_cases"] = df.at[1, "#cases (metric)"]
     run["scores/container/num_cases"] = df.at[1, "#cases (container)"]
     run["scores/service/num_cases"] = df.at[1, "#cases (service)"]
-    run["scores/elapsed_time"] = calculate_mean_elapsed_time(elapsed_times)
     for ind, row in df.iterrows():
         for name in ["AC", "AVG"]:
             run[f"scores/metric/{name}_{ind}"] = row[f"{name}@K (metric)"]
             run[f"scores/container/{name}_{ind}"] = row[f"{name}@K (container)"]
             run[f"scores/service/{name}_{ind}"] = row[f"{name}@K (service)"]
+
     run["eval/score-df"] = neptune.types.File.as_html(df)
     run["eval/score-df-by-cause-comp"] = neptune.types.File.as_html(
         create_localization_score_as_dataframe(

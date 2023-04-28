@@ -32,7 +32,6 @@ class Tsdr:
         enable_multireducer: bool = True,
         **kwargs: Any,
     ) -> None:
-        assert enable_unireducer or enable_multireducer
         self.params = kwargs
         self.enable_unireducer = enable_unireducer
         self.enable_multireducer = enable_multireducer

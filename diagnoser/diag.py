@@ -17,6 +17,7 @@ from causallearn.search.ConstraintBased.FCI import fci
 from causallearn.search.ConstraintBased.PC import pc as cl_pc
 from causallearn.utils.PCUtils.BackgroundKnowledge import BackgroundKnowledge
 from scipy.stats import zscore
+from threadpoolctl import threadpool_limits
 
 warnings.filterwarnings("ignore", message=r"^No GPU automatically detected")
 
@@ -134,7 +135,7 @@ def prepare_init_graph(
 ) -> nx.Graph:
     """Prepare initialized causal graph."""
     init_g = nx.Graph()
-    for (u, v) in combinations(nodes, 2):
+    for u, v in combinations(nodes, 2):
         init_g.add_edge(u, v)
     if enable_prior_knowledge:
         RG: nx.Graph = build_subgraph_of_removal_edges(nodes, pk)
@@ -419,7 +420,7 @@ def build_causal_graph_without_citest(
     citest_func = fisher_z_two_var
 
     G = nx.relabel_nodes(init_g, mapping=nodes.node_to_num)
-    for (u, v) in G.edges:
+    for u, v in G.edges:
         p_val = citest_func(dm, cm, u, v)
         if p_val > pc_citest_alpha:
             G.remove_edge(u, v)
@@ -715,7 +716,8 @@ def build_and_walk_causal_graph_with_rcd(dataset: pd.DataFrame, **kwargs) -> lis
     k: int = kwargs["rcd_topk"]
     results: dict[str, int] = defaultdict(int)
     for i in range(n_iters):
-        result = rcd.rca_with_rcd(n_df, a_df, bins=bins, gamma=kwargs["rcd_gamma"], localized=localized)
+        with threadpool_limits(limits=1):
+            result = rcd.rca_with_rcd(n_df, a_df, bins=bins, gamma=kwargs["rcd_gamma"], localized=localized)
         for m in result["root_cause"][:k]:
             results[m] += 1
     return sorted([(metric, n / n_iters) for (metric, n) in results.items()], key=lambda x: x[1], reverse=True)

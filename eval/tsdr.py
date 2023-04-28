@@ -54,7 +54,7 @@ def generate_file_path_suffix_as_id(
         "".join(
             [f"{k}{v}" for k, v in sorted(tsdr_options.items())]
             + [f"{k}{v}" for k, v in sorted(metric_types.items())]
-            + ([f"time_range{time_range[0]}{time_range[1]}"] if time_range[0] == 0 and time_range[1] == 0 else [])
+            + ([] if time_range[0] == 0 and time_range[1] == 0 else [f"time_range{time_range[0]}{time_range[1]}"])
             + [f"{k}{v}" for k, v in sorted(kwargs.items())]
         ).encode()
     ).hexdigest()
@@ -384,7 +384,7 @@ def load_tsdr_grouped_by_metric_type(
     )
     if not ok:
         raise ValueError(
-            f"Dataset {dataset_id} is not cached, {parent_path} does not exist. {metric_types}, {tsdr_options}, {use_manually_selected_metrics}"
+            f"Dataset {dataset_id} is not cached, {parent_path} does not exist. {metric_types}, {tsdr_options}, use_manually_selected_metrics={use_manually_selected_metrics},time_range={time_range}"
         )
     results = []
     for path in parent_path.iterdir():

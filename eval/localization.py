@@ -246,10 +246,10 @@ def sweep_localization_and_save_as_cache(
     if experiment_id == "":
         experiment_id = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 
-    for tsdr_options, metric_types, use_manually_selected_metrics in itertools.product(
-        list_of_tsdr_options, metric_types_pairs, pair_of_use_manually_selected_metrics
+    for tsdr_options, metric_types, use_manually_selected_metrics, time_range in itertools.product(
+        list_of_tsdr_options, metric_types_pairs, pair_of_use_manually_selected_metrics, time_ranges
     ):
-        if not check_cache_suffix(dataset_id, metric_types, tsdr_options, use_manually_selected_metrics):
+        if not check_cache_suffix(dataset_id, metric_types, tsdr_options, use_manually_selected_metrics, time_range):
             raise ValueError(
                 f"None of cache is available for {metric_types}, use_manually_selected_metric={use_manually_selected_metrics}, {tsdr_options}"
             )
@@ -260,10 +260,11 @@ def sweep_localization_and_save_as_cache(
             list_of_tsdr_options,
             metric_types_pairs,
             pair_of_use_manually_selected_metrics,
+            time_ranges,
         )
     )
     n_params = len(params)
-    for i, (diag_options, tsdr_options, metric_types, use_manually_selected_metrics) in enumerate(params):
+    for i, (diag_options, tsdr_options, metric_types, use_manually_selected_metrics, time_range) in enumerate(params):
         logging.info(
             f"Processing Pattern:{i+1}/{n_params} {metric_types}, manually_selected?={use_manually_selected_metrics}, {tsdr_options}, {diag_options}"
         )

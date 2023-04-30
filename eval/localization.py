@@ -74,6 +74,7 @@ def diagnose_and_rank_multi_datasets(
     datasets: dict,
     diag_options: dict[str, float | bool | int],
     diag_target_phase_option: DiagTargetPhaseOption = DEFAULT_DIAG_TARGET_PHASE_OPTION,
+    n_workers: int = -1,
 ) -> tuple[list, dict[tuple[str, str, int], float]]:
     assert len(datasets) != 0
 
@@ -94,7 +95,7 @@ def diagnose_and_rank_multi_datasets(
                 continue
             records.append((record, reduced_df))
 
-    results = joblib.Parallel(n_jobs=-1)(
+    results = joblib.Parallel(n_jobs=n_workers)(
         joblib.delayed(diagnose_and_rank)(dataset_id, reduced_df, record, diag_options)
         for record, reduced_df in records
     )
@@ -156,6 +157,7 @@ def load_tsdr_and_localize(
     diag_options: dict[str, Any] = DIAG_DEFAULT_OPTIONS,
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
+    experiment_n_workers: int = -1,
 ) -> None:
     datasets = load_tsdr_by_chaos(
         dataset_id,
@@ -174,6 +176,7 @@ def load_tsdr_and_localize(
         api_token=os.environ["NEPTUNE_API_TOKEN"],
     )
     run["experiment_id"] = experiment_id
+    run["experiment_n_workers"] = experiment_n_workers
     run["dataset"] = {
         "dataset_id": dataset_id,
         "target_app": first_record.target_app(),
@@ -188,6 +191,7 @@ def load_tsdr_and_localize(
         dataset_id,
         datasets,
         diag_options,
+        n_workers=experiment_n_workers,
     )
 
     run["elapsed_time"] = calculate_mean_elapsed_time(elapsed_times)
@@ -242,6 +246,7 @@ def sweep_localization_and_save_as_cache(
     metric_types_pairs: list[dict[str, bool]] = METRIC_TYPES_PAIRS,
     time_ranges: list[tuple[int, int]] = [(0, 0)],
     experiment_id: str = "",
+    experiment_n_workers: int = -1,
 ) -> None:
     if experiment_id == "":
         experiment_id = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
@@ -270,6 +275,7 @@ def sweep_localization_and_save_as_cache(
         )
         load_tsdr_and_localize(
             experiment_id=experiment_id,
+            experiment_n_workers=experiment_n_workers,
             dataset_id=dataset_id,
             n=n,
             metric_types=metric_types,

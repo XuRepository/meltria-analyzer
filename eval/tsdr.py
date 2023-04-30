@@ -109,6 +109,7 @@ def run_tsdr_and_save_as_cache(
     run = neptune.init_run(project=os.environ["TSDR_NEPTUNE_PROJECT"])
     run["experiment_id"] = experiment_id
     run["dataset/dataset_id"] = dataset_id
+    run["dataset/target_app"] = records[0].target_app
     run["dataset/metric_types"] = metric_types
     run["dataset/use_manually_selected_metrics"] = use_manually_selected_metrics
     run["dataset/time_range/start"] = time_range[0]

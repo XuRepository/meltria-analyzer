@@ -3,6 +3,7 @@ from collections import defaultdict
 from typing import Any
 
 import pandas as pd
+from joblib import Parallel, delayed
 from scipy.stats import zscore
 from threadpoolctl import threadpool_limits
 
@@ -23,14 +24,33 @@ def localize(dataset: pd.DataFrame, **kwargs: Any) -> list[tuple[str, float]]:
     n_df = df[df[rcdutils.F_NODE] == "0"].drop(columns=[rcdutils.F_NODE])
     a_df = df[df[rcdutils.F_NODE] == "1"].drop(columns=[rcdutils.F_NODE])
 
-    n_iters: int = kwargs["rcd_n_iters"]
+    n_iters: int = kwargs["rcd_n_iters"]  # for random seed ensamble
     bins: int = kwargs["rcd_bins"]
     localized: bool = kwargs["rcd_localized"]
+    gamma: int = kwargs["rcd_gamma"]
     k: int = kwargs["rcd_topk"]
-    results: dict[str, int] = defaultdict(int)
-    for i in range(n_iters):
-        with threadpool_limits(limits=1):
-            result = rcd.rca_with_rcd(n_df, a_df, bins=bins, gamma=kwargs["rcd_gamma"], localized=localized)
+    n_workers: int = kwargs["rcd_n_workers"]
+    n_workers_for_seed_ensamble: int = kwargs["rcd_n_workers_seed_ensamble"]
+
+    # predict cause metrics with random seed ensamble because pf the randomness of phi-PC in RCD
+
+    results: list[dict[str, Any]]
+    with threadpool_limits(limits=1):
+        if n_workers_for_seed_ensamble == 1:
+            results = [
+                rcd.rca_with_rcd(n_df, a_df, bins=bins, gamma=gamma, localized=localized, n_workers=n_workers)
+                for _ in range(n_iters)
+            ]
+        else:
+            _results = Parallel(n_jobs=n_workers_for_seed_ensamble)(
+                delayed(rcd.rca_with_rcd)(n_df, a_df, bins=bins, gamma=gamma, localized=localized, n_workers=n_workers)
+                for _ in range(n_iters)
+            )
+            assert _results is not None, "The results of rcd.rca_with_rcd are not empty"
+            results = _results
+
+    scores: dict[str, int] = defaultdict(int)
+    for result in results:
         for m in result["root_cause"][:k]:
-            results[m] += 1
-    return sorted([(metric, n / n_iters) for (metric, n) in results.items()], key=lambda x: x[1], reverse=True)
+            scores[m] += 1
+    return sorted([(metric, n / n_iters) for (metric, n) in scores.items()], key=lambda x: x[1], reverse=True)

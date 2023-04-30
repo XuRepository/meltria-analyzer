@@ -273,14 +273,17 @@ def read_metrics_file(
                     "{}_name".format(metric_type[:-1]) if metric_type != METRIC_TYPE_MIDDLEWARES else "container_name"
                 ]
                 if metric_type == METRIC_TYPE_SERVICES:
-                    if (service := pk.get_service_by_container(target_name)) is not None:
+                    if (service := pk.get_service_by_container_or_empty(target_name)):
                         target_name = service
                 elif metric_type == METRIC_TYPE_NODES:
                     # FIXME: workaround for node name include ';' as suffix due to the issue of prometheus config
                     target_name = target_name.removesuffix(";")
                 if target_name in pk.get_skip_containers():
                     continue
-                ts = np.array(metric["values"], dtype=np.float64,)[
+                ts = np.array(
+                    metric["values"],
+                    dtype=np.float64,
+                )[
                     :, 1
                 ][-num_datapoints:]
                 if metric_type in [METRIC_TYPE_MIDDLEWARES, METRIC_TYPE_NODES]:

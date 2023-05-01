@@ -1,5 +1,6 @@
 import sys
 from collections import defaultdict
+from multiprocessing import cpu_count
 from typing import Any
 
 import pandas as pd
@@ -33,21 +34,20 @@ def localize(dataset: pd.DataFrame, **kwargs: Any) -> list[tuple[str, float]]:
     n_workers_for_seed_ensamble: int = kwargs["rcd_n_workers_seed_ensamble"]
 
     # predict cause metrics with random seed ensamble because pf the randomness of phi-PC in RCD
+    def run_rcd() -> dict[str, Any]:
+        with threadpool_limits(limits=1):
+            return rcd.rca_with_rcd(n_df, a_df, bins=bins, gamma=gamma, localized=localized, n_workers=n_workers)
+
+    if n_iters < cpu_count():
+        if n_workers_for_seed_ensamble == -1:
+            n_workers_for_seed_ensamble = n_iters
 
     results: list[dict[str, Any]]
-    with threadpool_limits(limits=1):
-        if n_workers_for_seed_ensamble == 1:
-            results = [
-                rcd.rca_with_rcd(n_df, a_df, bins=bins, gamma=gamma, localized=localized, n_workers=n_workers)
-                for _ in range(n_iters)
-            ]
-        else:
-            _results = Parallel(n_jobs=n_workers_for_seed_ensamble)(
-                delayed(rcd.rca_with_rcd)(n_df, a_df, bins=bins, gamma=gamma, localized=localized, n_workers=n_workers)
-                for _ in range(n_iters)
-            )
-            assert _results is not None, "The results of rcd.rca_with_rcd are not empty"
-            results = _results
+    if n_workers_for_seed_ensamble == 1:
+        results = [run_rcd() for _ in range(n_iters)]
+    else:
+        results = Parallel(n_jobs=n_workers_for_seed_ensamble)(delayed(run_rcd)() for _ in range(n_iters))
+        assert results is not None, "The results of rcd.rca_with_rcd are not empty"
 
     scores: dict[str, int] = defaultdict(int)
     for result in results:

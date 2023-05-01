@@ -17,7 +17,7 @@ import pandas as pd
 from diagnoser import diag
 from eval.groundtruth import check_cause_metrics
 from eval.localizaiton_score import create_localization_score_as_dataframe, create_rank_as_dataframe
-from eval.tsdr import METRIC_TYPES_PAIRS, check_cache_suffix, load_tsdr_by_chaos
+from eval.tsdr import DEFAULT_CHAOS_TYPES, METRIC_TYPES_PAIRS, check_cache_suffix, load_tsdr_by_chaos
 from meltria.loader import DatasetRecord
 
 warnings.simplefilter(action="ignore", category=pd.errors.SettingWithCopyWarning)
@@ -173,6 +173,7 @@ def load_tsdr_and_localize(
     diag_options: dict[str, Any] = DIAG_DEFAULT_OPTIONS,
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
+    target_chaos_types: set[str] = DEFAULT_CHAOS_TYPES,
     experiment_n_workers: int = -1,
 ) -> None:
     datasets = load_tsdr_by_chaos(
@@ -182,6 +183,7 @@ def load_tsdr_and_localize(
         tsdr_options=tsdr_options,
         use_manually_selected_metrics=use_manually_selected_metrics,
         time_range=time_range,
+        target_chaos_types=target_chaos_types,
     )
 
     first_record = list(datasets.values())[0][0][0]
@@ -261,6 +263,7 @@ def sweep_localization_and_save_as_cache(
     pair_of_use_manually_selected_metrics: list[bool],
     metric_types_pairs: list[dict[str, bool]] = METRIC_TYPES_PAIRS,
     time_ranges: list[tuple[int, int]] = [(0, 0)],
+    target_chaos_types: set[str] = DEFAULT_CHAOS_TYPES,
     experiment_id: str = "",
     experiment_n_workers: int = -1,
 ) -> None:
@@ -299,4 +302,5 @@ def sweep_localization_and_save_as_cache(
             diag_options=diag_options,
             use_manually_selected_metrics=use_manually_selected_metrics,
             time_range=time_range,
+            target_chaos_types=target_chaos_types,
         )

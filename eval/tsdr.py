@@ -16,6 +16,7 @@ from meltria.loader import DatasetRecord, is_prometheus_exporter_default_metrics
 from meltria.metric_types import ALL_METRIC_TYPES, METRIC_PREFIX_TO_TYPE
 from tsdr import tsdr
 
+DEFAULT_CHAOS_TYPES: Final[set[str]] = {"pod-cpu-hog", "pod-memory-hog"}
 DATA_DIR = pathlib.Path(__file__).parent.parent / "dataset" / "data"
 TSDR_DEFAULT_PHASE1_METHOD: Final[str] = "residual_integral"
 METRIC_TYPES_PAIRS: Final[list[dict[str, bool]]] = [
@@ -382,6 +383,7 @@ def load_tsdr_by_chaos(
     tsdr_options: dict[str, Any] = tsdr_default_options,
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
+    target_chaos_types: set[str] = DEFAULT_CHAOS_TYPES,
 ) -> dict[
     tuple[str, str], list[tuple[DatasetRecord, dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]]]
 ]:  # (chaos_type, chaos_comp)
@@ -395,6 +397,8 @@ def load_tsdr_by_chaos(
     )
     results = defaultdict(list)
     for record, df_by_metric_type in datasets:
+        if record.chaos_type() not in target_chaos_types:
+            continue
         results[(record.chaos_type(), record.chaos_comp())].append((record, df_by_metric_type))
     return results
 

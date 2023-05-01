@@ -15,6 +15,7 @@ import networkx as nx
 import pandas as pd
 
 from diagnoser import diag
+from eval.groundtruth import check_cause_metrics
 from eval.localizaiton_score import create_localization_score_as_dataframe, create_rank_as_dataframe
 from eval.tsdr import METRIC_TYPES_PAIRS, check_cache_suffix, load_tsdr_by_chaos
 from meltria.loader import DatasetRecord
@@ -45,12 +46,27 @@ DIAG_DEFAULT_OPTIONS: Final[dict[str, str | float | bool]] = dict(
 )
 
 
+def revert_true_cause_metrics(record: DatasetRecord, data_df: pd.DataFrame) -> pd.DataFrame:
+    _, cause_metrics = check_cause_metrics(
+        pk=record.pk,
+        metrics=list(record.data_df.columns),
+        chaos_type=record.chaos_type(),
+        chaos_comp=record.chaos_comp(),
+        optional_cause=True,
+    )
+    true_cause_df = record.data_df.filter(items=cause_metrics.tolist(), axis=1)
+    return pd.concat([data_df, true_cause_df], axis=1)
+
+
 def diagnose_and_rank(
     dataset_id: str,
     reduced_df: pd.DataFrame,
     record: DatasetRecord,
     diag_options: dict[str, str | float | bool] = DIAG_DEFAULT_OPTIONS,
 ) -> tuple[nx.Graph, pd.DataFrame, float] | None:
+    if diag_options.get("enable_revert_true_cause_metrics", False):
+        reduced_df = revert_true_cause_metrics(record, reduced_df)
+
     sta: float = time.perf_counter()
 
     opts = dict(DIAG_DEFAULT_OPTIONS, **diag_options)

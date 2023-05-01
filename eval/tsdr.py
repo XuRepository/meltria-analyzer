@@ -109,7 +109,7 @@ def run_tsdr_and_save_as_cache(
     run = neptune.init_run(project=os.environ["TSDR_NEPTUNE_PROJECT"])
     run["experiment_id"] = experiment_id
     run["dataset/dataset_id"] = dataset_id
-    run["dataset/target_app"] = records[0].target_app
+    run["dataset/target_app"] = records[0].target_app()
     run["dataset/metric_types"] = metric_types
     run["dataset/use_manually_selected_metrics"] = use_manually_selected_metrics
     run["dataset/time_range/start"] = time_range[0]
@@ -178,11 +178,34 @@ def run_tsdr_as_generator(
         yield (record, filtered_df, anomalous_df, reduced_df, tsdr_stat)
 
 
+def _get_cause_metrics(record: DatasetRecord, metrics: list, optional_cause: bool = True) -> list[str]:
+    cause_metrics_exist, found_metrics = check_cause_metrics(
+        pk=record.pk,
+        metrics=metrics,
+        chaos_type=record.chaos_type(),
+        chaos_comp=record.chaos_comp(),
+        optional_cause=optional_cause,
+    )
+    if not cause_metrics_exist:
+        logging.warning(
+            f"Cause metrics not found: pk={record.pk}, chaos_type={record.chaos_type()}, chaos_comp={record.chaos_comp()}"
+        )
+    return found_metrics.tolist()
+
+
+def _calculate_recall(total_cause_metrics: set[str], found_cause_metrics: set[str]) -> float:
+    return len(total_cause_metrics & found_cause_metrics) / len(total_cause_metrics)
+
+
 def calculate_scores_from_tsdr_result(
     tsdr_stat: list[tuple[pd.DataFrame, pd.DataFrame, float]],
     record: DatasetRecord,
     metric_types: dict[str, bool],
 ) -> pd.DataFrame:
+    total_cause_metrics: set[str] = set(_get_cause_metrics(record, list(tsdr_stat[1][0].columns)))
+    total_mandatory_cause_metrics: set[str] = set(
+        _get_cause_metrics(record, list(tsdr_stat[1][0].columns), optional_cause=False)
+    )
     tests: list[dict[str, Any]] = []
     for i, (reduced_df, stat_df, elapsed_time) in enumerate(tsdr_stat[1:], start=1):
         cause_metrics_exist, found_metrics = check_cause_metrics(
@@ -210,6 +233,10 @@ def calculate_scores_from_tsdr_result(
                 "metrics_file": record.basename_of_metrics_file(),
                 "phase": f"phase{i}",
                 "cause_metrics_exist": cause_metrics_exist,
+                "cause_only_mandatory_metrics_recall": _calculate_recall(
+                    total_mandatory_cause_metrics, set(found_metrics)
+                ),
+                "cause_metrics_recall": _calculate_recall(total_cause_metrics, set(found_metrics)),
                 "num_series/total/raw": tsdr_stat[0][1]["count"].sum(),  # raw
                 "num_series/total/filtered": tsdr_stat[1][1]["count"].sum(),  # after step0
                 "num_series/total/reduced": stat_df["count"].sum(),  # after step{i}
@@ -241,6 +268,8 @@ def upload_scores_to_neptune(run: neptune.Run, tests_df: pd.DataFrame, target_me
             "tp": tp,
             "fn": fn,
             "accuracy": tp / (tp + fn),
+            "recall_total_mean": x["cause_metrics_recall"].mean(),
+            "recall_mandatory_mean": x["cause_only_mandatory_metrics_recall"].mean(),
             "num_series/total": "/".join(
                 [
                     f"{int(x['num_series/total/reduced'].mean())}",
@@ -277,6 +306,8 @@ def upload_scores_to_neptune(run: neptune.Run, tests_df: pd.DataFrame, target_me
     total_scores: pd.Series = scores_by_phase.iloc[-1, :].copy()
     for col in ["elapsed_time", "elapsed_time_max", "elapsed_time_min"]:
         total_scores[col] = scores_by_phase[col].sum()
+    for col in ["recall_total_mean", "recall_mandatory_mean"]:
+        total_scores[col] = scores_by_phase[col][-1]
 
     run["scores"] = total_scores.to_dict()
     run["scores/summary_by_phase"].upload(neptune.types.File.as_html(scores_by_phase))

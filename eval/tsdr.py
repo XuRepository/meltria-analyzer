@@ -66,13 +66,14 @@ def sweep_tsdr_and_save_as_cache(
     records: list[DatasetRecord],
     list_of_tsdr_options: list[dict[str, Any]],
     use_manually_selected_metrics: list[bool] = [True, False],
+    metric_types_pairs: list[dict[str, bool]] = METRIC_TYPES_PAIRS,
     time_range: tuple[int, int] = (0, 0),
     experiment_id: str = "",
 ) -> None:
     experiment_id = experiment_id or datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 
     for tsdr_options in list_of_tsdr_options:
-        for metric_types in METRIC_TYPES_PAIRS:
+        for metric_types in metric_types_pairs:
             for use_manually_selected_metric in use_manually_selected_metrics:
                 run_tsdr_and_save_as_cache(
                     experiment_id=experiment_id,
@@ -95,13 +96,13 @@ def run_tsdr_and_save_as_cache(
     time_range: tuple[int, int] = (0, 0),
 ) -> None:
     # Workaround
-    if (
-        metric_types["middlewares"]
-        and tsdr_options.get("step2_dbscan_algorithm") == "dbscan"
-        and tsdr_options.get("step2_dbscan_dist_type") == "pearsonr"
-    ):
-        logging.info("Skip dbscan with pearsonr to dataset including middlewares because it takes too long time.")
-        return
+    # if (
+    #     metric_types["middlewares"]
+    #     and tsdr_options.get("step2_dbscan_algorithm") == "dbscan"
+    #     and tsdr_options.get("step2_dbscan_dist_type") == "pearsonr"
+    # ):
+    #     logging.info("Skip dbscan with pearsonr to dataset including middlewares because it takes too long time.")
+    #     return
 
     file_path_suffix = generate_file_path_suffix_as_id(
         tsdr_options, metric_types, time_range=time_range, use_manually_selected_metrics=use_manually_selected_metrics

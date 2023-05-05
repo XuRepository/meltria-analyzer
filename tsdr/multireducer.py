@@ -50,6 +50,7 @@ def dbscan_clustering(
     dist_func: str | Callable,
     min_pts: int,
     algorithm: str,
+    eps: float,
     choice_method: str = "medoid",
 ) -> tuple[dict[str, Any], list[str]]:
     labels, dist_matrix = dbscan.learn_clusters(
@@ -57,6 +58,7 @@ def dbscan_clustering(
         dist_func=dist_func,
         min_pts=min_pts,
         algorithm=algorithm,
+        eps=eps,
     )
 
     cluster_dict: dict[int, list[int]] = {}

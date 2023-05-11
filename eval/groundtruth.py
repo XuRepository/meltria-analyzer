@@ -17,15 +17,14 @@ CHAOS_TO_CAUSE_METRIC_PATTERNS: Final[dict[str, dict[tuple[str, str], dict[str, 
                 "cpu_usage_seconds_total",
                 "cpu_user_seconds_total",
                 "threads",
-                "processes",
             ],
             "optional": [
                 "cpu_system_seconds_total",
                 "cpu_cfs_periods_total",
                 "cpu_cfs_throttled_periods_total",
                 "cpu_cfs_throttled_seconds_total",
-                "cpu_load_average_10s",
                 "sockets",
+                "processes",
                 "file_descriptors",
                 "memory_cache",
                 "memory_mapped_file",
@@ -43,14 +42,14 @@ CHAOS_TO_CAUSE_METRIC_PATTERNS: Final[dict[str, dict[tuple[str, str], dict[str, 
             ],
             "optional": [],
         },
-        ("web", "jvm"): {
-            "mandatory": [
-                "Tomcat_.+_processingTime",
-                "Tomcat_.+_requestProcessingTime",
-                "Tomcat_.+_requestCount",
-            ],
-            "optional": [],
-        },
+        # ("web", "jvm"): {
+        #     "mandatory": [
+        #         "Tomcat_.+_processingTime",
+        #         "Tomcat_.+_requestProcessingTime",
+        #         "Tomcat_.+_requestCount",
+        #     ],
+        #     "optional": [],
+        # },
         ("*", "mongodb"): {
             "mandatory": [
                 "mongodb_sys_cpu_processes",
@@ -65,22 +64,20 @@ CHAOS_TO_CAUSE_METRIC_PATTERNS: Final[dict[str, dict[tuple[str, str], dict[str, 
     "pod-memory-hog": {
         ("*", "container"): {
             "mandatory": [
-                "memory_max_usage_bytes",
                 "memory_rss",
                 "memory_usage_bytes",
                 "memory_working_set_bytes",
+                "memory_cache",
                 "threads",
-                "processes",
             ],
             "optional": [
                 "sockets",
+                "processes",
                 "file_descriptors",
                 "fs_inodes_total",
                 "fs_limit_bytes",
-                "ulimits_soft",
-                "memory_cache",
+                "memory_max_usage_bytes",
                 "memory_mapped_file",
-                "memory_failures_total",
             ],
         },
         ("*", "jvm"): {
@@ -101,30 +98,31 @@ CHAOS_TO_CAUSE_METRIC_PATTERNS: Final[dict[str, dict[tuple[str, str], dict[str, 
                 "java_lang_GarbageCollector_LastGcInfo_memoryUsageAfterGc_init",
                 "java_lang_GarbageCollector_LastGcInfo_memoryUsageAfterGc_committed",
                 "java_lang_GarbageCollector_LastGcInfo_memoryUsageAfterGc_used",
-                "java_lang_GarbageCollector_LastGcInfo_memoryUsageAfterGc_max",
                 "java_lang_GarbageCollector_LastGcInfo_memoryUsageBeforeGc_used",
                 "java_lang_GarbageCollector_LastGcInfo_memoryUsageBeforeGc_committed",
                 "java_lang_GarbageCollector_LastGcInfo_memoryUsageBeforeGc_init",
-                "java_lang_GarbageCollector_LastGcInfo_memoryUsageBeforeGc_max",
                 "java_lang_GarbageCollector_LastGcInfo_GcThreadCount",
                 "java_lang_GarbageCollector_LastGcInfo_startTime",
                 "java_lang_GarbageCollector_LastGcInfo_endTime",
                 "java_lang_OperatingSystem_SystemCpuLoad",
                 "java_lang_OperatingSystem_FreePhysicalMemorySize",
+            ],
+            "optional": [
+                "java_lang_GarbageCollector_LastGcInfo_memoryUsageBeforeGc_max",
+                "java_lang_GarbageCollector_LastGcInfo_memoryUsageAfterGc_max",
                 "java_nio_BufferPool_MemoryUsed",
                 "java_nio_BufferPool_TotalCapacity",
                 "java_nio_BufferPool_Count",
             ],
-            "optional": [],
         },
-        ("web", "jvm"): {
-            "mandatory": [
-                "Tomcat_.+_processingTime",
-                "Tomcat_.+_requestProcessingTime",
-                "}Tomcat_.+_requestCount",
-            ],
-            "optional": [],
-        },
+        # ("web", "jvm"): {
+        #     "mandatory": [
+        #         "Tomcat_.+_processingTime",
+        #         "Tomcat_.+_requestProcessingTime",
+        #         "}Tomcat_.+_requestCount",
+        #     ],
+        #     "optional": [],
+        # },
         ("*", "mongodb"): {
             "mandatory": [
                 "mongodb_sys_memory_Buffers_kb",
@@ -145,7 +143,7 @@ CHAOS_TO_CAUSE_METRIC_PATTERNS: Final[dict[str, dict[tuple[str, str], dict[str, 
                 "mongodb_ss_tcmalloc_tcmalloc_pageheap_total_commit_bytes",
                 "mongodb_ss_tcmalloc_tcmalloc_pageheap_total_decommit_bytes",
                 "mongodb_ss_tcmalloc_tcmalloc_pageheap_total_reserve_bytes",
-                "mongodb_ss_tcmalloc_tcmalloc_pageheap_unmapped_bytes",
+                # "mongodb_ss_tcmalloc_tcmalloc_pageheap_unmapped_bytes",
             ],
         },
     },
@@ -380,7 +378,7 @@ def get_ground_truth_on_propagated_route(pk: PriorKnowledge, ctnr: str) -> dict[
             continue
         for _ctnr in path[1:]:
             role, runtime = pk.get_role_and_runtime_by_container(_ctnr)
-            for (_role, _runtime) in product(["*", role], ["container", runtime]):
+            for _role, _runtime in product(["*", role], ["container", runtime]):
                 if len(metrics := METRIC_PATTERNS_ON_ROUTE.get((_role, _runtime), [])) > 0:
                     route_metrics[_ctnr] = (_runtime, metrics)
     return route_metrics

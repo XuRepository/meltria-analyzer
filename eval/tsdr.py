@@ -195,8 +195,12 @@ def _get_cause_metrics(record: DatasetRecord, metrics: list, optional_cause: boo
     return found_metrics.tolist()
 
 
-def _calculate_recall(total_cause_metrics: set[str], found_cause_metrics: set[str]) -> float:
+def recall_of_cause_metrics(total_cause_metrics: set[str], found_cause_metrics: set[str]) -> float:
     return len(total_cause_metrics & found_cause_metrics) / len(total_cause_metrics)
+
+
+def proportion_of_cause_metrics(total_metrics: set[str], found_cause_metrics: set[str]) -> float:
+    return len(found_cause_metrics) / len(total_metrics)
 
 
 def calculate_scores_from_tsdr_result(
@@ -204,6 +208,7 @@ def calculate_scores_from_tsdr_result(
     record: DatasetRecord,
     metric_types: dict[str, bool],
 ) -> pd.DataFrame:
+    # metrics denominator after phase0 simple filtering
     total_cause_metrics: set[str] = set(_get_cause_metrics(record, list(tsdr_stat[1][0].columns)))
     total_mandatory_cause_metrics: set[str] = set(
         _get_cause_metrics(record, list(tsdr_stat[1][0].columns), optional_cause=False)
@@ -234,11 +239,14 @@ def calculate_scores_from_tsdr_result(
                 "chaos_comp": record.chaos_comp(),
                 "metrics_file": record.basename_of_metrics_file(),
                 "phase": f"phase{i}",
-                "cause_metrics_exist": cause_metrics_exist,
-                "cause_only_mandatory_metrics_recall": _calculate_recall(
+                "cause_metrics/exist": cause_metrics_exist,
+                "cause_metrics/only_mandatory_recall": recall_of_cause_metrics(
                     total_mandatory_cause_metrics, set(found_metrics)
                 ),
-                "cause_metrics_recall": _calculate_recall(total_cause_metrics, set(found_metrics)),
+                "cause_metrics/recall": recall_of_cause_metrics(total_cause_metrics, set(found_metrics)),
+                "cause_metrics/proportion": proportion_of_cause_metrics(set(reduced_df.columns), set(found_metrics)),
+                "cause_metrics/num_total": len(total_cause_metrics),
+                "cause_metrics/num_found": len(found_metrics),
                 "num_series/total/raw": tsdr_stat[0][1]["count"].sum(),  # raw
                 "num_series/total/filtered": tsdr_stat[1][1]["count"].sum(),  # after step0
                 "num_series/total/reduced": stat_df["count"].sum(),  # after step{i}
@@ -252,8 +260,8 @@ def calculate_scores_from_tsdr_result(
 
 def upload_scores_to_neptune(run: neptune.Run, tests_df: pd.DataFrame, target_metric_types: dict[str, bool]) -> None:
     def agg_score(x: pd.DataFrame) -> pd.Series:
-        tp = int(x["cause_metrics_exist"].sum())
-        fn = int((~x["cause_metrics_exist"]).sum())
+        tp = int(x["cause_metrics/exist"].sum())
+        fn = int((~x["cause_metrics/exist"]).sum())
         rate = 1 - x["num_series/total/reduced"] / x["num_series/total/filtered"]
         num_series_items: dict[str, str] = {}
         for metric_type, ok in target_metric_types.items():
@@ -270,8 +278,11 @@ def upload_scores_to_neptune(run: neptune.Run, tests_df: pd.DataFrame, target_me
             "tp": tp,
             "fn": fn,
             "accuracy": tp / (tp + fn),
-            "recall_total_mean": x["cause_metrics_recall"].mean(),
-            "recall_mandatory_mean": x["cause_only_mandatory_metrics_recall"].mean(),
+            "cause_metrics/recall_mean": x["cause_metrics/recall"].mean(),
+            "cause_metrics/recall_mandatory_mean": x["cause_metrics/only_mandatory_recall"].mean(),
+            "cause_metrics/proportion_mean": x["cause_metrics/proportion"].mean(),
+            "cause_metrics/num_total_mean": x["cause_metrics/num_total"].mean(),
+            "cause_metrics/num_found_mean": x["cause_metrics/num_found"].mean(),
             "num_series/total": "/".join(
                 [
                     f"{int(x['num_series/total/reduced'].mean())}",
@@ -308,7 +319,13 @@ def upload_scores_to_neptune(run: neptune.Run, tests_df: pd.DataFrame, target_me
     total_scores: pd.Series = scores_by_phase.iloc[-1, :].copy()
     for col in ["elapsed_time", "elapsed_time_max", "elapsed_time_min"]:
         total_scores[col] = scores_by_phase[col].sum()
-    for col in ["recall_total_mean", "recall_mandatory_mean"]:
+    for col in [
+        "cause_metrics/recall_mean",
+        "cause_metrics/recall_mandatory_mean",
+        "cause_metrics/proportion_mean",
+        "cause_metrics/num_total_mean",
+        "cause_metrics/num_found_mean",
+    ]:
         total_scores[col] = scores_by_phase[col][-1]
 
     run["scores"] = total_scores.to_dict()

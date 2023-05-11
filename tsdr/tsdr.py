@@ -234,6 +234,7 @@ class Tsdr:
                         dist_func,
                         kwargs["step2_dbscan_min_pts"],
                         kwargs["step2_dbscan_algorithm"],
+                        kwargs.get("step2_dbscan_eps", 0.0),
                         choice_method,
                     )
                 case _:

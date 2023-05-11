@@ -54,8 +54,9 @@ def revert_true_cause_metrics(record: DatasetRecord, data_df: pd.DataFrame) -> p
         chaos_comp=record.chaos_comp(),
         optional_cause=True,
     )
-    true_cause_df = record.data_df.filter(items=cause_metrics.tolist(), axis=1)
-    return pd.concat([data_df, true_cause_df], axis=1)
+    true_cause_df = record.data_df.loc[:, cause_metrics.tolist()]
+    not_have_true_cause_columns = true_cause_df.columns.difference(data_df.columns)
+    return pd.concat([data_df, true_cause_df[not_have_true_cause_columns]], axis=1)
 
 
 def diagnose_and_rank(

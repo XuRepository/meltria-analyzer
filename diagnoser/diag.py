@@ -349,6 +349,8 @@ def build_causal_graphs_with_causallearn(
     match pc_citest:
         case "fisherz":
             indep_test = cit.fisherz
+        case "mv_fisherz":
+            indep_test = cit.mv_fisherz
         case "chi2":
             df = _discretize(df, bins=pc_citest_bins)
             indep_test = cit.chisq

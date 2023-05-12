@@ -17,9 +17,11 @@ from causallearn.utils.PCUtils.BackgroundKnowledge import BackgroundKnowledge
 
 warnings.filterwarnings("ignore", message=r"^No GPU automatically detected")
 
+from causallearn.utils import cit
 from cdt.causality.graph import GIES as cdt_GIES
 from cdt.causality.graph import PC as cdt_PC
 from cdt.causality.graph import LiNGAM
+from sklearn.preprocessing import KBinsDiscretizer
 
 # import diagnoser.causalgraph.causallearn_cit_fisherz_patch  # noqa: F401  for only patching
 import diagnoser.causalgraph.cdt_PC_patch  # noqa: F401  for only patching
@@ -33,6 +35,16 @@ from diagnoser.citest.fisher_z_pgmpy import fisher_z
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
 # from .citest.rlm import citest_rlm
+
+
+def _discretize(data: pd.DataFrame, bins: int):
+    discretizer = KBinsDiscretizer(n_bins=bins, encode="ordinal", strategy="kmeans")
+    discretizer.fit(data)
+    disc_d = discretizer.transform(data)
+    disc_d = pd.DataFrame(disc_d, columns=data.columns.values.tolist())
+    for c in disc_d:
+        disc_d[c] = disc_d[c].astype(int)
+    return disc_d
 
 
 def filter_by_target_metrics(data_df: pd.DataFrame, pk: PriorKnowledge) -> pd.DataFrame:
@@ -319,6 +331,7 @@ def build_causal_graphs_with_causallearn(
     cg_algo: str = "pc",
     pc_citest_alpha: float = 0.05,
     pc_citest: str = "fisherz",
+    pc_citest_bins: int = 5,
     disable_orientation: bool = False,
 ) -> nx.Graph:
     init_dg = fix_edge_directions_in_causal_graph(init_g, pk)
@@ -333,13 +346,25 @@ def build_causal_graphs_with_causallearn(
                 GraphNode(node2.label), GraphNode(node1.label)
             )
 
+    match pc_citest:
+        case "fisherz":
+            indep_test = cit.fisherz
+        case "chi2":
+            df = _discretize(df, bins=pc_citest_bins)
+            indep_test = cit.chisq
+        case "gsq":
+            df = _discretize(df, bins=pc_citest_bins)
+            indep_test = cit.gsq
+        case _:
+            raise ValueError(f"Unsupported independence test: {pc_citest}")
+
     G: nx.Graph
     match cg_algo:
         case "pc":
             G_ = cl_pc(
                 data=df.to_numpy(dtype=np.float32),
                 alpha=pc_citest_alpha,
-                indep_test=pc_citest,
+                indep_test=indep_test,
                 stable=True,
                 uc_rule=2,  # definiteMaxP
                 uc_priority=2,
@@ -503,6 +528,7 @@ def build_causal_graph_with_library(
                 cg_algo=kwargs["cg_algo"],
                 pc_citest=kwargs["pc_citest"],
                 pc_citest_alpha=kwargs["pc_citest_alpha"],
+                pc_citest_bins=kwargs["pc_citest_bins"],
                 disable_orientation=kwargs["disable_orientation"],
             )
         case "causality":

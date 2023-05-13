@@ -62,6 +62,7 @@ tigramite = "^5.2.0.0"
 pingouin = "^0.5.3"
 scikit-network = "^0.30.0"
 threadpoolctl = "^3.1.0"
+lingam = "^1.7.1"
 
 [tool.poetry.group.dev.dependencies]
 flake8 = "^5.0.4"

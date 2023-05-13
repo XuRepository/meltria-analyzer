@@ -37,7 +37,9 @@ from meltria.priorknowledge.priorknowledge import PriorKnowledge
 # from .citest.rlm import citest_rlm
 
 
-def _discretize(data: pd.DataFrame, bins: int):
+def _discretize(data: pd.DataFrame, bins: int, standardize: bool = False):
+    if standardize:
+        data = data.apply(scipy.stats.zscore)
     discretizer = KBinsDiscretizer(n_bins=bins, encode="ordinal", strategy="kmeans")
     discretizer.fit(data)
     disc_d = discretizer.transform(data)
@@ -351,11 +353,11 @@ def build_causal_graphs_with_causallearn(
             indep_test = cit.fisherz
         case "mv_fisherz":
             indep_test = cit.mv_fisherz
-        case "chi2":
-            df = _discretize(df, bins=pc_citest_bins)
+        case "chisq":
+            df = _discretize(df, bins=pc_citest_bins, standardize=False)
             indep_test = cit.chisq
         case "gsq":
-            df = _discretize(df, bins=pc_citest_bins)
+            df = _discretize(df, bins=pc_citest_bins, standardize=False)
             indep_test = cit.gsq
         case _:
             raise ValueError(f"Unsupported independence test: {pc_citest}")
@@ -371,24 +373,24 @@ def build_causal_graphs_with_causallearn(
                 uc_rule=2,  # definiteMaxP
                 uc_priority=2,
                 mvpc=False,
-                node_names=df.columns.to_list(),
+                # node_names=df.columns.to_list(),
                 background_knowledge=background_knowledge,
                 verbose=False,
                 show_progress=False,
             )
             G_.to_nx_graph()
-            G = nx.relabel_nodes(G_.nx_graph, mapping=nodes.num_to_node)
+            G = nx.relabel_nodes(G_.nx_graph, mapping=nodes.num_to_node_for_causallearn())
         case "fci":
             G_, edges = fci(
                 dataset=df.to_numpy(dtype=np.float32),
                 alpha=pc_citest_alpha,
                 indep_test=pc_citest,
-                node_names=df.columns.to_list(),
+                # node_names=df.columns.to_list(),
                 background_knowledge=background_knowledge,
                 verbose=False,
                 show_progress=False,
             )
-            G = nx.relabel_nodes(G_, mapping=nodes.num_to_node)
+            G = nx.relabel_nodes(G_, mapping=nodes.num_to_node_for_causallearn())
         case _:
             raise ValueError(f"Unsupported causal graph algorithm: {cg_algo}")
     return G if disable_orientation else fix_edge_directions_in_causal_graph(G, pk)

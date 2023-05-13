@@ -33,11 +33,11 @@ def spot(
     return np.array(scores), np.array(results["alarms"])
 
 
-def detect_anomalies_with_spot(x: np.ndarray, faulty_datapoints: int) -> bool:
+def detect_anomalies_with_spot(x: np.ndarray, faulty_datapoints: int) -> tuple[bool, float]:
     test_start_idx = x.shape[0] - (faulty_datapoints + 1)
     train, test = x[:test_start_idx], x[test_start_idx:]
-    alarms = spot(train, test, proba=1e-4, n_points=10)[1]
-    return alarms.size > 0
+    scores, alarms = spot(train, test, proba=1e-4, n_points=10)
+    return alarms.size > 0, np.max(scores)
 
 
 def find_records_detected_anomalies_of_sli(
@@ -48,7 +48,7 @@ def find_records_detected_anomalies_of_sli(
     def _detect_anomalous_sli(record: DatasetRecord, faulty_datapoints: int, sli_index: int) -> bool:
         sli_name = record.pk.get_root_metrics()[sli_index]
         x = record.data_df[sli_name].to_numpy()
-        return detect_anomalies_with_spot(x, faulty_datapoints)
+        return detect_anomalies_with_spot(x, faulty_datapoints)[0]
 
     anomalous_record_idx: list[bool] = joblib.Parallel(n_jobs=-1)(
         joblib.delayed(_detect_anomalous_sli)(record, faulty_datapoints, sli_index) for record in records

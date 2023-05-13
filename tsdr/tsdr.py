@@ -12,9 +12,10 @@ from scipy.spatial.distance import hamming
 
 import tsdr.multireducer as multireducer
 import tsdr.unireducer as unireducer
+from eval.validation import detect_anomalies_with_spot
 from meltria.loader import count_metrics
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
-from tsdr.clustering.pearsonr import pearsonr_as_dist
+from tsdr.clustering.pearsonr import pearsonr, pearsonr_as_dist, pearsonr_left_shift
 from tsdr.clustering.sbd import sbd
 from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
 from tsdr.unireducer import UnivariateSeriesReductionResult
@@ -69,6 +70,21 @@ class Tsdr:
             if failure_detection_time == 0 or failure_detection_time >= change_start_time:
                 kept_series_labels.append(resuts_col)
         return series[kept_series_labels]
+
+    def get_most_anomalous_sli(self, series: pd.DataFrame, slis: list[str]) -> str:
+        idx = self.params["time_fault_inject_time_index"]
+        sli_df: pd.DataFrame = series[slis]
+        return sli_df.apply(lambda x: detect_anomalies_with_spot(x, idx)[1]).idxmax()
+
+    def corrs_with_sli(
+        self, series: pd.DataFrame, slis: list[str], left_shit: bool = False, l_p: int = 0
+    ) -> pd.Series:
+        assert not (left_shit and l_p == 0)
+        sli_name = self.get_most_anomalous_sli(series, slis)
+        sli = series[sli_name].to_numpy()
+        if left_shit:
+            return series.apply(lambda x: pearsonr_left_shift(x.to_numpy(), sli, apply_abs=True, l_p=l_p), axis=0)
+        return series.apply(lambda x: pearsonr(x.to_numpy(), sli, apply_abs=True), axis=0)
 
     def run(
         self,

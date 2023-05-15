@@ -1,13 +1,18 @@
 import math
+from collections import defaultdict
 
 import matplotlib.pyplot as plt
 import networkx as nx
+import numpy as np
 import pandas as pd
 import scipy.stats
+import seaborn as sns
 from pandas.core.groupby.generic import DataFrameGroupBy
+from sklearn.preprocessing import minmax_scale
 
 from eval.groundtruth import check_cause_metrics
 from meltria.loader import DatasetRecord
+from tsdr import tsdr
 
 
 def plot_causal_graph(
@@ -59,20 +64,86 @@ def plot_dataset_dataframe(
 def plot_sli_and_causal_metrics(
     data_df: pd.DataFrame,
     record: DatasetRecord,
+    optional_cause: bool = True,
     fig_width: float = 20,
     graph_height: float = 2.7,
     ncols: int = 3,
+    stacked: bool = False,
+    n_metrics_per_graph: int = 3,
 ) -> None:
-    root_metrics = list(record.pk.get_root_metrics())
+    root_metrics = [m for m in list(record.pk.get_root_metrics()) if m in data_df.columns.tolist()]
     ok, cause_metrics = check_cause_metrics(
-        record.pk, data_df.columns.tolist(), record.chaos_type(), record.chaos_comp(), optional_cause=True
+        record.pk,
+        data_df.columns.tolist(),
+        record.chaos_type(),
+        record.chaos_comp(),
+        optional_cause=optional_cause,
     )
     assert ok, "The causal metrics are not correct."
 
     data_df = record.data_df.loc[:, root_metrics + cause_metrics.tolist()]
-    nrows = math.ceil(data_df.shape[1] / ncols)
-    fig, axs = plt.subplots(figsize=(fig_width, graph_height * nrows), nrows=nrows, ncols=ncols)
-    for (label, data), ax in zip(data_df.items(), axs.flatten()):  # type: ignore
-        ax.plot(data.to_numpy())
-        ax.set_title(f"{record.chaos_case_full()}: {label}")
+    if stacked:
+        nrows = math.ceil(data_df.shape[1] / (ncols * n_metrics_per_graph))
+        fig, axs = plt.subplots(figsize=(fig_width, graph_height * nrows), nrows=nrows, ncols=ncols)
+        args = [iter(data_df.items())] * n_metrics_per_graph
+        for items, ax in zip(zip(*args), axs.flatten()):  # type: ignore
+            for label, data in items:
+                ax.plot(minmax_scale(data.to_numpy()), label=label)
+            ax.legend(loc="upper left")
+            ax.set_title(f"{record.chaos_case_full()}")
+    else:
+        nrows = math.ceil(data_df.shape[1] / ncols)
+        fig, axs = plt.subplots(figsize=(fig_width, graph_height * nrows), nrows=nrows, ncols=ncols)
+        for (label, data), ax in zip(data_df.items(), axs.flatten()):  # type: ignore
+            ax.plot(data.to_numpy(), label=label)
+            ax.set_title(f"{record.chaos_case_full()}: {label}")
+    plt.show()
+
+
+# def plot_distribution_corr_sli_and_metrics(
+#     data_df: pd.DataFrame,
+#     record: DatasetRecord,
+#     optional_cause: bool = True,
+#     fig_width: float = 20,
+#     sli_metrics: list[str] = [],
+# ):
+#     sli_metrics = [m for m in sli_metrics or list(record.pk.get_root_metrics()) if m in data_df.columns.tolist()]
+#     ok, cause_metrics = check_cause_metrics(
+#         record.pk,
+#         data_df.columns.tolist(),
+#         record.chaos_type(),
+#         record.chaos_comp(),
+#         optional_cause=optional_cause,
+#     )
+#     assert ok, "The causal metrics are not correct."
+#     metrics = record.data_df.loc[~record.data_df.index.isin(sli_metrics)]
+
+# for sli_metric in sli_metrics:
+
+
+def plot_distribution_corr_with_cause_metrics(
+    record: DatasetRecord,
+    optional_cause: bool = True,
+):
+    data_df = tsdr.filter_out_no_change_metrics(record.data_df, parallel=True)
+    ok, cause_metrics = check_cause_metrics(
+        record.pk,
+        data_df.columns.tolist(),
+        record.chaos_type(),
+        record.chaos_comp(),
+        optional_cause=optional_cause,
+    )
+    assert ok, "The causal metrics are not correct."
+    cause_metrics_df = data_df[cause_metrics]
+    other_metrics_df = data_df[~record.data_df.index.isin(cause_metrics)]
+    corrs: dict[str, list[float]] = defaultdict(lambda: [])
+    for cause_metric in cause_metrics_df.columns:
+        for other_metric in other_metrics_df.columns:
+            res = scipy.stats.pearsonr(
+                x=cause_metrics_df[cause_metric].to_numpy(), y=other_metrics_df[other_metric].to_numpy()
+            )
+            corrs[cause_metric].append(np.abs(res[0]))
+    fig, ax = plt.subplots(figsize=(20, 6))
+    sns.boxplot(data=pd.DataFrame.from_dict(corrs), ax=ax)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
     plt.show()

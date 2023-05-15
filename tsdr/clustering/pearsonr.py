@@ -24,13 +24,12 @@ def pearsonr_left_shift(x: np.ndarray, sli: np.ndarray, l_p: int, apply_abs: boo
     - l_p: the maximum failure propagation time (in the same unit of time)
     """
     max_corr: float = -1.0  # initialize maximum correlation to negative value
-
+    sli_data = sli[l_p:]
     for i in range(l_p + 1):
         # calculate time periods for correlation coefficients
-        # x_data = sli[t_alert - l_corr - i : t_alert + l_test - i]
-        x_data = x[l_p - i : -i]
+        # x_data   = x[t_alert - l_corr - i : t_alert + l_test - i]
         # sli_data = sli[t_alert - l_corr : t_alert + l_test]
-        sli_data = sli[l_p:]
+        x_data = x[l_p - i :] if i == 0 else x[l_p - i : -i]
         # calculate correlation coefficient between x and k
         corr: float = scipy.stats.pearsonr(x_data, sli_data)[0]
         # update maximum correlation if new value is greater

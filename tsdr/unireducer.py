@@ -13,6 +13,7 @@ from arch.utility.exceptions import InfeasibleTestException
 from statsmodels.tsa.stattools import adfuller, kpss
 from tsmoothie.smoother import BinnerSmoother
 
+from tsdr.clustering.pearsonr import pearsonr, pearsonr_left_shift
 from tsdr.outlierdetection.ar import AROutlierDetector
 from tsdr.outlierdetection.fluxinfer import FluxInferAD
 from tsdr.outlierdetection.knn import KNNOutlierDetector
@@ -85,6 +86,8 @@ def map_model_name_to_func(model_name: str) -> Callable:
             return residual_integral_model
         case "two_samp_test":
             return two_samp_test_model
+        case "pearsonr_sli":
+            return pearsonr_sli
         case _:
             raise ValueError(f"Invalid univariate time series model: {model_name}")
 
@@ -366,6 +369,21 @@ def two_samp_test_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeriesRe
             raise ValueError(f"Unknown two-sample test method {method}")
     if pval <= alpha:
         return UnivariateSeriesReductionResult(series, has_kept=True)
+    return UnivariateSeriesReductionResult(series, has_kept=False)
+
+
+def pearsonr_sli(series: np.ndarray, sli: np.ndarray, **kwargs: Any) -> UnivariateSeriesReductionResult:
+    threshold: float = kwargs["step1_pearsonr_sli_threshold"]
+    left_shift: bool = kwargs["step1_pearsonr_sli_left_shift"]
+    apply_abs: bool = kwargs["step1_pearsonr_sli_abs"]
+    l_p: int = kwargs["step1_pearsonr_sli_lookback_period"]
+
+    if left_shift:
+        if pearsonr_left_shift(series, sli, l_p, apply_abs=apply_abs) >= threshold:
+            return UnivariateSeriesReductionResult(series, has_kept=True)
+    else:
+        if pearsonr(series, sli, apply_abs=apply_abs) >= threshold:
+            return UnivariateSeriesReductionResult(series, has_kept=True)
     return UnivariateSeriesReductionResult(series, has_kept=False)
 
 

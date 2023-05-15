@@ -384,7 +384,8 @@ def filter_manually_selected_metrics(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _filter_prometheus_exporter_go_metrics(df: pd.DataFrame) -> pd.DataFrame:
-    return df.loc[:, [not is_prometheus_exporter_default_metrics(metric_name) for metric_name in df.columns.tolist()]]
+    # return df.loc[:, [not is_prometheus_exporter_default_metrics(metric_name) for metric_name in df.columns.tolist()]]
+    return df
 
 
 def _group_by_metric_type(df: pd.DataFrame) -> dict[str, pd.DataFrame]:

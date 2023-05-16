@@ -17,6 +17,7 @@ from tsdr.clustering.pearsonr import pearsonr, pearsonr_left_shift
 from tsdr.outlierdetection.ar import AROutlierDetector
 from tsdr.outlierdetection.fluxinfer import FluxInferAD
 from tsdr.outlierdetection.knn import KNNOutlierDetector
+from tsdr.outlierdetection.n_sigma_rule import detect_anomalies_with_zscore_nsigma
 from tsdr.outlierdetection.residual_integral import residual_integral_max
 from tsdr.outlierdetection.spot import detect_anomalies_with_spot
 
@@ -375,6 +376,17 @@ def two_samp_test_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeriesRe
     if pval <= alpha:
         return UnivariateSeriesReductionResult(series, has_kept=True)
     return UnivariateSeriesReductionResult(series, has_kept=False)
+
+
+def zscore_nsigma_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeriesReductionResult:
+    anomaly = detect_anomalies_with_zscore_nsigma(
+        series,
+        anomalous_start_idx=kwargs["step1_zscore_nsigma_anomalous_start_idx"],
+        n_sigmas=kwargs["step1_zscore_nsigma_n_sigmas"],
+        robust=kwargs["step1_zscore_nsigma_robust"],
+    )[0]
+    return UnivariateSeriesReductionResult(series, has_kept=anomaly)
+
 
 def spot_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeriesReductionResult:
     anomaly = detect_anomalies_with_spot(

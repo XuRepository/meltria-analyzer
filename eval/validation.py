@@ -9,35 +9,7 @@ from ads_evt import biSPOT
 from eval.groundtruth import check_cause_metrics, check_route, select_ground_truth_metrics_in_routes
 from meltria.loader import DatasetRecord
 from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
-
-
-def spot(
-    train_y: np.ndarray, test_y: np.ndarray, proba: float = 1e-4, n_points: int = 10
-) -> tuple[np.ndarray, np.ndarray]:
-    model = biSPOT(q=proba, n_points=n_points)
-    model.fit(init_data=train_y, data=test_y)
-    model.initialize()
-    results = model.run(with_alarm=True)
-    scores: list[float] = []
-    for index, (upper, lower) in enumerate(zip(results["upper_thresholds"], results["lower_thresholds"])):
-        width: float = upper - lower
-        if width <= 0:
-            width = 1
-        if test_y[index] > upper:
-            scores.append((test_y[index] - upper) / width)
-        elif test_y[index] < lower:
-            scores.append((lower - test_y[index]) / width)
-        else:
-            scores.append(0)
-
-    return np.array(scores), np.array(results["alarms"])
-
-
-def detect_anomalies_with_spot(x: np.ndarray, faulty_datapoints: int) -> tuple[bool, float]:
-    test_start_idx = x.shape[0] - (faulty_datapoints + 1)
-    train, test = x[:test_start_idx], x[test_start_idx:]
-    scores, alarms = spot(train, test, proba=1e-4, n_points=10)
-    return alarms.size > 0, np.max(scores)
+from tsdr.outlierdetection.spot import detect_anomalies_with_spot
 
 
 def find_records_detected_anomalies_of_sli(

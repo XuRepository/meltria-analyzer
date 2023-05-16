@@ -1,3 +1,5 @@
+from typing import Any
+
 import numpy as np
 import pandas as pd
 from sklearn.cluster import Birch
@@ -39,13 +41,13 @@ class BirchAD:
         return bool(np.any(distances <= self.radii_))
 
 
-def detect_anomalies_with_birch(
-    data: pd.DataFrame, anomalous_start_idx, threshold: float = 10.0, branching_factor: int = 50
-) -> dict[str, bool]:
+def detect_anomalies_with_birch(data: pd.DataFrame, **kwargs: Any) -> dict[str, bool]:
+    anomalous_start_idx: int = kwargs["step1_birch_anomalous_start_idx"]
+    threshold: float = kwargs.get("step1_birch_threshold", 10.0)
+    branching_factor: int = kwargs.get("step1_birch_branching_factor", 50)
+
     anomalous_data = data.iloc[anomalous_start_idx:, :]
     normal_data = data.iloc[anomalous_start_idx - (data.shape[0] - anomalous_start_idx) : anomalous_start_idx, :]
-    print(f"normal: {normal_data.shape}", f"anomalous: {anomalous_data.shape}")
-
     normal_mu, normal_sigma = normal_data.mean(), normal_data.std()
 
     def _zscore(x: np.ndarray, mu: float, sigma: float) -> np.ndarray:

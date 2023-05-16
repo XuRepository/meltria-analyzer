@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import scipy.signal
 import scipy.stats
+from joblib import Parallel, delayed
 from pandarallel import pandarallel
 from scipy.spatial.distance import hamming
 
@@ -15,7 +16,8 @@ import tsdr.unireducer as unireducer
 from eval.validation import detect_anomalies_with_spot
 from meltria.loader import count_metrics
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
-from tsdr.clustering.pearsonr import pearsonr, pearsonr_as_dist, pearsonr_left_shift
+from tsdr.birch import detect_anomalies_with_birch
+from tsdr.clustering.pearsonr import pearsonr_as_dist
 from tsdr.clustering.sbd import sbd
 from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
 from tsdr.unireducer import UnivariateSeriesReductionResult
@@ -39,8 +41,13 @@ class Tsdr:
         if callable(univariate_series_func_or_name):
             setattr(self, "univariate_series_func", univariate_series_func_or_name)
         elif type(univariate_series_func_or_name) == str:
-            func: Callable = unireducer.map_model_name_to_func(univariate_series_func_or_name)
-            setattr(self, "univariate_series_func", func)
+            self.univariate_model_name = univariate_series_func_or_name
+            match univariate_series_func_or_name:
+                case "birch_model":
+                    pass
+                case _:
+                    func: Callable = unireducer.map_model_name_to_func(univariate_series_func_or_name)
+                    setattr(self, "univariate_series_func", func)
         else:
             raise TypeError(f"Invalid type of step1 mode: {type(univariate_series_func_or_name)}")
 
@@ -72,19 +79,19 @@ class Tsdr:
         return series[kept_series_labels]
 
     def get_most_anomalous_sli(self, series: pd.DataFrame, slis: list[str]) -> str:
-        idx = self.params["time_fault_inject_time_index"]
-        sli_df: pd.DataFrame = series[slis]
-        return sli_df.apply(lambda x: detect_anomalies_with_spot(x, idx)[1]).idxmax()
+        sli_df: pd.DataFrame = series[[col for col in slis if col in series.columns]]  # retrieve only existing slis
+        idx = self.params["sli_anomaly_start_time_index"]
+        return sli_df.apply(lambda x: detect_anomalies_with_spot(x.to_numpy(), idx)[1]).idxmax()
 
-    def corrs_with_sli(
-        self, series: pd.DataFrame, slis: list[str], left_shit: bool = False, l_p: int = 0
-    ) -> pd.Series:
-        assert not (left_shit and l_p == 0)
-        sli_name = self.get_most_anomalous_sli(series, slis)
-        sli = series[sli_name].to_numpy()
-        if left_shit:
-            return series.apply(lambda x: pearsonr_left_shift(x.to_numpy(), sli, apply_abs=True, l_p=l_p), axis=0)
-        return series.apply(lambda x: pearsonr(x.to_numpy(), sli, apply_abs=True), axis=0)
+    # def corrs_with_sli(
+    #     self, series: pd.DataFrame, slis: list[str], left_shit: bool = False, l_p: int = 0
+    # ) -> pd.Series:
+    #     assert not (left_shit and l_p == 0)
+    #     sli_name = self.get_most_anomalous_sli(series, slis)
+    #     sli = series[sli_name].to_numpy()
+    #     if left_shit:
+    #         return series.apply(lambda x: pearsonr_left_shift(x.to_numpy(), sli, apply_abs=True, l_p=l_p), axis=0)
+    #     return series.apply(lambda x: pearsonr(x.to_numpy(), sli, apply_abs=True), axis=0)
 
     def run(
         self,
@@ -112,7 +119,16 @@ class Tsdr:
         if self.enable_unireducer:
             start = time.time()
 
-            reduced_series1, step1_results, anomaly_points = self.reduce_univariate_series(series, max_workers)
+            match self.univariate_model_name:
+                case "pearsonr_sli":
+                    reduced_series1 = self.reduce_univariate_series_to_sli(series, pk, max_workers)
+                case "birch_model":
+                    birch_res = detect_anomalies_with_birch(series, **self.params)
+                    reduced_series1 = series[[metric for metric, is_normal in birch_res.items() if not is_normal]]
+                case _:
+                    reduced_series1, step1_results, anomaly_points = self.reduce_univariate_series(
+                        series, pk, max_workers
+                    )
 
             elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
             stat.append((reduced_series1, count_metrics(reduced_series1), elapsed_time))
@@ -171,9 +187,11 @@ class Tsdr:
     def reduce_univariate_series(
         self,
         useries: pd.DataFrame,
+        pk: PriorKnowledge,
         n_workers: int,
     ) -> tuple[pd.DataFrame, dict[str, UnivariateSeriesReductionResult], dict[str, np.ndarray]]:
         results: dict[str, UnivariateSeriesReductionResult] = {}
+        # TODO: replace futures with joblib
         with futures.ProcessPoolExecutor(max_workers=n_workers) as executor:
             future_to_col = {}
             for col in useries.columns:
@@ -190,12 +208,28 @@ class Tsdr:
         anomaly_points = {col: res.outliers for col, res in results.items()}
         return useries[reduced_cols], results, anomaly_points
 
+    def reduce_univariate_series_to_sli(
+        self, useries: pd.DataFrame, pk: PriorKnowledge, n_workers: int
+    ) -> pd.DataFrame:
+        sli = self.get_most_anomalous_sli(useries, list(pk.get_root_metrics()))
+        sli_data = useries[sli].to_numpy()
+        results = Parallel(n_jobs=n_workers)(
+            delayed(self.univariate_series_func)(useries[col].to_numpy(), sli_data, **self.params)
+            for col in useries.columns
+        )
+        assert results is not None
+        reduced_cols: list[str] = [col for col, result in zip(useries.columns, results) if result.has_kept]
+        return useries[reduced_cols]
+
     def reduce_multivariate_series(
         self,
         series: pd.DataFrame,
         pk: PriorKnowledge,
         n_workers: int,
     ) -> tuple[pd.DataFrame, dict[str, Any]]:
+        sli = self.get_most_anomalous_sli(series, list(pk.get_root_metrics()))
+        sli_data = series[sli].to_numpy()
+
         def make_clusters(
             df: pd.DataFrame,
             **kwargs: Any,
@@ -231,6 +265,8 @@ class Tsdr:
                         dist_threshold,
                         choice_method,
                         linkage_method,
+                        sli_data,
+                        kwargs.get("step2_clustering_choice_top_k", 1),
                     )
                 case "dbscan":
                     dist_type = kwargs["step2_dbscan_dist_type"]
@@ -252,6 +288,8 @@ class Tsdr:
                         kwargs["step2_dbscan_algorithm"],
                         kwargs.get("step2_dbscan_eps", 0.0),
                         choice_method,
+                        sli_data,
+                        kwargs.get("step2_clustering_choice_top_k", 1),
                     )
                 case _:
                     raise ValueError('method_name must be "hierarchy" or "dbscan"')

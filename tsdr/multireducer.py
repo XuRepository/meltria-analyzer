@@ -13,6 +13,7 @@ from scipy.spatial.distance import pdist, squareform
 from tsdr.clustering import dbscan
 from tsdr.clustering.kshape import kshape
 from tsdr.clustering.metricsnamecluster import cluster_words
+from tsdr.clustering.pearsonr import pearsonr
 from tsdr.clustering.sbd import sbd, silhouette_score
 
 
@@ -22,6 +23,8 @@ def hierarchical_clustering(
     dist_threshold: float,
     choice_method: str = "medoid",
     linkage_method: str = "single",
+    sli_data: np.ndarray | None = None,
+    top_k: int = 1,
 ) -> tuple[dict[str, Any], list[str]]:
     dist = pdist(target_df.values.T, metric=dist_func)
     dist_matrix: np.ndarray = squareform(dist)
@@ -41,6 +44,11 @@ def hierarchical_clustering(
             return choose_metric_with_maxsum(target_df, cluster_dict)
         case "max_cluster":
             return choose_metrics_with_max_cluster(target_df.columns.to_list(), cluster_dict)
+        case "cluster_of_max_corr_to_sli":
+            assert sli_data is not None
+            return choose_metrics_within_cluster_of_max_corr_to_sli(
+                target_df, cluster_dict, dist_matrix, sli_data, top_k=top_k
+            )
         case _:
             raise ValueError("choice_method is required.")
 
@@ -52,6 +60,8 @@ def dbscan_clustering(
     algorithm: str,
     eps: float,
     choice_method: str = "medoid",
+    sli_data: np.ndarray | None = None,
+    top_k: int = 1,
 ) -> tuple[dict[str, Any], list[str]]:
     labels, dist_matrix = dbscan.learn_clusters(
         X=target_df.values.T,
@@ -75,6 +85,11 @@ def dbscan_clustering(
             return choose_metric_with_maxsum(target_df, cluster_dict)
         case "max_cluster":
             return choose_metrics_with_max_cluster(target_df.columns.to_list(), cluster_dict)
+        case "cluster_of_max_corr_to_sli":
+            assert sli_data is not None
+            return choose_metrics_within_cluster_of_max_corr_to_sli(
+                target_df, cluster_dict, dist_matrix, sli_data, top_k=top_k
+            )
         case _:
             raise ValueError("choice_method is required.")
 
@@ -146,6 +161,30 @@ def choose_metrics_with_max_cluster(
     max_cluster_metrics: list[int] = cluster_dict[max_cluster_key]
     clustering_info: dict[str, list[str]] = {columns[i]: [] for i in max_cluster_metrics}
     remove_list: list[str] = [col for i, col in enumerate(columns) if i not in max_cluster_metrics]
+    return clustering_info, remove_list
+
+
+def choose_metrics_within_cluster_of_max_corr_to_sli(
+    data_df: pd.DataFrame,
+    cluster_dict: dict[int, list[int]],
+    dist_matrix: np.ndarray,
+    sli_data: np.ndarray,
+    top_k: int = 1,
+) -> tuple[dict[str, Any], list[str]]:
+    medoid_cinfo = choose_metric_with_medoid(data_df.columns, cluster_dict, dist_matrix)[0]
+    coefs: dict[str, float] = {}
+    for rep_metric in medoid_cinfo.keys():
+        coef = pearsonr(data_df[rep_metric].to_numpy(), sli_data, apply_abs=True)
+        coefs[rep_metric] = coef
+
+    clustering_info: dict[str, list[str]] = {}
+    for rep_metric, _ in sorted(coefs.items(), key=lambda x: x[1], reverse=True)[:top_k]:
+        clustering_info[rep_metric] = medoid_cinfo[rep_metric]
+
+    keep_list: set[str] = set(clustering_info.keys()) | set(
+        m for sub_metrics in clustering_info.values() for m in sub_metrics
+    )
+    remove_list = list(set(data_df.columns) - keep_list)
     return clustering_info, remove_list
 
 

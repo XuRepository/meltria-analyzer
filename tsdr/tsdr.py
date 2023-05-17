@@ -153,26 +153,7 @@ class Tsdr:
         if self.enable_multireducer:
             start = time.time()
 
-            match series_type := self.params["step2_clustering_series_type"]:
-                case "raw":
-                    df_before_clustering = reduced_series1.apply(scipy.stats.zscore)
-                    assert df_before_clustering.isnull().values.sum() == 0, "df_before_clustering has nan values"
-                    # # filter metrics including nan values after zscore
-                    # df_before_clustering = filter_out_no_change_metrics(
-                    #     df_before_clustering, parallel=(max_workers != 1)
-                    # )
-                case "anomaly_score" | "binary_anomaly_score":
-                    tmp_dict_to_df: dict[str, np.ndarray] = {}
-                    for name, res in step1_results.items():
-                        if res.has_kept:
-                            if series_type == "anomaly_score":
-                                tmp_dict_to_df[name] = scipy.stats.zscore(res.anomaly_scores)
-                            elif series_type == "binary_anomaly_score":
-                                tmp_dict_to_df[name] = res.binary_scores()
-                    df_before_clustering = pd.DataFrame(tmp_dict_to_df)
-                case _:
-                    raise ValueError(f"step2_clustered_series_type is invalid {series_type}")
-
+            df_before_clustering = self.preprocess_for_multivariate_phase(series, step1_results)
             reduced_series2, clustering_info = self.reduce_multivariate_series(
                 df_before_clustering,
                 pk,
@@ -220,6 +201,31 @@ class Tsdr:
         assert results is not None
         reduced_cols: list[str] = [col for col, result in zip(useries.columns, results) if result.has_kept]
         return useries[reduced_cols]
+
+    def preprocess_for_multivariate_phase(
+        self, series: pd.DataFrame, step1_results: dict[str, UnivariateSeriesReductionResult]
+    ) -> pd.DataFrame:
+        match series_type := self.params["step2_clustering_series_type"]:
+            case "raw":
+                preprocessed_df = series.apply(scipy.stats.zscore)
+                # # filter metrics including nan values after zscore
+                # df_before_clustering = filter_out_no_change_metrics(
+                #     df_before_clustering, parallel=(max_workers != 1)
+                # )
+            case "anomaly_score" | "binary_anomaly_score":
+                tmp_dict_to_df: dict[str, np.ndarray] = {}
+                for name, res in step1_results.items():
+                    if res.has_kept:
+                        if series_type == "anomaly_score":
+                            tmp_dict_to_df[name] = scipy.stats.zscore(res.anomaly_scores)
+                        elif series_type == "binary_anomaly_score":
+                            tmp_dict_to_df[name] = res.binary_scores()
+                preprocessed_df = pd.DataFrame(tmp_dict_to_df)
+            case _:
+                raise ValueError(f"step2_clustered_series_type is invalid {series_type}")
+
+        assert preprocessed_df.isnull().values.sum() == 0, "df_before_clustering has nan values"
+        return preprocessed_df
 
     def reduce_multivariate_series(
         self,

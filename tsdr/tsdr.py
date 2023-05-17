@@ -16,6 +16,7 @@ import tsdr.unireducer as unireducer
 from eval.validation import detect_anomalies_with_spot
 from meltria.loader import count_metrics
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
+from tsdr import smooth
 from tsdr.birch import detect_anomalies_with_birch
 from tsdr.clustering.pearsonr import pearsonr_as_dist
 from tsdr.clustering.sbd import sbd
@@ -114,20 +115,25 @@ class Tsdr:
 
         # step1
         anomaly_points: dict[str, np.ndarray] = {}
-        reduced_series1 = series
         step1_results: dict = {}
         if self.enable_unireducer:
             start = time.time()
 
+            _series: pd.DataFrame = series
+            if self.params.get("step1_enable_smoother", False):
+                _series = series.apply(
+                    lambda x: smooth.moving_average(x, window_size=self.params["step1_smoother_window_size"])
+                )
+
             match self.univariate_model_name:
                 case "pearsonr_sli":
-                    reduced_series1 = self.reduce_univariate_series_to_sli(series, pk, max_workers)
+                    reduced_series1 = self.reduce_univariate_series_to_sli(_series, pk, max_workers)
                 case "birch_model":
-                    birch_res = detect_anomalies_with_birch(series, **self.params)
-                    reduced_series1 = series[[metric for metric, is_normal in birch_res.items() if not is_normal]]
+                    birch_res = detect_anomalies_with_birch(_series, **self.params)
+                    reduced_series1 = _series[[metric for metric, is_normal in birch_res.items() if not is_normal]]
                 case _:
                     reduced_series1, step1_results, anomaly_points = self.reduce_univariate_series(
-                        series, pk, max_workers
+                        _series, pk, max_workers
                     )
 
             elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
@@ -207,7 +213,12 @@ class Tsdr:
     ) -> pd.DataFrame:
         match series_type := self.params["step2_clustering_series_type"]:
             case "raw":
-                preprocessed_df = series.apply(scipy.stats.zscore)
+                _series: pd.DataFrame = series
+                if self.params.get("step2_enable_smoother", False):
+                    _series = series.apply(
+                        lambda x: smooth.moving_average(x, window_size=self.params["step2_smoother_window_size"])
+                    )
+                preprocessed_df = _series.apply(scipy.stats.zscore)
                 # # filter metrics including nan values after zscore
                 # df_before_clustering = filter_out_no_change_metrics(
                 #     df_before_clustering, parallel=(max_workers != 1)

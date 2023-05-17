@@ -5,14 +5,13 @@ from typing import Any, cast
 import banpei
 import numpy as np
 import ruptures as rpt
-import scipy.ndimage as ndimg
 import scipy.signal
 import scipy.stats
 from arch.unitroot import PhillipsPerron
 from arch.utility.exceptions import InfeasibleTestException
 from statsmodels.tsa.stattools import adfuller, kpss
-from tsmoothie.smoother import BinnerSmoother
 
+from tsdr import smooth
 from tsdr.clustering.pearsonr import pearsonr, pearsonr_left_shift
 from tsdr.outlierdetection.ar import AROutlierDetector
 from tsdr.outlierdetection.fluxinfer import FluxInferAD
@@ -169,9 +168,9 @@ def ar_based_ad_model(orig_series: np.ndarray, **kwargs: Any) -> UnivariateSerie
         case "none":
             series = orig_series
         case "binner":
-            series = smooth_with_binner(orig_series, **kwargs)
+            series = smooth.binner(orig_series, kwargs.get("step1_smoother_binner_window_size", 2))
         case "moving_average":
-            series = smooth_with_ma(orig_series, **kwargs)
+            series = smooth.moving_average(orig_series, kwargs.get("step1_smoother_moving_average_window_size", 2))
         case _:
             raise ValueError(f"Invalid smoother: '{smoother}'")
 

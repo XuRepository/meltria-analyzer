@@ -99,7 +99,7 @@ class Tsdr:
         X: pd.DataFrame,
         pk: PriorKnowledge,
         max_workers: int,
-    ) -> tuple[list[tuple[pd.DataFrame, pd.DataFrame, float]], dict[str, Any], dict[str, np.ndarray],]:
+    ) -> tuple[list[tuple[pd.DataFrame, pd.DataFrame, float]], pd.DataFrame, dict[str, np.ndarray],]:
         assert X.columns.size == np.unique(X.columns).size
 
         stat: list[tuple[pd.DataFrame, pd.DataFrame, float]] = []
@@ -155,12 +155,12 @@ class Tsdr:
                 stat.append((reduced_series1, count_metrics(reduced_series1), elapsed_time))
 
         # step2
-        clustering_info: dict = {}
+        clusters_stat: pd.DataFrame = pd.DataFrame()
         if self.enable_multireducer:
             start = time.time()
 
             df_before_clustering = self.preprocess_for_multivariate_phase(series, step1_results)
-            reduced_series2, clustering_info = self.reduce_multivariate_series(
+            reduced_series2, clusters_stat = self.reduce_multivariate_series(
                 df_before_clustering,
                 pk,
                 max_workers,
@@ -169,7 +169,7 @@ class Tsdr:
             elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
             stat.append((reduced_series2, count_metrics(reduced_series2), elapsed_time))
 
-        return stat, clustering_info, anomaly_points
+        return stat, clusters_stat, anomaly_points
 
     def reduce_univariate_series(
         self,
@@ -243,9 +243,11 @@ class Tsdr:
         series: pd.DataFrame,
         pk: PriorKnowledge,
         n_workers: int,
-    ) -> tuple[pd.DataFrame, dict[str, Any]]:
-        sli = self.get_most_anomalous_sli(series, list(pk.get_root_metrics()))
-        sli_data = series[sli].to_numpy()
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        sli_data: np.ndarray | None = None
+        if self.params["step2_clustering_choice_method"] in ["cluster_of_max_corr_to_sli"]:
+            sli = self.get_most_anomalous_sli(series, list(pk.get_root_metrics()))
+            sli_data = series[sli].to_numpy()
 
         def make_clusters(
             df: pd.DataFrame,
@@ -312,19 +314,18 @@ class Tsdr:
                     raise ValueError('method_name must be "hierarchy" or "dbscan"')
             return future
 
-        clustering_info: dict[str, Any] = {}
+        clusters_stats: list[dict[str, Any]] = []
         with futures.ProcessPoolExecutor(max_workers=n_workers) as executor:
             # Clustering metrics by service including services, containers and middlewares metrics
-            # TODO: node metrics clustering
-            future_list: list[futures.Future] = []
+            future_to_comp: dict[futures.Future, str] = {}
             for service, containers in pk.get_containers_of_service().items():
                 # 1. service-level clustering
                 # TODO: retrieve service metrics efficently
                 service_metrics_df = series.loc[:, series.columns.str.startswith(f"s-{service}_")]
                 if len(service_metrics_df.columns) > 1:
-                    future_list.append(
-                        make_clusters(service_metrics_df, **self.params),
-                    )
+                    f = make_clusters(service_metrics_df, **self.params)
+                    future_to_comp[f] = f"s-{service}"
+
                 # 2. container-level clustering
                 for container in containers:
                     # perform clustering in each type of metric
@@ -335,22 +336,23 @@ class Tsdr:
                     ]
                     if len(container_metrics_df.columns) <= 1:
                         continue
-                    future_list.append(
-                        make_clusters(container_metrics_df, **self.params),
-                    )
+                    f = make_clusters(container_metrics_df, **self.params)
+                    future_to_comp[f] = f"c-{container}"
+
             # 3. node-level clustering
             for node in pk.get_nodes():
                 node_metrics_df = series.loc[:, series.columns.str.startswith(f"n-{node}_")]
                 if len(node_metrics_df.columns) <= 1:
                     continue
-                future_list.append(
-                    make_clusters(node_metrics_df, **self.params),
-                )
-            for future in futures.as_completed(future_list):
+                f = make_clusters(node_metrics_df, **self.params)
+                future_to_comp[f] = f"n-{node}"
+            for future in futures.as_completed(future_to_comp):
+                comp = future_to_comp[future]
                 c_info, remove_list = future.result()
-                clustering_info.update(c_info)
+                for rep_metric, sub_metrics in c_info.items():
+                    clusters_stats.append({"component": comp, "rep_metric": rep_metric, "sub_metrics": sub_metrics})
                 series.drop(remove_list, axis=1, inplace=True)
-        return series, clustering_info
+        return series, pd.DataFrame(clusters_stats)
 
 
 def filter_out_no_change_metrics(data_df: pd.DataFrame, parallel: bool = False) -> pd.DataFrame:

@@ -9,6 +9,7 @@ from typing import Any, Final, Generator
 
 import joblib
 import neptune
+import numpy as np
 import pandas as pd
 
 from eval.groundtruth import check_cause_metrics
@@ -119,7 +120,8 @@ def run_tsdr_and_save_as_cache(
     run["parameters"] = tsdr_options
 
     score_dfs: list[pd.DataFrame] = []
-    for record, filtered_df, anomalous_df, reduced_df, tsdr_stat in run_tsdr_as_generator(
+    clusters_stats: list[pd.DataFrame] = []
+    for record, filtered_df, anomalous_df, reduced_df, tsdr_stat, clusters_stat in run_tsdr_as_generator(
         records=records,
         tsdr_options=tsdr_options,
         enable_unireducer=tsdr_options["enable_unireducer"],
@@ -130,10 +132,17 @@ def run_tsdr_and_save_as_cache(
     ):
         score_dfs.append(calculate_scores_from_tsdr_result(tsdr_stat, record, metric_types))
 
+        clusters_stat["dataset_id"] = dataset_id
+        clusters_stat["chaos_type"] = record.chaos_type()
+        clusters_stat["chaos_comp"] = record.chaos_comp()
+        clusters_stat["chaos_case_num"] = record.chaos_case_num()
+        clusters_stats.append(clusters_stat)
+
         save_tsdr(dataset_id, record, filtered_df, anomalous_df, reduced_df, file_path_suffix=file_path_suffix)
         del record, filtered_df, anomalous_df, reduced_df  # for memory efficiency
 
     upload_scores_to_neptune(run, pd.concat(score_dfs, axis=0), metric_types)
+    upload_clusters_to_neptune(run, pd.concat(clusters_stats, axis=0))
     run.stop()
 
 
@@ -146,7 +155,14 @@ def run_tsdr_as_generator(
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
 ) -> Generator[
-    tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame, list[tuple[pd.DataFrame, pd.DataFrame, float]]],
+    tuple[
+        DatasetRecord,
+        pd.DataFrame,
+        pd.DataFrame,
+        pd.DataFrame,
+        list[tuple[pd.DataFrame, pd.DataFrame, float]],
+        pd.DataFrame,
+    ],
     None,
     None,
 ]:
@@ -162,7 +178,7 @@ def run_tsdr_as_generator(
             end = prefiltered_data_df.shape[0]
 
         reducer = tsdr.Tsdr(tsdr_options["step1_method_name"], **tsdr_options)
-        tsdr_stat, _, _ = reducer.run(
+        tsdr_stat, clusters_stat, _ = reducer.run(
             X=filter_metrics_by_metric_type(prefiltered_data_df.iloc[start:end, :], metric_types),
             pk=record.pk,
             max_workers=cpu_count(),
@@ -177,7 +193,7 @@ def run_tsdr_as_generator(
             reduced_df = tsdr_stat[-1][0]
         else:
             reduced_df = anomalous_df
-        yield (record, filtered_df, anomalous_df, reduced_df, tsdr_stat)
+        yield (record, filtered_df, anomalous_df, reduced_df, tsdr_stat, clusters_stat)
 
 
 def _get_cause_metrics(record: DatasetRecord, metrics: list, optional_cause: bool = True) -> list[str]:
@@ -335,6 +351,17 @@ def upload_scores_to_neptune(run: neptune.Run, tests_df: pd.DataFrame, target_me
     run["scores/summary_by_chaos_type_and_chaos_comp"].upload(
         neptune.types.File.as_html(scores_by_chaos_type_and_comp)
     )
+
+
+def upload_clusters_to_neptune(run: neptune.Run, clusters_stats: pd.DataFrame) -> None:
+    clusters_stats.set_index(["dataset_id", "chaos_type", "chaos_comp", "chaos_case_num"], inplace=True)
+    run["clusters_stats/details"].upload(neptune.types.File.as_html(clusters_stats))
+    run["clusters_stats/num_clusters"] = clusters_stats.groupby(
+        ["dataset_id", "chaos_type", "chaos_comp", "metrics_file", "component"]
+    ).count()
+    run["clusters_stats/cluster_size"] = clusters_stats.groupby(
+        ["dataset_id", "chaos_type", "chaos_comp", "chaos_case_num", "component", "rep_metric"]
+    )["sub_metrics"].apply(lambda x: np.array(x[0]).flatten().size + 1)
 
 
 def filter_metrics_by_metric_type(df: pd.DataFrame, metric_types: dict[str, bool]) -> pd.DataFrame:

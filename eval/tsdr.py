@@ -356,12 +356,18 @@ def upload_scores_to_neptune(run: neptune.Run, tests_df: pd.DataFrame, target_me
 def upload_clusters_to_neptune(run: neptune.Run, clusters_stats: pd.DataFrame) -> None:
     clusters_stats.set_index(["dataset_id", "chaos_type", "chaos_comp", "chaos_case_num"], inplace=True)
     run["clusters_stats/details"].upload(neptune.types.File.as_html(clusters_stats))
-    run["clusters_stats/num_clusters"] = clusters_stats.groupby(
-        ["dataset_id", "chaos_type", "chaos_comp", "metrics_file", "component"]
-    ).count()
-    run["clusters_stats/cluster_size"] = clusters_stats.groupby(
+
+    num_clusters = clusters_stats.groupby(
+        ["dataset_id", "chaos_type", "chaos_comp", "chaos_case_num", "component"]
+    ).size()
+    run["clusters_stats/num_clusters-df"].upload(neptune.types.File.as_html(num_clusters.to_frame()))
+    run["clusters_stats/num_clusters"] = num_clusters.agg(["mean", "max", "min", "std"]).to_dict()
+
+    cluster_size = clusters_stats.groupby(
         ["dataset_id", "chaos_type", "chaos_comp", "chaos_case_num", "component", "rep_metric"]
     )["sub_metrics"].apply(lambda x: np.array(x[0]).flatten().size + 1)
+    run["clusters_stats/cluster_size-df"].upload(neptune.types.File.as_html(cluster_size.to_frame()))
+    run["clusters_stats/cluster_size"] = cluster_size.agg(["mean", "max", "min", "std"]).to_dict()
 
 
 def filter_metrics_by_metric_type(df: pd.DataFrame, metric_types: dict[str, bool]) -> pd.DataFrame:

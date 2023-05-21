@@ -121,15 +121,16 @@ def run_tsdr_and_save_as_cache(
 
     score_dfs: list[pd.DataFrame] = []
     clusters_stats: list[pd.DataFrame] = []
-    for record, filtered_df, anomalous_df, reduced_df, tsdr_stat, clusters_stat in run_tsdr_as_generator(
-        records=records,
-        tsdr_options=tsdr_options,
-        enable_unireducer=tsdr_options["enable_unireducer"],
-        enable_multireducer=tsdr_options["enable_multireducer"],
-        metric_types=metric_types,
-        use_manually_selected_metrics=use_manually_selected_metrics,
-        time_range=time_range,
-    ):
+    for record in records:
+        _, filtered_df, anomalous_df, reduced_df, tsdr_stat, clusters_stat = run_tsdr(
+            record,
+            tsdr_options=tsdr_options,
+            enable_unireducer=tsdr_options["enable_unireducer"],
+            enable_multireducer=tsdr_options["enable_multireducer"],
+            metric_types=metric_types,
+            use_manually_selected_metrics=use_manually_selected_metrics,
+            time_range=time_range,
+        )
         score_dfs.append(calculate_scores_from_tsdr_result(tsdr_stat, record, metric_types))
 
         clusters_stat["dataset_id"] = dataset_id
@@ -146,54 +147,168 @@ def run_tsdr_and_save_as_cache(
     run.stop()
 
 
-def run_tsdr_as_generator(
-    records: list[DatasetRecord],
+def run_tsdr(
+    record: DatasetRecord,
     tsdr_options: dict[str, Any],
     enable_unireducer: bool = True,
     enable_multireducer: bool = True,
     metric_types: dict[str, bool] = ALL_METRIC_TYPES,
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
-) -> Generator[
-    tuple[
-        DatasetRecord,
-        pd.DataFrame,
-        pd.DataFrame,
-        pd.DataFrame,
-        list[tuple[pd.DataFrame, pd.DataFrame, float]],
-        pd.DataFrame,
-    ],
-    None,
-    None,
+    max_workers: int = -1,
+) -> tuple[
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    list[tuple[pd.DataFrame, pd.DataFrame, float]],
+    pd.DataFrame,
 ]:
     tsdr_options = dict(tsdr_default_options, **tsdr_options)
 
-    for record in records:
-        prefiltered_data_df = _filter_prometheus_exporter_go_metrics(record.data_df)
-        if use_manually_selected_metrics:
-            prefiltered_data_df = filter_manually_selected_metrics(prefiltered_data_df)
+    prefiltered_df = _filter_prometheus_exporter_go_metrics(record.data_df)
+    if use_manually_selected_metrics:
+        prefiltered_df = filter_manually_selected_metrics(prefiltered_df)
 
-        start, end = time_range
-        if end == 0:
-            end = prefiltered_data_df.shape[0]
+    start, end = time_range
+    if end == 0:
+        end = prefiltered_df.shape[0]
 
-        reducer = tsdr.Tsdr(tsdr_options["step1_method_name"], **tsdr_options)
-        tsdr_stat, clusters_stat, _ = reducer.run(
-            X=filter_metrics_by_metric_type(prefiltered_data_df.iloc[start:end, :], metric_types),
-            pk=record.pk,
-            max_workers=cpu_count(),
+    prefiltered_df = filter_metrics_by_metric_type(prefiltered_df.iloc[start:end, :], metric_types)
+
+    reducer = tsdr.Tsdr(tsdr_options["step1_method_name"], **tsdr_options)
+    tsdr_stat, clusters_stat, _ = reducer.run(
+        X=prefiltered_df,
+        pk=record.pk,
+        max_workers=cpu_count() if max_workers == -1 else max_workers,
+    )
+
+    filtered_df: pd.DataFrame = tsdr_stat[1][0]  # simple filtered-out data
+    if enable_unireducer:
+        anomalous_df = tsdr_stat[2][0]
+    else:
+        anomalous_df = filtered_df
+    if enable_multireducer:
+        reduced_df = tsdr_stat[-1][0]
+    else:
+        reduced_df = anomalous_df
+    return (prefiltered_df, filtered_df, anomalous_df, reduced_df, tsdr_stat, clusters_stat)
+
+
+def sweep_tsdr_for_recall(
+    records: list[DatasetRecord],
+    list_of_tsdr_options: list[dict[str, Any]],
+    use_manually_selected_metrics: list[bool] = [True, False],
+    metric_types_pairs: list[dict[str, bool]] = METRIC_TYPES_PAIRS,
+    time_range: tuple[int, int] = (0, 0),
+) -> pd.DataFrame:
+    score_dfs: list[pd.DataFrame] = []
+    for tsdr_options in list_of_tsdr_options:
+        for metric_types in metric_types_pairs:
+            for use_manually_selected_metric in use_manually_selected_metrics:
+                score_df = run_tsdr_for_recall(
+                    metric_types=metric_types,
+                    records=records,
+                    tsdr_options=tsdr_options,
+                    time_range=time_range,
+                    use_manually_selected_metrics=use_manually_selected_metric,
+                )
+                for opt, val in tsdr_options.items():
+                    score_df[opt] = val
+                score_df["use_manually_selected_metrics"] = use_manually_selected_metric
+                for m, ok in metric_types.items():
+                    score_df[f"metric_types/{m}"] = ok
+                score_df["time_range/start"] = time_range[0]
+                score_df["time_range/end"] = time_range[1]
+                score_dfs.append(score_df)
+    return pd.concat(score_dfs, axis=0)
+
+
+def transform_record_only_metrics_in_cause_services(record: DatasetRecord) -> DatasetRecord:
+    # TODO: include sli metrics
+    ctnr = record.chaos_comp()
+    service = record.pk.get_service_by_container(ctnr)
+    record.data_df = record.data_df.loc[
+        :, record.data_df.columns.str.startswith((f"s-{service}_", f"c-{ctnr}_", f"m-{ctnr}_"))
+    ]
+    return record
+
+
+def run_tsdr_for_recall(
+    metric_types: dict[str, bool],
+    records: list[DatasetRecord],
+    tsdr_options: dict[str, Any] = tsdr_default_options,
+    use_manually_selected_metrics: bool = False,
+    time_range: tuple[int, int] = (0, 0),
+) -> pd.DataFrame:
+    records = [transform_record_only_metrics_in_cause_services(record) for record in records]
+
+    tsdr_results = joblib.Parallel(n_jobs=-1)(
+        joblib.delayed(run_tsdr)(
+            record=record,
+            tsdr_options=tsdr_options,
+            enable_unireducer=tsdr_options["enable_unireducer"],
+            enable_multireducer=tsdr_options["enable_multireducer"],
+            metric_types=metric_types,
+            use_manually_selected_metrics=use_manually_selected_metrics,
+            time_range=time_range,
+            max_workers=1,
         )
+        for record in records
+    )
+    assert tsdr_results is not None
 
-        filtered_df: pd.DataFrame = tsdr_stat[1][0]  # simple filtered-out data
-        if enable_unireducer:
-            anomalous_df = tsdr_stat[2][0]
-        else:
-            anomalous_df = filtered_df
-        if enable_multireducer:
-            reduced_df = tsdr_stat[-1][0]
-        else:
-            reduced_df = anomalous_df
-        yield (record, filtered_df, anomalous_df, reduced_df, tsdr_stat, clusters_stat)
+    scores: list[dict[str, float]] = []
+    for record, (prefiltered_df, filtered_df, anomalous_df, reduced_df, _, _) in zip(records, tsdr_results):
+        total_mandatory_cause_metrics = check_cause_metrics(
+            record.pk,
+            prefiltered_df.columns.tolist(),
+            record.chaos_type(),
+            record.chaos_comp(),
+            optional_cause=False,
+        )[1]
+        total_cause_metrics = check_cause_metrics(
+            record.pk,
+            prefiltered_df.columns.tolist(),
+            record.chaos_type(),
+            record.chaos_comp(),
+            optional_cause=True,
+        )[1]
+        score: dict[str, Any] = {}
+        for name, df in zip(["filtered", "anomalous", "reduced"], [filtered_df, anomalous_df, reduced_df]):
+            _, found_mandatory_metrics = check_cause_metrics(
+                record.pk,
+                df.columns.tolist(),
+                record.chaos_type(),
+                record.chaos_comp(),
+                optional_cause=False,
+            )
+            _, found_metrics = check_cause_metrics(
+                record.pk,
+                df.columns.tolist(),
+                record.chaos_type(),
+                record.chaos_comp(),
+                optional_cause=True,
+            )
+            score[f"{name}/mand_recall"] = recall_of_cause_metrics(
+                set(total_mandatory_cause_metrics.tolist()), set(found_mandatory_metrics.tolist())
+            )
+            score[f"{name}/n_total_mand_metrics"] = len(total_mandatory_cause_metrics)
+            score[f"{name}/n_found_mand_metrics"] = len(found_mandatory_metrics)
+            score[f"{name}/recall"] = recall_of_cause_metrics(set(total_cause_metrics), set(found_metrics.tolist()))
+            score[f"{name}/n_total_metrics"] = len(total_cause_metrics)
+            score[f"{name}/n_found_metrics"] = len(found_metrics)
+        score.update(
+            {
+                "chaos_type": record.chaos_type(),
+                "chaos_comp": record.chaos_comp(),
+                "chaos_case_num": record.chaos_case_num(),
+            }
+        )
+        scores.append(score)
+        del record, filtered_df, anomalous_df, reduced_df  # for memory efficiency
+
+    return pd.DataFrame(scores)
 
 
 def _get_cause_metrics(record: DatasetRecord, metrics: list, optional_cause: bool = True) -> list[str]:

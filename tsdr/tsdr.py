@@ -159,7 +159,7 @@ class Tsdr:
         if self.enable_multireducer:
             start = time.time()
 
-            df_before_clustering = self.preprocess_for_multivariate_phase(series, step1_results)
+            df_before_clustering = self.preprocess_for_multireducer(series, step1_results, max_workers)
             reduced_series2, clusters_stat = self.reduce_multivariate_series(
                 df_before_clustering,
                 pk,
@@ -208,8 +208,11 @@ class Tsdr:
         reduced_cols: list[str] = [col for col, result in zip(useries.columns, results) if result.has_kept]
         return useries[reduced_cols]
 
-    def preprocess_for_multivariate_phase(
-        self, series: pd.DataFrame, step1_results: dict[str, UnivariateSeriesReductionResult]
+    def preprocess_for_multireducer(
+        self,
+        series: pd.DataFrame,
+        step1_results: dict[str, UnivariateSeriesReductionResult],
+        max_workers: int = 1,
     ) -> pd.DataFrame:
         match series_type := self.params["step2_clustering_series_type"]:
             case "raw":
@@ -218,11 +221,9 @@ class Tsdr:
                     _series = series.apply(
                         lambda x: smooth.moving_average(x, window_size=self.params["step2_smoother_window_size"])
                     )
+                    # filter metrics including nan values after zscore
+                    _series = filter_out_no_change_metrics(_series, parallel=(max_workers != 1))
                 preprocessed_df = _series.apply(scipy.stats.zscore)
-                # # filter metrics including nan values after zscore
-                # df_before_clustering = filter_out_no_change_metrics(
-                #     df_before_clustering, parallel=(max_workers != 1)
-                # )
             case "anomaly_score" | "binary_anomaly_score":
                 tmp_dict_to_df: dict[str, np.ndarray] = {}
                 for name, res in step1_results.items():

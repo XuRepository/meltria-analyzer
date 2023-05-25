@@ -225,7 +225,7 @@ def change_point_clustering(
         clusters_with_centroid[(cluster_id, centroid)].append(metric)
 
     # choose a cluster having max metrics and the adjacent clusters
-    max_cluster = max(clusters_with_centroid.items(), key=lambda _: len(_))
+    max_cluster = max(clusters_with_centroid.items(), key=lambda x: len(x[1]))
     sorted_clusters = sorted(clusters_with_centroid.items(), key=lambda x: x[0][1])  # sort by change point centroid
     max_cluster_idx: int = [
         i for i, ((cluster_id, cp), _) in enumerate(sorted_clusters) if max_cluster[0][0] == cluster_id

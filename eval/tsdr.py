@@ -551,6 +551,7 @@ def load_tsdr_by_chaos(
     time_range: tuple[int, int] = (0, 0),
     target_chaos_types: set[str] = DEFAULT_CHAOS_TYPES,
     validation_filtering: tuple[bool, int] = (False, 0),
+    n_jobs: int = -1,
 ) -> dict[
     tuple[str, str], list[tuple[DatasetRecord, dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]]]
 ]:  # (chaos_type, chaos_comp)
@@ -562,6 +563,7 @@ def load_tsdr_by_chaos(
         use_manually_selected_metrics,
         time_range,
         validation_filtering,
+        n_jobs,
     )
     results = defaultdict(list)
     for record, df_by_metric_type in datasets:
@@ -579,6 +581,7 @@ def load_tsdr_grouped_by_metric_type(
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
     validation_filtering: tuple[bool, int] = (False, 0),
+    n_jobs: int = -1,
 ) -> list[tuple[DatasetRecord, dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]]]:
     ok, parent_path = check_cache_suffix(
         dataset_id,
@@ -591,10 +594,10 @@ def load_tsdr_grouped_by_metric_type(
         raise ValueError(
             f"Dataset {dataset_id} is not cached, {parent_path} does not exist. {metric_types}, {tsdr_options}, use_manually_selected_metrics={use_manually_selected_metrics},time_range={time_range}"
         )
-    results = []
-    for path in parent_path.iterdir():
-        if not any(path.iterdir()):  # check empty
-            continue
+
+    def load_data(
+        path: pathlib.Path,
+    ) -> tuple[DatasetRecord, dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]] | None:
         with (path / "record.bz2").open("rb") as f:
             record = joblib.load(f)
             valid, faulty_pos = validation_filtering
@@ -602,7 +605,7 @@ def load_tsdr_grouped_by_metric_type(
                 sli_ok = validation.find_records_detected_anomalies_of_sli([record], faulty_pos)
                 cause_ok = validation.find_records_detected_anomalies_of_cause_metrics([record], faulty_pos)
                 if not (sli_ok and cause_ok):
-                    continue
+                    return None
             record.data_df = record.data_df
         with (path / "filtered_df.bz2").open("rb") as f:
             filtered_df = joblib.load(f)
@@ -623,8 +626,13 @@ def load_tsdr_grouped_by_metric_type(
                 anomalous_df[metric_type],
                 reduced_df[metric_type],
             )
-        results.append((record, df_by_metric_type))
-    return results
+        return record, df_by_metric_type
+
+    results = joblib.Parallel(n_jobs=n_jobs)(
+        joblib.delayed(load_data)(path) for path in parent_path.iterdir() if any(path.iterdir())
+    )
+    assert results is not None
+    return [result for result in results if result is not None]
 
 
 def check_cache_suffix(

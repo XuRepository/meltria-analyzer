@@ -12,8 +12,9 @@ import neptune
 import numpy as np
 import pandas as pd
 
+from eval import validation
 from eval.groundtruth import check_cause_metrics
-from meltria.loader import DatasetRecord, is_prometheus_exporter_default_metrics
+from meltria.loader import DatasetRecord
 from meltria.metric_types import ALL_METRIC_TYPES, METRIC_PREFIX_TO_TYPE
 from tsdr import tsdr
 
@@ -122,7 +123,7 @@ def run_tsdr_and_save_as_cache(
     score_dfs: list[pd.DataFrame] = []
     clusters_stats: list[pd.DataFrame] = []
     for record in records:
-        _, filtered_df, anomalous_df, reduced_df, tsdr_stat, clusters_stat = run_tsdr(
+        prefiltered_df, filtered_df, anomalous_df, reduced_df, tsdr_stat, clusters_stat = run_tsdr(
             record,
             tsdr_options=tsdr_options,
             enable_unireducer=tsdr_options["enable_unireducer"],
@@ -139,8 +140,9 @@ def run_tsdr_and_save_as_cache(
         clusters_stat["chaos_case_num"] = record.chaos_case_num()
         clusters_stats.append(clusters_stat)
 
+        # TODO: should save prefiltered_df?
         save_tsdr(dataset_id, record, filtered_df, anomalous_df, reduced_df, file_path_suffix=file_path_suffix)
-        del record, filtered_df, anomalous_df, reduced_df  # for memory efficiency
+        del record, prefiltered_df, filtered_df, anomalous_df, reduced_df  # for memory efficiency
 
     upload_scores_to_neptune(run, pd.concat(score_dfs, axis=0), metric_types)
     upload_clusters_to_neptune(run, pd.concat(clusters_stats, axis=0))
@@ -166,14 +168,13 @@ def run_tsdr(
 ]:
     tsdr_options = dict(tsdr_default_options, **tsdr_options)
 
-    prefiltered_df = _filter_prometheus_exporter_go_metrics(record.data_df)
+    prefiltered_df = record.data_df
     if use_manually_selected_metrics:
         prefiltered_df = filter_manually_selected_metrics(prefiltered_df)
 
     start, end = time_range
     if end == 0:
         end = prefiltered_df.shape[0]
-
     prefiltered_df = filter_metrics_by_metric_type(prefiltered_df.iloc[start:end, :], metric_types)
 
     reducer = tsdr.Tsdr(tsdr_options["step1_method_name"], **tsdr_options)
@@ -469,6 +470,9 @@ def upload_scores_to_neptune(run: neptune.Run, tests_df: pd.DataFrame, target_me
 
 
 def upload_clusters_to_neptune(run: neptune.Run, clusters_stats: pd.DataFrame) -> None:
+    if clusters_stats.empty:
+        return
+
     clusters_stats.set_index(["dataset_id", "chaos_type", "chaos_comp", "chaos_case_num"], inplace=True)
     run["clusters_stats/details"].upload(neptune.types.File.as_html(clusters_stats))
 
@@ -531,11 +535,6 @@ def filter_manually_selected_metrics(df: pd.DataFrame) -> pd.DataFrame:
     ]
 
 
-def _filter_prometheus_exporter_go_metrics(df: pd.DataFrame) -> pd.DataFrame:
-    # return df.loc[:, [not is_prometheus_exporter_default_metrics(metric_name) for metric_name in df.columns.tolist()]]
-    return df
-
-
 def _group_by_metric_type(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
     result = {}
     for metric_type, _ in ALL_METRIC_TYPES.items():
@@ -551,6 +550,7 @@ def load_tsdr_by_chaos(
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
     target_chaos_types: set[str] = DEFAULT_CHAOS_TYPES,
+    validation_filtering: tuple[bool, int] = (False, 0),
 ) -> dict[
     tuple[str, str], list[tuple[DatasetRecord, dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]]]
 ]:  # (chaos_type, chaos_comp)
@@ -561,6 +561,7 @@ def load_tsdr_by_chaos(
         tsdr_options,
         use_manually_selected_metrics,
         time_range,
+        validation_filtering,
     )
     results = defaultdict(list)
     for record, df_by_metric_type in datasets:
@@ -577,6 +578,7 @@ def load_tsdr_grouped_by_metric_type(
     tsdr_options: dict[str, Any] = tsdr_default_options,
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
+    validation_filtering: tuple[bool, int] = (False, 0),
 ) -> list[tuple[DatasetRecord, dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]]]:
     ok, parent_path = check_cache_suffix(
         dataset_id,
@@ -595,16 +597,22 @@ def load_tsdr_grouped_by_metric_type(
             continue
         with (path / "record.bz2").open("rb") as f:
             record = joblib.load(f)
-            record.data_df = _filter_prometheus_exporter_go_metrics(record.data_df)
+            valid, faulty_pos = validation_filtering
+            if valid:
+                sli_ok = validation.find_records_detected_anomalies_of_sli([record], faulty_pos)
+                cause_ok = validation.find_records_detected_anomalies_of_cause_metrics([record], faulty_pos)
+                if not (sli_ok and cause_ok):
+                    continue
+            record.data_df = record.data_df
         with (path / "filtered_df.bz2").open("rb") as f:
             filtered_df = joblib.load(f)
-            filtered_df = _group_by_metric_type(_filter_prometheus_exporter_go_metrics(filtered_df))
+            filtered_df = _group_by_metric_type(filtered_df)
         with (path / "anomalous_df.bz2").open("rb") as f:
             anomalous_df = joblib.load(f)
-            anomalous_df = _group_by_metric_type(_filter_prometheus_exporter_go_metrics(anomalous_df))
+            anomalous_df = _group_by_metric_type(anomalous_df)
         with (path / "reduced_df.bz2").open("rb") as f:
             reduced_df = joblib.load(f)
-            reduced_df = _group_by_metric_type(_filter_prometheus_exporter_go_metrics(reduced_df))
+            reduced_df = _group_by_metric_type(reduced_df)
         df_by_metric_type: dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]] = {}
         for metric_type in ALL_METRIC_TYPES.keys():
             if revert_normalized_time_series:  # Workaround

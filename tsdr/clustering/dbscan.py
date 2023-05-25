@@ -43,8 +43,9 @@ def learn_clusters(
             distance_matrix = pairwise_distances(X, metric=dist_func, force_all_finite=False)
             clusterer = hdbscan.HDBSCAN(
                 min_cluster_size=2,
-                metric=dist_func,
+                metric="precomputed",
                 allow_single_cluster=True,
+                core_dist_n_jobs=1,
             ).fit(distance_matrix)
             return clusterer.labels_, distance_matrix
         case _:

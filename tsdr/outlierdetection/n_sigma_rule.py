@@ -38,9 +38,7 @@ def zscore_nsigma(train: np.ndarray, test: np.ndarray, n_sigmas: float = 3.0) ->
 COEFF = scipy.stats.norm.ppf(0.75) - scipy.stats.norm.ppf(0.25)
 
 
-def robust_zscore_nsigma(
-    train: np.ndarray, test: np.ndarray, test_start_time: int, n_sigmas: float = 3.0
-) -> tuple[np.ndarray, np.ndarray]:
+def robust_zscore_nsigma(train: np.ndarray, test: np.ndarray, n_sigmas: float = 3.0) -> tuple[np.ndarray, np.ndarray]:
     iqr = np.quantile(train, 0.75) - np.quantile(train, 0.25)
     niqr = iqr / COEFF
     median = np.median(train)
@@ -58,7 +56,7 @@ def detect_anomalies_with_zscore_nsigma(
     test_start_idx = x.shape[0] - (anomalous_start_idx + 1)
     train, test = x[:test_start_idx], x[test_start_idx:]
     if robust:
-        alarms, scores = robust_zscore_nsigma(train, test, test_start_idx, n_sigmas)
+        alarms, scores = robust_zscore_nsigma(train, test, n_sigmas)
     else:
         alarms, scores = zscore_nsigma(train, test, n_sigmas)
     return alarms.size > 0, scores.max()

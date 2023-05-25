@@ -1,10 +1,15 @@
+import itertools
 import random
+import warnings
+from collections import defaultdict
 from collections.abc import Callable
 from concurrent import futures
 from typing import Any
 
+import hdbscan
 import numpy as np
 import pandas as pd
+import ruptures as rpt
 import scipy.signal
 import scipy.stats
 from scipy.cluster.hierarchy import fcluster, linkage
@@ -188,6 +193,66 @@ def choose_metrics_within_cluster_of_max_corr_to_sli(
     return clustering_info, remove_list
 
 
+def change_point_clustering(
+    data: pd.DataFrame,
+    n_bkps: int,
+) -> tuple[dict[str, Any], list[str]]:
+    metrics = data.columns.tolist()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        binseg = rpt.Binseg(model="normal", jump=1)
+    change_points: list[int] = []
+    for metric in metrics:
+        x = data[metric].to_numpy()
+        change_point = binseg.fit(scipy.stats.zscore(x)).predict(n_bkps=n_bkps)[0]
+        change_points.append(change_point)
+
+    clusterer = hdbscan.HDBSCAN(
+        min_cluster_size=2,
+        metric="euclidean",
+        allow_single_cluster=True,
+    ).fit(np.array([change_points]).T)
+    cluster_id_to_centroid = {
+        cluster_id: clusterer.weighted_cluster_centroid(cluster_id)[0]
+        for cluster_id in np.unique(clusterer.labels_)
+        if cluster_id != -1  # skip noise cluster
+    }
+    clusters_with_centroid: dict[tuple[int, int], list[str]] = defaultdict(list)
+    for cluster_id, metric, change_point in zip(clusterer.labels_, metrics, change_points):
+        if cluster_id == -1:  # skip noise features
+            continue
+        centroid = cluster_id_to_centroid[cluster_id]
+        clusters_with_centroid[(cluster_id, centroid)].append(metric)
+
+    # choose a cluster having max metrics and the adjacent clusters
+    max_cluster = max(clusters_with_centroid.items(), key=lambda _: len(_))
+    sorted_clusters = sorted(clusters_with_centroid.items(), key=lambda x: x[0][1])  # sort by change point centroid
+    max_cluster_idx: int = [
+        i for i, ((cluster_id, cp), _) in enumerate(sorted_clusters) if max_cluster[0][0] == cluster_id
+    ][0]
+    keep_clusters: list[int] = [max_cluster[0][0]]
+    for (cluster_id, change_point), _ in reversed(sorted_clusters[0:max_cluster_idx]):  # backward
+        change_point_of_max_cluster = max_cluster[0][1]
+        if abs(change_point - change_point_of_max_cluster) > 1:
+            break
+        keep_clusters.append(cluster_id)
+
+    for (cluster_id, change_point), _ in sorted_clusters[max_cluster_idx + 1 :]:  # forward
+        change_point_of_max_cluster = max_cluster[0][1]
+        if abs(change_point - change_point_of_max_cluster) > 1:
+            break
+        keep_clusters.append(cluster_id)
+
+    keep_metrics: list[str] = list(
+        itertools.chain.from_iterable(
+            [clusters_with_centroid[(cluster, cluster_id_to_centroid[cluster])] for cluster in keep_clusters]
+        )
+    )
+    remove_metrics: list[str] = list(set(metrics) - set(keep_metrics))
+    clustering_info: dict[str, list[str]] = {metric: [] for metric in keep_metrics}
+    return clustering_info, remove_metrics
+
+
 def create_clusters(data: pd.DataFrame, columns: list[str], service_name: str, n: int):
     words_list: list[str] = [col[2:] for col in columns]
     init_labels = cluster_words(words_list, service_name, n)
@@ -294,4 +359,5 @@ def kshape_clustering(
         clustering_info.update(c_info)
         remove_list.extend(r_list)
 
+    return clustering_info, remove_list
     return clustering_info, remove_list

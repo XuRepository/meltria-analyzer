@@ -311,8 +311,14 @@ class Tsdr:
                         sli_data,
                         kwargs.get("step2_clustering_choice_top_k", 1),
                     )
+                case "changepoint":
+                    future = executor.submit(
+                        multireducer.change_point_clustering,
+                        df,
+                        kwargs["step2_changepoint_n_bkps"],
+                    )
                 case _:
-                    raise ValueError('method_name must be "hierarchy" or "dbscan"')
+                    raise ValueError('method_name must be "hierarchy" or "dbscan" or "changepoint')
             return future
 
         clusters_stats: list[dict[str, Any]] = []

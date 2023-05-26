@@ -193,11 +193,16 @@ def choose_metrics_within_cluster_of_max_corr_to_sli(
     return clustering_info, remove_list
 
 
+def _agglomerative_coefficient(x: np.ndarray, centroid: int) -> float:
+    sse = int(np.sum((x - centroid) ** 2))
+    return 1 / (1 + sse) * x.size  # cluster density * cluster size
+
+
 def change_point_clustering(
     data: pd.DataFrame,
     n_bkps: int,
 ) -> tuple[dict[str, Any], list[str]]:
-    metrics = data.columns.tolist()
+    metrics: list[str] = data.columns.tolist()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         binseg = rpt.Binseg(model="normal", jump=1)
@@ -218,14 +223,19 @@ def change_point_clustering(
         if cluster_id != -1  # skip noise cluster
     }
     clusters_with_centroid: dict[tuple[int, int], list[str]] = defaultdict(list)
+    cluster_id_to_change_points: dict[int, list[int]] = defaultdict(list)
     for cluster_id, metric, change_point in zip(clusterer.labels_, metrics, change_points):
         if cluster_id == -1:  # skip noise features
             continue
         centroid = cluster_id_to_centroid[cluster_id]
         clusters_with_centroid[(cluster_id, centroid)].append(metric)
+        cluster_id_to_change_points[cluster_id].append(change_point)
 
     # choose a cluster having max metrics and the adjacent clusters
-    max_cluster = max(clusters_with_centroid.items(), key=lambda x: len(x[1]))
+    max_cluster = max(
+        clusters_with_centroid.items(),
+        key=lambda x: _agglomerative_coefficient(np.array(cluster_id_to_change_points[x[0][0]], dtype=int), x[0][1]),
+    )
     sorted_clusters = sorted(clusters_with_centroid.items(), key=lambda x: x[0][1])  # sort by change point centroid
     max_cluster_idx: int = [
         i for i, ((cluster_id, cp), _) in enumerate(sorted_clusters) if max_cluster[0][0] == cluster_id
@@ -243,12 +253,12 @@ def change_point_clustering(
             break
         keep_clusters.append(cluster_id)
 
-    keep_metrics: list[str] = list(
+    keep_metrics: set[str] = set(
         itertools.chain.from_iterable(
             [clusters_with_centroid[(cluster, cluster_id_to_centroid[cluster])] for cluster in keep_clusters]
         )
     )
-    remove_metrics: list[str] = list(set(metrics) - set(keep_metrics))
+    remove_metrics: list[str] = list(set(metrics) - keep_metrics)
     clustering_info: dict[str, list[str]] = {metric: [] for metric in keep_metrics}
     return clustering_info, remove_metrics
 

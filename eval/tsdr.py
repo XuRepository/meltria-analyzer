@@ -432,9 +432,7 @@ def upload_scores_to_neptune(run: neptune.Run, tests_df: pd.DataFrame, target_me
         }
         return pd.Series(d)
 
-    run["scores/summary"].upload(
-        neptune.types.File.as_html(tests_df.set_index(["chaos_type", "chaos_comp", "metric_file"]))
-    )
+    run["scores/summary"].upload(neptune.types.File.as_html(tests_df))
     scores_by_phase = tests_df.groupby("phase").apply(agg_score).reset_index().set_index("phase")
     scores_by_chaos_type = (
         tests_df.groupby(["chaos_type", "phase"]).apply(agg_score).reset_index().set_index(["chaos_type", "phase"])

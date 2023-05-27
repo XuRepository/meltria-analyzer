@@ -250,10 +250,7 @@ class Tsdr:
             sli = self.get_most_anomalous_sli(series, list(pk.get_root_metrics()))
             sli_data = series[sli].to_numpy()
 
-        def make_clusters(
-            df: pd.DataFrame,
-            **kwargs: Any,
-        ) -> futures.Future:
+        def make_clusters(df: pd.DataFrame, **kwargs: Any) -> futures.Future:
             method_name = kwargs["step2_clustering_method_name"]
             choice_method = kwargs["step2_clustering_choice_method"]
 
@@ -316,6 +313,7 @@ class Tsdr:
                         multireducer.change_point_clustering,
                         df,
                         kwargs["step2_changepoint_n_bkps"],
+                        kwargs["step2_changepoint_proba_threshold"],
                     )
                 case _:
                     raise ValueError('method_name must be "hierarchy" or "dbscan" or "changepoint')

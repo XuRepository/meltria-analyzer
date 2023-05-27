@@ -193,15 +193,14 @@ def choose_metrics_within_cluster_of_max_corr_to_sli(
     return clustering_info, remove_list
 
 
-def _agglomerative_coefficient(x: np.ndarray, centroid: int) -> float:
-    sse = int(np.sum((x - centroid) ** 2))
-    return 1 / (1 + sse) * x.size  # cluster density * cluster size
-
-
 def change_point_clustering(
     data: pd.DataFrame,
     n_bkps: int,
+    proba_threshold: float,
 ) -> tuple[dict[str, Any], list[str]]:
+    assert n_bkps >= 1, f"n_bkps must be >= 1: {n_bkps}"
+    assert 0.0 <= proba_threshold and proba_threshold <= 1.0, f"proba_threshold must be in [0.0, 1.0]: {proba_threshold}"
+
     metrics: list[str] = data.columns.tolist()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -215,49 +214,36 @@ def change_point_clustering(
     clusterer = hdbscan.HDBSCAN(
         min_cluster_size=2,
         metric="euclidean",
-        allow_single_cluster=True,
+        allow_single_cluster=False,
+        cluster_selection_method="leaf",
+        cluster_selection_epsilon=2.0,
     ).fit(np.array([change_points]).T)
+
+    # return all metrics if all labels (cluster_ids) are -1
+    if np.all(clusterer.labels_ == -1):
+        return {metric: [] for metric in metrics}, []
+
     cluster_id_to_centroid = {
         cluster_id: clusterer.weighted_cluster_centroid(cluster_id)[0]
         for cluster_id in np.unique(clusterer.labels_)
         if cluster_id != -1  # skip noise cluster
     }
     clusters_with_centroid: dict[tuple[int, int], list[str]] = defaultdict(list)
-    cluster_id_to_change_points: dict[int, list[int]] = defaultdict(list)
-    for cluster_id, metric, change_point in zip(clusterer.labels_, metrics, change_points):
-        if cluster_id == -1:  # skip noise features
+    for cluster_id, metric, change_point, prob in zip(
+        clusterer.labels_, metrics, change_points, clusterer.probabilities_
+    ):
+        if cluster_id == -1 or prob <= proba_threshold:  # skip noise or outlier metric
             continue
         centroid = cluster_id_to_centroid[cluster_id]
         clusters_with_centroid[(cluster_id, centroid)].append(metric)
-        cluster_id_to_change_points[cluster_id].append(change_point)
+    assert (
+        clusters_with_centroid
+    ), f"clusters_with_centroid is empty: {clusters_with_centroid}, prob_threshold={proba_threshold}, (metric,cluster_id,probability)={list(zip(metrics, clusterer.labels_ ,clusterer.probabilities_))}"
 
     # choose a cluster having max metrics and the adjacent clusters
-    max_cluster = max(
-        clusters_with_centroid.items(),
-        key=lambda x: _agglomerative_coefficient(np.array(cluster_id_to_change_points[x[0][0]], dtype=int), x[0][1]),
-    )
-    sorted_clusters = sorted(clusters_with_centroid.items(), key=lambda x: x[0][1])  # sort by change point centroid
-    max_cluster_idx: int = [
-        i for i, ((cluster_id, cp), _) in enumerate(sorted_clusters) if max_cluster[0][0] == cluster_id
-    ][0]
-    keep_clusters: list[int] = [max_cluster[0][0]]
-    for (cluster_id, change_point), _ in reversed(sorted_clusters[0:max_cluster_idx]):  # backward
-        change_point_of_max_cluster = max_cluster[0][1]
-        if abs(change_point - change_point_of_max_cluster) > 1:
-            break
-        keep_clusters.append(cluster_id)
+    max_cluster = max(clusters_with_centroid.items(), key=lambda x: len(x[1]))
 
-    for (cluster_id, change_point), _ in sorted_clusters[max_cluster_idx + 1 :]:  # forward
-        change_point_of_max_cluster = max_cluster[0][1]
-        if abs(change_point - change_point_of_max_cluster) > 1:
-            break
-        keep_clusters.append(cluster_id)
-
-    keep_metrics: set[str] = set(
-        itertools.chain.from_iterable(
-            [clusters_with_centroid[(cluster, cluster_id_to_centroid[cluster])] for cluster in keep_clusters]
-        )
-    )
+    keep_metrics: set[str] = set(max_cluster[1])
     remove_metrics: list[str] = list(set(metrics) - keep_metrics)
     clustering_info: dict[str, list[str]] = {metric: [] for metric in keep_metrics}
     return clustering_info, remove_metrics

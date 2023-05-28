@@ -8,7 +8,10 @@ from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
 
 def create_rank_as_dataframe(
-    ranks: list[tuple[str, float]], dataset_id: str, record: DatasetRecord, n: int = 10
+    ranks: list[tuple[str, float]],
+    dataset_id: str,
+    record: DatasetRecord,
+    n: int = 0,
 ) -> pd.DataFrame:
     """
     Create a rank as a dataframe from a dictionary of ranks and a dataset.
@@ -58,7 +61,7 @@ def create_rank_as_dataframe_for_multiple_cases(
     ranks_of_cases: list[list[tuple[str, float]]],
     dataset_id: str,
     records: list[DatasetRecord],
-    n: int = 10,
+    n: int = 0,
 ) -> pd.DataFrame:
     list_of_rank_df = [
         create_rank_as_dataframe(ranks, dataset_id, records[i], n=n) for i, ranks in enumerate(ranks_of_cases)
@@ -67,9 +70,11 @@ def create_rank_as_dataframe_for_multiple_cases(
 
 
 def create_rank_as_dataframe_for_multiple_cases_from_frames(
-    list_of_rank_df: list[pd.DataFrame], n: int = 10
+    list_of_rank_df: list[pd.DataFrame], n: int = 0
 ) -> pd.DataFrame:
     ranks_df = pd.concat(list_of_rank_df, axis=0)
+    if n == 0:
+        return ranks_df
     return (
         _sort_and_group_by(ranks_df)
         .head(n=n)

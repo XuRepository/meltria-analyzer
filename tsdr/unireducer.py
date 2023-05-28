@@ -5,18 +5,20 @@ from typing import Any, cast
 import banpei
 import numpy as np
 import ruptures as rpt
-import scipy.ndimage as ndimg
 import scipy.signal
 import scipy.stats
 from arch.unitroot import PhillipsPerron
 from arch.utility.exceptions import InfeasibleTestException
 from statsmodels.tsa.stattools import adfuller, kpss
-from tsmoothie.smoother import BinnerSmoother
 
+from tsdr import smooth
+from tsdr.clustering.pearsonr import pearsonr, pearsonr_left_shift
 from tsdr.outlierdetection.ar import AROutlierDetector
 from tsdr.outlierdetection.fluxinfer import FluxInferAD
 from tsdr.outlierdetection.knn import KNNOutlierDetector
+from tsdr.outlierdetection.n_sigma_rule import detect_anomalies_with_zscore_nsigma
 from tsdr.outlierdetection.residual_integral import residual_integral_max
+from tsdr.outlierdetection.spot import detect_anomalies_with_spot
 
 
 class UnivariateSeriesReductionResult:
@@ -85,6 +87,12 @@ def map_model_name_to_func(model_name: str) -> Callable:
             return residual_integral_model
         case "two_samp_test":
             return two_samp_test_model
+        case "pearsonr_sli":
+            return pearsonr_sli
+        case "spot":
+            return spot_model
+        case "zscore_nsigma":
+            return zscore_nsigma_model
         case _:
             raise ValueError(f"Invalid univariate time series model: {model_name}")
 
@@ -160,9 +168,9 @@ def ar_based_ad_model(orig_series: np.ndarray, **kwargs: Any) -> UnivariateSerie
         case "none":
             series = orig_series
         case "binner":
-            series = smooth_with_binner(orig_series, **kwargs)
+            series = smooth.binner(orig_series, kwargs.get("step1_smoother_binner_window_size", 2))
         case "moving_average":
-            series = smooth_with_ma(orig_series, **kwargs)
+            series = smooth.moving_average(orig_series, kwargs.get("step1_smoother_moving_average_window_size", 2))
         case _:
             raise ValueError(f"Invalid smoother: '{smoother}'")
 
@@ -366,6 +374,41 @@ def two_samp_test_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeriesRe
             raise ValueError(f"Unknown two-sample test method {method}")
     if pval <= alpha:
         return UnivariateSeriesReductionResult(series, has_kept=True)
+    return UnivariateSeriesReductionResult(series, has_kept=False)
+
+
+def zscore_nsigma_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeriesReductionResult:
+    anomaly = detect_anomalies_with_zscore_nsigma(
+        series,
+        anomalous_start_idx=kwargs["step1_zscore_nsigma_anomalous_start_idx"],
+        n_sigmas=kwargs["step1_zscore_nsigma_n_sigmas"],
+        robust=kwargs["step1_zscore_nsigma_robust"],
+    )[0]
+    return UnivariateSeriesReductionResult(series, has_kept=anomaly)
+
+
+def spot_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeriesReductionResult:
+    anomaly = detect_anomalies_with_spot(
+        series,
+        anomalous_start_idx=kwargs["step1_spot_anomalous_start_idx"],
+        proba=kwargs["step1_spot_proba"],
+        n_points=kwargs["step1_spot_n_points"],
+    )[0]
+    return UnivariateSeriesReductionResult(series, has_kept=anomaly)
+
+
+def pearsonr_sli(series: np.ndarray, sli: np.ndarray, **kwargs: Any) -> UnivariateSeriesReductionResult:
+    threshold: float = kwargs["step1_pearsonr_sli_threshold"]
+    left_shift: bool = kwargs["step1_pearsonr_sli_left_shift"]
+    apply_abs: bool = kwargs["step1_pearsonr_sli_abs"]
+    l_p: int = kwargs["step1_pearsonr_sli_lookback_period"]
+
+    if left_shift:
+        if pearsonr_left_shift(series, sli, l_p, apply_abs=apply_abs) >= threshold:
+            return UnivariateSeriesReductionResult(series, has_kept=True)
+    else:
+        if pearsonr(series, sli, apply_abs=apply_abs) >= threshold:
+            return UnivariateSeriesReductionResult(series, has_kept=True)
     return UnivariateSeriesReductionResult(series, has_kept=False)
 
 

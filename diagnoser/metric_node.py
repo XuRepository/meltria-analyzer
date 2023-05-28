@@ -126,12 +126,16 @@ class MetricNodes(object):
     def label_to_node(self) -> dict[str, MetricNode]:
         return {n.label: n for n in self.nodes}
 
+    def num_to_node_for_causallearn(self) -> dict[str, MetricNode]:
+        # causallearn set node name as X0, X1, ...
+        return {f"X{i+1}": node for i, node in self.num_to_node.items()}
 
-def relabel_graph_nodes_to_label(G: nx.DiGraph) -> nx.DiGraph:
+
+def relabel_graph_nodes_to_label(G: nx.Graph) -> nx.Graph:
     mapping = MetricNodes.from_list_of_metric_node(list(G.nodes)).node_to_label()
     return nx.relabel_nodes(G, mapping, copy=True)
 
 
-def relabel_graph_labels_to_node(G: nx.DiGraph) -> nx.DiGraph:
+def relabel_graph_labels_to_node(G: nx.Graph) -> nx.Graph:
     mapping = MetricNodes.from_metric_names(list(G.nodes)).label_to_node()
     return nx.relabel_nodes(G, mapping, copy=True)

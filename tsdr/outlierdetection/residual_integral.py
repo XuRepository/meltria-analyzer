@@ -30,6 +30,8 @@ def residual_integral(x: np.ndarray, bkp: int = 0) -> tuple[np.ndarray, np.ndarr
 
 def residual_integral_max(x: np.ndarray, bkp: int = 0) -> tuple[float, list[tuple[int, float]]]:
     rsses, secs = residual_integral(x, bkp=bkp)
+    if len(secs) == 0:
+        return 0.0, []
     max_rss_sec_idx: np.intp = np.argmax(rsses)
     max_rss_start: int = 0 if max_rss_sec_idx == 0 else np.sum([sec.size for sec in secs[:max_rss_sec_idx]])
     max_rss_start += bkp

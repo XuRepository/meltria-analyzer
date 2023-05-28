@@ -69,11 +69,19 @@ class PriorKnowledge(ABC):
         pass
 
     @abstractmethod
+    def get_service_by_container_or_empty(self, ctnr: str) -> str:
+        pass
+
+    @abstractmethod
     def get_role_and_runtime_by_container(self, ctnr: str) -> tuple[str, str]:
         pass
 
     @abstractmethod
     def get_skip_containers(self) -> list[str]:
+        pass
+
+    @abstractmethod
+    def get_skip_services(self) -> list[str]:
         pass
 
     @abstractmethod
@@ -233,12 +241,18 @@ class SockShopKnowledge(PriorKnowledge):
         assert ctnr in sock_shop.CONTAINER_TO_SERVICE, f"{ctnr} is not defined in container_service"
         return sock_shop.CONTAINER_TO_SERVICE[ctnr]
 
+    def get_service_by_container_or_empty(self, ctnr: str) -> str:
+        return sock_shop.CONTAINER_TO_SERVICE.get(ctnr, "")
+
     def get_role_and_runtime_by_container(self, ctnr: str) -> tuple[str, str]:
         assert ctnr in sock_shop.CONTAINER_TO_RUNTIME, f"{ctnr} is not defined in container_role_runtime"
         return sock_shop.CONTAINER_TO_RUNTIME[ctnr]
 
     def get_skip_containers(self) -> list[str]:
         return sock_shop.SKIP_CONTAINERS
+
+    def get_skip_services(self) -> list[str]:
+        return sock_shop.SKIP_SERVICES
 
     def get_diagnoser_target_data(self) -> dict[str, list[str]]:
         return sock_shop.DIAGNOSER_TARGET_DATA
@@ -292,8 +306,14 @@ class TrainTicketKnowledge(PriorKnowledge):
         assert ctnr in train_ticket.CONTAINER_TO_SERVICE, f"{ctnr} is not defined in container_service"
         return train_ticket.CONTAINER_TO_SERVICE[ctnr]
 
+    def get_service_by_container_or_empty(self, ctnr: str) -> str:
+        return train_ticket.CONTAINER_TO_SERVICE.get(ctnr, "")
+
     def get_skip_containers(self) -> list[str]:
         return train_ticket.SKIP_CONTAINERS
+
+    def get_skip_services(self) -> list[str]:
+        return train_ticket.SKIP_SERVICES
 
     def get_role_and_runtime_by_container(self, ctnr: str) -> tuple[str, str]:
         ctnr_runtime = train_ticket.generate_container_runtime()

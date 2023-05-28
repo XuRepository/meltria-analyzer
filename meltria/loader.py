@@ -149,7 +149,7 @@ def check_counter_and_rate(ts: np.ndarray) -> np.ndarray:
     return rated_ts
 
 
-EXCLUDE_PROMETHEUS_DEFAULT_METRICS: Final[list[str]] = [
+EXCLUDE_PROMETHEUS_DEFAULT_METRICS: Final[set[str]] = {
     "process_cpu_seconds_total",
     "process_cpu_seconds_total",
     "process_virtual_memory_bytes",
@@ -209,6 +209,7 @@ EXCLUDE_PROMETHEUS_DEFAULT_METRICS: Final[list[str]] = [
     "go_memstats_heap_inuse_bytes",
     "go_memstats_heap_inuse_bytes",
     "go_memstats_heap_released_bytes",
+    "go_memstats_heap_released_bytes_total",
     "go_memstats_heap_objects",
     "go_memstats_stack_inuse_bytes",
     "go_memstats_stack_sys_bytes",
@@ -229,12 +230,48 @@ EXCLUDE_PROMETHEUS_DEFAULT_METRICS: Final[list[str]] = [
     "go_sched_latencies_seconds_bucket",
     "go_sched_latencies_seconds_sum",
     "go_sched_latencies_seconds_count",
-]
+    # for sock shop
+    "microservices_demo_user_request_latency",
+    "microservices_demo_user_request_latency_microseconds",
+    "microservices_demo_user_request_count",
+    # JVM
+    "jvm_classes_loaded_total",
+    "nonheap_used",
+    "heap_used",
+    "mem",
+    "mem_free",
+    "classes",
+    "classes_loaded",
+    "threads_totalStarted",
+    "threads_daemon",
+    "jvm_threads_daemon",
+    "jvm_threads_current",
+    "jvm_memory_pool_bytes_committed",
+    "jvm_memory_bytes_used",
+    "org_mongodb_driver_ConnectionPool_CheckedOutCount",
+    "org_mongodb_driver_ConnectionPool_Size",
+    "org_springframework_cloud_context_restart_restartEndpoint_Running",
+    "uptime",
+    "instance_uptime",
+    "gc_g1_young_generation_count",
+    "gauge_response_health",
+    "threads_peak",
+    "systemload_average",
+    "jvm_threads_peak",
+    "jvm_threads_started_total",
+    "jmx_scrape_duration_seconds",
+    "jmx_scrape_error",
+    "gauge_response_metrics",
+    "gauge_response_orders",
+    "counter_status_200_health",
+    "counter_status_201_orders",
+    "counter_status_406_orders",
+}
 
 
-def is_prometheus_exporter_default_metrics(metric_name: str) -> bool:
+def is_excluded_metrics(metric_base_name: str) -> bool:
     # bad side effects: golang application metrics are also excluded.
-    return any([metric_name.endswith(m) for m in EXCLUDE_PROMETHEUS_DEFAULT_METRICS])
+    return metric_base_name in EXCLUDE_PROMETHEUS_DEFAULT_METRICS
 
 
 def update_count_of_meta(data_df: pd.DataFrame, meta: dict[str, Any]) -> None:
@@ -267,20 +304,23 @@ def read_metrics_file(
                 # Remove prefix of label name that Prometheus gives
                 metric_name = metric["metric_name"].removeprefix("container_").removeprefix("node_")
                 # Skip metrics of Prometheus exporter itself.
-                if is_prometheus_exporter_default_metrics(metric_name):
+                if is_excluded_metrics(metric_name):
                     continue
                 target_name = metric[
                     "{}_name".format(metric_type[:-1]) if metric_type != METRIC_TYPE_MIDDLEWARES else "container_name"
                 ]
                 if metric_type == METRIC_TYPE_SERVICES:
-                    if (service := pk.get_service_by_container(target_name)) is not None:
+                    if service := pk.get_service_by_container_or_empty(target_name):
                         target_name = service
                 elif metric_type == METRIC_TYPE_NODES:
                     # FIXME: workaround for node name include ';' as suffix due to the issue of prometheus config
                     target_name = target_name.removesuffix(";")
                 if target_name in pk.get_skip_containers():
                     continue
-                ts = np.array(metric["values"], dtype=np.float64,)[
+                ts = np.array(
+                    metric["values"],
+                    dtype=np.float64,
+                )[
                     :, 1
                 ][-num_datapoints:]
                 if metric_type in [METRIC_TYPE_MIDDLEWARES, METRIC_TYPE_NODES]:

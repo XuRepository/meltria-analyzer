@@ -1,4 +1,3 @@
-import itertools
 import random
 import warnings
 from collections import defaultdict
@@ -197,9 +196,16 @@ def change_point_clustering(
     data: pd.DataFrame,
     n_bkps: int,
     proba_threshold: float,
+    choice_method: str,
+    cluster_selection_method: str,
+    cluster_selection_epsilon: float,
+    cluster_allow_single_cluster: bool,
+    sli_data: np.ndarray | None = None,
 ) -> tuple[dict[str, Any], list[str]]:
     assert n_bkps >= 1, f"n_bkps must be >= 1: {n_bkps}"
-    assert 0.0 <= proba_threshold and proba_threshold <= 1.0, f"proba_threshold must be in [0.0, 1.0]: {proba_threshold}"
+    assert (
+        0.0 <= proba_threshold and proba_threshold <= 1.0
+    ), f"proba_threshold must be in [0.0, 1.0]: {proba_threshold}"
 
     metrics: list[str] = data.columns.tolist()
     with warnings.catch_warnings():
@@ -214,9 +220,9 @@ def change_point_clustering(
     clusterer = hdbscan.HDBSCAN(
         min_cluster_size=2,
         metric="euclidean",
-        allow_single_cluster=False,
-        cluster_selection_method="leaf",
-        cluster_selection_epsilon=2.0,
+        allow_single_cluster=cluster_allow_single_cluster,
+        cluster_selection_method=cluster_selection_method,
+        cluster_selection_epsilon=cluster_selection_epsilon,
     ).fit(np.array([change_points]).T)
 
     # return all metrics if all labels (cluster_ids) are -1
@@ -240,8 +246,21 @@ def change_point_clustering(
         clusters_with_centroid
     ), f"clusters_with_centroid is empty: {clusters_with_centroid}, prob_threshold={proba_threshold}, (metric,cluster_id,probability)={list(zip(metrics, clusterer.labels_ ,clusterer.probabilities_))}"
 
-    # choose a cluster having max metrics and the adjacent clusters
-    max_cluster = max(clusters_with_centroid.items(), key=lambda x: len(x[1]))
+    # Choose cluster including root cause metrics
+    def choice_fn(x: dict[tuple[int, int], list[str]]):
+        match choice_method:
+            case "max_members_changepoint":
+                return max(x.items(), key=lambda y: len(y[1]))
+            case "nearest_sli_changepoint":
+                assert sli_data is not None
+                slis_cp: int = binseg.fit(scipy.stats.zscore(sli_data)).predict(n_bkps=n_bkps)[0]
+                return min(
+                    x.items(), key=lambda y: abs(y[0][1] - slis_cp)
+                )  # the distance between centroid and sli changepoint
+            case _:
+                raise ValueError("choice_method is required.")
+
+    max_cluster = choice_fn(clusters_with_centroid)
 
     keep_metrics: set[str] = set(max_cluster[1])
     remove_metrics: list[str] = list(set(metrics) - keep_metrics)

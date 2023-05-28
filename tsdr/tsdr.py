@@ -80,7 +80,10 @@ class Tsdr:
         return series[kept_series_labels]
 
     def get_most_anomalous_sli(self, series: pd.DataFrame, slis: list[str]) -> str:
-        sli_df: pd.DataFrame = series[[col for col in slis if col in series.columns]]  # retrieve only existing slis
+        assert len(slis) > 0, "slis is empty"
+        sli_df: pd.DataFrame = series.loc[
+            :, [col for col in slis if col in series.columns]
+        ]  # retrieve only existing slis
         idx = self.params["sli_anomaly_start_time_index"]
         return sli_df.apply(lambda x: detect_anomalies_with_spot(x.to_numpy(), idx)[1]).idxmax()
 
@@ -246,7 +249,7 @@ class Tsdr:
         n_workers: int,
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
         sli_data: np.ndarray | None = None
-        if self.params["step2_clustering_choice_method"] in ["cluster_of_max_corr_to_sli"]:
+        if self.params["step2_clustering_choice_method"] in ["cluster_of_max_corr_to_sli", "nearest_sli_changepoint"]:
             sli = self.get_most_anomalous_sli(series, list(pk.get_root_metrics()))
             sli_data = series[sli].to_numpy()
 
@@ -314,6 +317,11 @@ class Tsdr:
                         df,
                         kwargs["step2_changepoint_n_bkps"],
                         kwargs["step2_changepoint_proba_threshold"],
+                        choice_method,
+                        kwargs.get("step2_changepoint_cluster_selection_method", "leaf"),
+                        kwargs.get("step2_changepoint_cluster_selection_epsilon", 3.0),
+                        kwargs.get("step2_changepoint_allow_single_cluster", True),
+                        sli_data,
                     )
                 case _:
                     raise ValueError('method_name must be "hierarchy" or "dbscan" or "changepoint')

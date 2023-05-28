@@ -28,9 +28,13 @@ def spot(
 
 
 def detect_anomalies_with_spot(
-    x: np.ndarray, anomalous_start_idx: int, proba: float = DEFAULT_PROBA, n_points: int = DEFAULT_N_POINTS
-) -> tuple[bool, float]:
+    x: np.ndarray,
+    anomalous_start_idx: int,
+    proba: float = DEFAULT_PROBA,
+    n_points: int = DEFAULT_N_POINTS,
+    return_score: bool = False,
+) -> tuple[bool, float] | tuple[np.ndarray, np.ndarray]:
     test_start_idx = x.shape[0] - (anomalous_start_idx + 1)
     train, test = x[:test_start_idx], x[test_start_idx:]
     scores, alarms = spot(train, test, proba=proba, n_points=n_points)
-    return alarms.size > 0, np.max(scores)
+    return (alarms, scores) if return_score else (alarms.size > 0, np.max(scores))

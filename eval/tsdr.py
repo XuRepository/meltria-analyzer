@@ -226,12 +226,13 @@ def sweep_tsdr_for_recall(
 
 
 def transform_record_only_metrics_in_cause_services(record: DatasetRecord) -> DatasetRecord:
-    # TODO: include sli metrics
+    sli_df = record.data_df[[m for m in record.pk.get_root_metrics() if m in record.data_df.columns]]
     ctnr = record.chaos_comp()
     service = record.pk.get_service_by_container(ctnr)
-    record.data_df = record.data_df.loc[
+    cause_service_df = record.data_df.loc[
         :, record.data_df.columns.str.startswith((f"s-{service}_", f"c-{ctnr}_", f"m-{ctnr}_"))
     ]
+    record.data_df = pd.concat([sli_df, cause_service_df], axis=1)
     return record
 
 

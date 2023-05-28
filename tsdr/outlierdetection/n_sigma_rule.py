@@ -31,7 +31,7 @@ def zscore_nsigma(train: np.ndarray, test: np.ndarray, n_sigmas: float = 3.0) ->
     if sigma == 0.0:
         sigma = 1.0
     scores = np.abs((test - mu) / sigma)
-    anomalies = test[scores > n_sigmas]
+    anomalies = np.argwhere(scores > n_sigmas)
     return anomalies, scores
 
 
@@ -43,7 +43,7 @@ def robust_zscore_nsigma(train: np.ndarray, test: np.ndarray, n_sigmas: float = 
     niqr = iqr / COEFF
     median = np.median(train)
     scores = np.abs(test - median)
-    anomalies = test[scores > niqr * n_sigmas]
+    anomalies = np.argwhere(scores > niqr * n_sigmas)
     return anomalies, scores
 
 
@@ -52,11 +52,12 @@ def detect_anomalies_with_zscore_nsigma(
     anomalous_start_idx: int,
     n_sigmas: float = 3.0,
     robust: bool = False,
-) -> tuple[bool, float]:
+    return_score: bool = False,
+) -> tuple[bool, float] | tuple[np.ndarray, np.ndarray]:
     test_start_idx = x.shape[0] - (anomalous_start_idx + 1)
     train, test = x[:test_start_idx], x[test_start_idx:]
     if robust:
         alarms, scores = robust_zscore_nsigma(train, test, n_sigmas)
     else:
         alarms, scores = zscore_nsigma(train, test, n_sigmas)
-    return alarms.size > 0, scores.max()
+    return (alarms, scores) if return_score else (alarms.size > 0, scores.max())

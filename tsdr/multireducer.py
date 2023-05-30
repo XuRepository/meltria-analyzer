@@ -214,7 +214,7 @@ def change_point_clustering(
     change_points: list[int] = []
     for metric in metrics:
         x = data[metric].to_numpy()
-        change_point = binseg.fit(scipy.stats.zscore(x)).predict(n_bkps=n_bkps)[0]
+        change_point = binseg.fit(x).predict(n_bkps=n_bkps)[0]
         change_points.append(change_point)
 
     clusterer = hdbscan.HDBSCAN(

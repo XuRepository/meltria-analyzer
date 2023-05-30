@@ -812,21 +812,6 @@ tests = ["flake8", "nbsmoke (>=0.2.6)", "pytest (>=2.8.5)", "pytest-cov"]
 tests-extra = ["flake8", "nbsmoke (>=0.2.6)", "pytest (>=2.8.5)", "pytest-cov", "pytest-mpl"]
 
 [[package]]
-name = "colorlog"
-version = "4.8.0"
-description = "Log formatting with colors!"
-category = "dev"
-optional = false
-python-versions = "*"
-files = [
-    {file = "colorlog-4.8.0-py2.py3-none-any.whl", hash = "sha256:3dd15cb27e8119a24c1a7b5c93f9f3b455855e0f73993b1c25921b2f646f1dcd"},
-    {file = "colorlog-4.8.0.tar.gz", hash = "sha256:59b53160c60902c405cdec28d38356e09d40686659048893e026ecbd589516b1"},
-]
-
-[package.dependencies]
-colorama = {version = "*", markers = "sys_platform == \"win32\""}
-
-[[package]]
 name = "comm"
 version = "0.1.2"
 description = "Jupyter Python Comm implementation, for usage in ipykernel, xeus-python etc."
@@ -1044,21 +1029,6 @@ files = [
     {file = "Cython-0.29.33-py2.py3-none-any.whl", hash = "sha256:8b99252bde8ff51cd06a3fe4aeacd3af9b4ff4a4e6b701ac71bddc54f5da61d6"},
     {file = "Cython-0.29.33.tar.gz", hash = "sha256:5040764c4a4d2ce964a395da24f0d1ae58144995dab92c6b96f44c3f4d72286a"},
 ]
-
-[[package]]
-name = "dacite"
-version = "1.8.0"
-description = "Simple creation of data classes from dictionaries."
-category = "dev"
-optional = false
-python-versions = ">=3.6"
-files = [
-    {file = "dacite-1.8.0-py3-none-any.whl", hash = "sha256:f7b1205cc5d9b62835aac8cbc1e6e37c1da862359a401f1edbe2ae08fbdc6193"},
-    {file = "dacite-1.8.0.tar.gz", hash = "sha256:6257a5e505b61a8cafee7ef3ad08cf32ee9b885718f42395d017e0a9b4c6af65"},
-]
-
-[package.extras]
-dev = ["black", "coveralls", "mypy", "pre-commit", "pylint", "pytest (>=5)", "pytest-benchmark", "pytest-cov"]
 
 [[package]]
 name = "debugpy"
@@ -4093,28 +4063,6 @@ files = [
 ]
 
 [[package]]
-name = "pysen"
-version = "0.10.3"
-description = "Python linting made easy. Also a casual yet honorific way to address individuals who have entered an organization prior to you."
-category = "dev"
-optional = false
-python-versions = "*"
-files = [
-    {file = "pysen-0.10.3-py3-none-any.whl", hash = "sha256:08e79588bf0aa1e9233554d84ac277679d4998dede7768bc7ca8cc5fee6fc846"},
-    {file = "pysen-0.10.3.tar.gz", hash = "sha256:3023f48789a90fe660bcacc59a2e57d62297a04c50222ac5d72aff254b53e55c"},
-]
-
-[package.dependencies]
-colorlog = ">=4.0.0,<5.0.0"
-dacite = ">=1.1.0,<2.0.0"
-GitPython = ">=3.0.0,<4.0.0"
-tomlkit = ">=0.5.11,<1.0.0"
-unidiff = ">=0.6.0,<1.0.0"
-
-[package.extras]
-lint = ["black (>=19.10b0,<=22.10)", "flake8 (>=3.7,<5)", "flake8-bugbear", "isort (>=4.3,<5.2.0)", "mypy (>=0.770,<0.800)"]
-
-[[package]]
 name = "pytest"
 version = "6.2.5"
 description = "pytest: simple powerful testing with Python"
@@ -5156,18 +5104,6 @@ files = [
 ]
 
 [[package]]
-name = "tomlkit"
-version = "0.11.6"
-description = "Style preserving TOML library"
-category = "dev"
-optional = false
-python-versions = ">=3.6"
-files = [
-    {file = "tomlkit-0.11.6-py3-none-any.whl", hash = "sha256:07de26b0d8cfc18f871aec595fda24d95b08fef89d147caa861939f37230bf4b"},
-    {file = "tomlkit-0.11.6.tar.gz", hash = "sha256:71b952e5721688937fb02cf9d354dbcf0785066149d2855e44531ebdd2b65d73"},
-]
-
-[[package]]
 name = "torch"
 version = "1.13.1"
 description = "Tensors and Dynamic neural networks in Python with strong GPU acceleration"
@@ -5339,18 +5275,6 @@ python-versions = ">=3.7"
 files = [
     {file = "typing_extensions-4.5.0-py3-none-any.whl", hash = "sha256:fb33085c39dd998ac16d1431ebc293a8b3eedd00fd4a32de0ff79002c19511b4"},
     {file = "typing_extensions-4.5.0.tar.gz", hash = "sha256:5cb5f4a79139d699607b3ef622a1dedafa84e115ab0024e0d9c044a9479ca7cb"},
-]
-
-[[package]]
-name = "unidiff"
-version = "0.7.4"
-description = "Unified diff parsing/metadata extraction library."
-category = "dev"
-optional = false
-python-versions = "*"
-files = [
-    {file = "unidiff-0.7.4-py2.py3-none-any.whl", hash = "sha256:688622add422f84a873498cc4ff9bf50da5ea6c23dea908f19d2190fa39a8e39"},
-    {file = "unidiff-0.7.4.tar.gz", hash = "sha256:2bbcbc986e1fb97f04b1d7b864aa6002ab02f4d8a996bf03aa6e5a81447d1fc5"},
 ]
 
 [[package]]
@@ -5621,4 +5545,4 @@ test = ["mypy", "pre-commit", "pytest", "pytest-asyncio", "websockets (>=10.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.11"
-content-hash = "a566daf9a787e021f7992f0641aa75e5ec8af27b0f299c08f4e12c5420bc8511"
+content-hash = "92220043f73e103c604292d564a336bc1fd8fe21a62dbc23202b6c7cd040317c"

@@ -11,6 +11,7 @@ import pandas as pd
 import ruptures as rpt
 import scipy.signal
 import scipy.stats
+from joblib import Parallel, delayed
 from scipy.cluster.hierarchy import fcluster, linkage
 from scipy.spatial.distance import pdist, squareform
 
@@ -43,11 +44,15 @@ def hierarchical_clustering(
 
     match choice_method:
         case "medoid":
-            return choose_metric_with_medoid(target_df.columns, cluster_dict, dist_matrix)
+            return choose_metric_with_medoid(
+                target_df.columns, cluster_dict, dist_matrix
+            )
         case "maxsum":
             return choose_metric_with_maxsum(target_df, cluster_dict)
         case "max_cluster":
-            return choose_metrics_with_max_cluster(target_df.columns.to_list(), cluster_dict)
+            return choose_metrics_with_max_cluster(
+                target_df.columns.to_list(), cluster_dict
+            )
         case "cluster_of_max_corr_to_sli":
             assert sli_data is not None
             return choose_metrics_within_cluster_of_max_corr_to_sli(
@@ -84,11 +89,15 @@ def dbscan_clustering(
 
     match choice_method:
         case "medoid":
-            return choose_metric_with_medoid(target_df.columns, cluster_dict, dist_matrix)
+            return choose_metric_with_medoid(
+                target_df.columns, cluster_dict, dist_matrix
+            )
         case "maxsum":
             return choose_metric_with_maxsum(target_df, cluster_dict)
         case "max_cluster":
-            return choose_metrics_with_max_cluster(target_df.columns.to_list(), cluster_dict)
+            return choose_metrics_with_max_cluster(
+                target_df.columns.to_list(), cluster_dict
+            )
         case "cluster_of_max_corr_to_sli":
             assert sli_data is not None
             return choose_metrics_within_cluster_of_max_corr_to_sli(
@@ -148,7 +157,9 @@ def choose_metric_with_maxsum(
             cluster_columns = data_df.columns[cluster_metrics]
             series_with_sum: pd.Series = data_df[cluster_columns].sum(numeric_only=True)
             label_with_max: str = series_with_sum.idxmax()
-            sub_metrics: list[str] = list(series_with_sum.loc[series_with_sum.index != label_with_max].index)
+            sub_metrics: list[str] = list(
+                series_with_sum.loc[series_with_sum.index != label_with_max].index
+            )
             clustering_info[label_with_max] = sub_metrics
             remove_list += sub_metrics
     return clustering_info, remove_list
@@ -163,8 +174,12 @@ def choose_metrics_with_max_cluster(
         return {}, []
     max_cluster_key = max(cluster_dict, key=cluster_dict.get)
     max_cluster_metrics: list[int] = cluster_dict[max_cluster_key]
-    clustering_info: dict[str, list[str]] = {columns[i]: [] for i in max_cluster_metrics}
-    remove_list: list[str] = [col for i, col in enumerate(columns) if i not in max_cluster_metrics]
+    clustering_info: dict[str, list[str]] = {
+        columns[i]: [] for i in max_cluster_metrics
+    }
+    remove_list: list[str] = [
+        col for i, col in enumerate(columns) if i not in max_cluster_metrics
+    ]
     return clustering_info, remove_list
 
 
@@ -175,14 +190,18 @@ def choose_metrics_within_cluster_of_max_corr_to_sli(
     sli_data: np.ndarray,
     top_k: int = 1,
 ) -> tuple[dict[str, Any], list[str]]:
-    medoid_cinfo = choose_metric_with_medoid(data_df.columns, cluster_dict, dist_matrix)[0]
+    medoid_cinfo = choose_metric_with_medoid(
+        data_df.columns, cluster_dict, dist_matrix
+    )[0]
     coefs: dict[str, float] = {}
     for rep_metric in medoid_cinfo.keys():
         coef = pearsonr(data_df[rep_metric].to_numpy(), sli_data, apply_abs=True)
         coefs[rep_metric] = coef
 
     clustering_info: dict[str, list[str]] = {}
-    for rep_metric, _ in sorted(coefs.items(), key=lambda x: x[1], reverse=True)[:top_k]:
+    for rep_metric, _ in sorted(coefs.items(), key=lambda x: x[1], reverse=True)[
+        :top_k
+    ]:
         clustering_info[rep_metric] = medoid_cinfo[rep_metric]
 
     keep_list: set[str] = set(clustering_info.keys()) | set(
@@ -201,6 +220,7 @@ def change_point_clustering(
     cluster_selection_epsilon: float,
     cluster_allow_single_cluster: bool,
     sli_data: np.ndarray | None = None,
+    n_jobs=-1,
 ) -> tuple[dict[str, Any], list[str]]:
     assert n_bkps >= 1, f"n_bkps must be >= 1: {n_bkps}"
     assert (
@@ -211,11 +231,14 @@ def change_point_clustering(
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         binseg = rpt.Binseg(model="normal", jump=1)
-    change_points: list[int] = []
-    for metric in metrics:
-        x = data[metric].to_numpy()
-        change_point = binseg.fit(x).predict(n_bkps=n_bkps)[0]
-        change_points.append(change_point)
+
+    def detect_changepoint(metric: str) -> int:
+        return binseg.fit(data[metric].to_numpy()).predict(n_bkps=n_bkps)[0]
+
+    change_points: list[int] | None = Parallel(n_jobs=n_jobs)(
+        delayed(detect_changepoint)(metric) for metric in metrics
+    )
+    assert change_points is not None
 
     clusterer = hdbscan.HDBSCAN(
         min_cluster_size=2,
@@ -253,7 +276,9 @@ def change_point_clustering(
                 return max(x.items(), key=lambda y: len(y[1]))
             case "nearest_sli_changepoint":
                 assert sli_data is not None
-                slis_cp: int = binseg.fit(scipy.stats.zscore(sli_data)).predict(n_bkps=n_bkps)[0]
+                slis_cp: int = binseg.fit(scipy.stats.zscore(sli_data)).predict(
+                    n_bkps=n_bkps
+                )[0]
                 return min(
                     x.items(), key=lambda y: abs(y[0][1] - slis_cp)
                 )  # the distance between centroid and sli changepoint
@@ -374,5 +399,4 @@ def kshape_clustering(
         clustering_info.update(c_info)
         remove_list.extend(r_list)
 
-    return clustering_info, remove_list
     return clustering_info, remove_list

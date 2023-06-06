@@ -1,6 +1,7 @@
 import time
 from collections.abc import Callable
 from concurrent import futures
+from functools import partial
 from typing import Any, Final
 
 import numpy as np
@@ -31,7 +32,10 @@ pandarallel.initialize(progress_bar=False, verbose=0)
 class Tsdr:
     def __init__(
         self,
-        univariate_series_func_or_name: Callable[[np.ndarray, Any], UnivariateSeriesReductionResult] | str,
+        univariate_series_func_or_name: Callable[
+            [np.ndarray, Any], UnivariateSeriesReductionResult
+        ]
+        | str,
         enable_unireducer: bool = True,
         enable_multireducer: bool = True,
         **kwargs: Any,
@@ -47,12 +51,18 @@ class Tsdr:
                 case "birch_model":
                     pass
                 case _:
-                    func: Callable = unireducer.map_model_name_to_func(univariate_series_func_or_name)
+                    func: Callable = unireducer.map_model_name_to_func(
+                        univariate_series_func_or_name
+                    )
                     setattr(self, "univariate_series_func", func)
         else:
-            raise TypeError(f"Invalid type of step1 mode: {type(univariate_series_func_or_name)}")
+            raise TypeError(
+                f"Invalid type of step1 mode: {type(univariate_series_func_or_name)}"
+            )
 
-    def univariate_series_func(self, series: np.ndarray, **kwargs: Any) -> UnivariateSeriesReductionResult:
+    def univariate_series_func(
+        self, series: np.ndarray, **kwargs: Any
+    ) -> UnivariateSeriesReductionResult:
         return unireducer.ar_based_ad_model(series, **kwargs)
 
     def reduce_by_failure_detection_time(
@@ -75,7 +85,10 @@ class Tsdr:
             if not res.has_kept:
                 continue
             change_start_time = res.change_start_point[0]
-            if failure_detection_time == 0 or failure_detection_time >= change_start_time:
+            if (
+                failure_detection_time == 0
+                or failure_detection_time >= change_start_time
+            ):
                 kept_series_labels.append(resuts_col)
         return series[kept_series_labels]
 
@@ -85,7 +98,9 @@ class Tsdr:
             :, [col for col in slis if col in series.columns]
         ]  # retrieve only existing slis
         idx = self.params["sli_anomaly_start_time_index"]
-        return sli_df.apply(lambda x: detect_anomalies_with_spot(x.to_numpy(), idx)[1]).idxmax()
+        return sli_df.apply(
+            lambda x: detect_anomalies_with_spot(x.to_numpy(), idx)[1]
+        ).idxmax()
 
     # def corrs_with_sli(
     #     self, series: pd.DataFrame, slis: list[str], left_shit: bool = False, l_p: int = 0
@@ -102,7 +117,11 @@ class Tsdr:
         X: pd.DataFrame,
         pk: PriorKnowledge,
         max_workers: int,
-    ) -> tuple[list[tuple[pd.DataFrame, pd.DataFrame, float]], pd.DataFrame, dict[str, np.ndarray],]:
+    ) -> tuple[
+        list[tuple[pd.DataFrame, pd.DataFrame, float]],
+        pd.DataFrame,
+        dict[str, np.ndarray],
+    ]:
         assert X.columns.size == np.unique(X.columns).size
 
         stat: list[tuple[pd.DataFrame, pd.DataFrame, float]] = []
@@ -111,9 +130,13 @@ class Tsdr:
         # step0
         start: float = time.time()
 
-        series: pd.DataFrame = filter_out_no_change_metrics(X, parallel=(max_workers != 1))
+        series: pd.DataFrame = filter_out_no_change_metrics(
+            X, parallel=(max_workers != 1)
+        )
 
-        elapsed_time: float = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
+        elapsed_time: float = round(
+            time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES
+        )
         stat.append((series, count_metrics(series), elapsed_time))
 
         # step1
@@ -125,19 +148,31 @@ class Tsdr:
             _series: pd.DataFrame = series
             if self.params.get("step1_enable_smoother", False):
                 _series = series.apply(
-                    lambda x: smooth.moving_average(x, window_size=self.params["step1_smoother_window_size"])
+                    lambda x: smooth.moving_average(
+                        x, window_size=self.params["step1_smoother_window_size"]
+                    )
                 )
 
             match self.univariate_model_name:
                 case "pearsonr_sli":
-                    reduced_series1 = self.reduce_univariate_series_to_sli(_series, pk, max_workers)
-                case "birch_model":
-                    birch_res = detect_anomalies_with_birch(_series, **self.params)
-                    reduced_series1 = _series[[metric for metric, is_normal in birch_res.items() if not is_normal]]
-                case _:
-                    reduced_series1, step1_results, anomaly_points = self.reduce_univariate_series(
+                    reduced_series1 = self.reduce_univariate_series_to_sli(
                         _series, pk, max_workers
                     )
+                case "birch_model":
+                    birch_res = detect_anomalies_with_birch(_series, **self.params)
+                    reduced_series1 = _series[
+                        [
+                            metric
+                            for metric, is_normal in birch_res.items()
+                            if not is_normal
+                        ]
+                    ]
+                case _:
+                    (
+                        reduced_series1,
+                        step1_results,
+                        anomaly_points,
+                    ) = self.reduce_univariate_series(_series, pk, max_workers)
 
             elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
             stat.append((reduced_series1, count_metrics(reduced_series1), elapsed_time))
@@ -146,23 +181,33 @@ class Tsdr:
                 # step1.5
                 start = time.time()
 
-                sli_name: str = pk.get_root_metrics()[0]  # TODO: choose SLI metrics formally
+                sli_name: str = pk.get_root_metrics()[
+                    0
+                ]  # TODO: choose SLI metrics formally
                 reduced_series1 = self.reduce_by_failure_detection_time(
                     reduced_series1,
                     step1_results,
                     series[sli_name].to_numpy(),
-                    sigma_threshold=self.params["step1_residual_integral_change_start_point_n_sigma"],
+                    sigma_threshold=self.params[
+                        "step1_residual_integral_change_start_point_n_sigma"
+                    ],
                 )
 
-                elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)
-                stat.append((reduced_series1, count_metrics(reduced_series1), elapsed_time))
+                elapsed_time = round(
+                    time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES
+                )
+                stat.append(
+                    (reduced_series1, count_metrics(reduced_series1), elapsed_time)
+                )
 
         # step2
         clusters_stat: pd.DataFrame = pd.DataFrame()
         if self.enable_multireducer:
             start = time.time()
 
-            df_before_clustering = self.preprocess_for_multireducer(series, step1_results, max_workers)
+            df_before_clustering = self.preprocess_for_multireducer(
+                series, step1_results, max_workers
+            )
             reduced_series2, clusters_stat = self.reduce_multivariate_series(
                 df_before_clustering,
                 pk,
@@ -179,14 +224,18 @@ class Tsdr:
         useries: pd.DataFrame,
         pk: PriorKnowledge,
         n_workers: int,
-    ) -> tuple[pd.DataFrame, dict[str, UnivariateSeriesReductionResult], dict[str, np.ndarray]]:
+    ) -> tuple[
+        pd.DataFrame, dict[str, UnivariateSeriesReductionResult], dict[str, np.ndarray]
+    ]:
         results: dict[str, UnivariateSeriesReductionResult] = {}
         # TODO: replace futures with joblib
         with futures.ProcessPoolExecutor(max_workers=n_workers) as executor:
             future_to_col = {}
             for col in useries.columns:
                 series: np.ndarray = useries[col].to_numpy()
-                future = executor.submit(self.univariate_series_func, series, **self.params)
+                future = executor.submit(
+                    self.univariate_series_func, series, **self.params
+                )
                 future_to_col[future] = col
             reduced_cols: list[str] = []
             for future in futures.as_completed(future_to_col):
@@ -204,11 +253,15 @@ class Tsdr:
         sli = self.get_most_anomalous_sli(useries, list(pk.get_root_metrics()))
         sli_data = useries[sli].to_numpy()
         results = Parallel(n_jobs=n_workers)(
-            delayed(self.univariate_series_func)(useries[col].to_numpy(), sli_data, **self.params)
+            delayed(self.univariate_series_func)(
+                useries[col].to_numpy(), sli_data, **self.params
+            )
             for col in useries.columns
         )
         assert results is not None
-        reduced_cols: list[str] = [col for col, result in zip(useries.columns, results) if result.has_kept]
+        reduced_cols: list[str] = [
+            col for col, result in zip(useries.columns, results) if result.has_kept
+        ]
         return useries[reduced_cols]
 
     def preprocess_for_multireducer(
@@ -222,24 +275,34 @@ class Tsdr:
                 _series: pd.DataFrame = series
                 if self.params.get("step2_enable_smoother", False):
                     _series = series.apply(
-                        lambda x: smooth.moving_average(x, window_size=self.params["step2_smoother_window_size"])
+                        lambda x: smooth.moving_average(
+                            x, window_size=self.params["step2_smoother_window_size"]
+                        )
                     )
                     # filter metrics including nan values after zscore
-                    _series = filter_out_no_change_metrics(_series, parallel=(max_workers != 1))
+                    _series = filter_out_no_change_metrics(
+                        _series, parallel=(max_workers != 1)
+                    )
                 preprocessed_df = _series.apply(scipy.stats.zscore)
             case "anomaly_score" | "binary_anomaly_score":
                 tmp_dict_to_df: dict[str, np.ndarray] = {}
                 for name, res in step1_results.items():
                     if res.has_kept:
                         if series_type == "anomaly_score":
-                            tmp_dict_to_df[name] = scipy.stats.zscore(res.anomaly_scores)
+                            tmp_dict_to_df[name] = scipy.stats.zscore(
+                                res.anomaly_scores
+                            )
                         elif series_type == "binary_anomaly_score":
                             tmp_dict_to_df[name] = res.binary_scores()
                 preprocessed_df = pd.DataFrame(tmp_dict_to_df)
             case _:
-                raise ValueError(f"step2_clustered_series_type is invalid {series_type}")
+                raise ValueError(
+                    f"step2_clustered_series_type is invalid {series_type}"
+                )
 
-        assert preprocessed_df.isnull().values.sum() == 0, "df_before_clustering has nan values"
+        assert (
+            preprocessed_df.isnull().values.sum() == 0
+        ), "df_before_clustering has nan values"
         return preprocessed_df
 
     def reduce_multivariate_series(
@@ -248,132 +311,174 @@ class Tsdr:
         pk: PriorKnowledge,
         n_workers: int,
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        n_workers = self.params.get("step2_clustering_n_workers", n_workers)
+
         sli_data: np.ndarray | None = None
-        if self.params["step2_clustering_choice_method"] in ["cluster_of_max_corr_to_sli", "nearest_sli_changepoint"]:
+        if self.params["step2_clustering_choice_method"] in [
+            "cluster_of_max_corr_to_sli",
+            "nearest_sli_changepoint",
+        ]:
             sli = self.get_most_anomalous_sli(series, list(pk.get_root_metrics()))
             sli_data = series[sli].to_numpy()
 
-        def make_clusters(df: pd.DataFrame, **kwargs: Any) -> futures.Future:
-            method_name = kwargs["step2_clustering_method_name"]
-            choice_method = kwargs["step2_clustering_choice_method"]
-
-            future: futures.Future
-
-            dist_func: str | Callable
-            match method_name:
-                case "hierarchy":
-                    dist_type = kwargs["step2_hierarchy_dist_type"]
-                    dist_threshold = kwargs["step2_hierarchy_dist_threshold"]
-                    linkage_method = kwargs["step2_hierarchy_linkage_method"]
-
-                    match dist_type:
-                        case "sbd":
-                            dist_func = sbd
-                        case "pearsonr":
-                            dist_func = pearsonr_as_dist
-                        case "hamming":
-                            if dist_threshold >= 1.0:
-                                # make the distance threshold intuitive
-                                dist_threshold /= series.shape[0]
-                            dist_func = hamming
-                        case _:
-                            dist_func = dist_type
-                    future = executor.submit(
-                        multireducer.hierarchical_clustering,
-                        df,
-                        dist_func,
-                        dist_threshold,
-                        choice_method,
-                        linkage_method,
-                        sli_data,
-                        kwargs.get("step2_clustering_choice_top_k", 1),
-                    )
-                case "dbscan":
-                    dist_type = kwargs["step2_dbscan_dist_type"]
-                    match dist_type:
-                        case "sbd":
-                            dist_func = sbd
-                        case "hamming":
-                            dist_func = hamming
-                        case "pearsonr":
-                            dist_func = pearsonr_as_dist
-                        case _:
-                            dist_func = dist_type
-
-                    future = executor.submit(
-                        multireducer.dbscan_clustering,
-                        df,
-                        dist_func,
-                        kwargs["step2_dbscan_min_pts"],
-                        kwargs["step2_dbscan_algorithm"],
-                        kwargs.get("step2_dbscan_eps", 0.0),
-                        choice_method,
-                        sli_data,
-                        kwargs.get("step2_clustering_choice_top_k", 1),
-                    )
-                case "changepoint":
-                    future = executor.submit(
-                        multireducer.change_point_clustering,
-                        df,
-                        kwargs["step2_changepoint_n_bkps"],
-                        kwargs["step2_changepoint_proba_threshold"],
-                        choice_method,
-                        kwargs.get("step2_changepoint_cluster_selection_method", "leaf"),
-                        kwargs.get("step2_changepoint_cluster_selection_epsilon", 3.0),
-                        kwargs.get("step2_changepoint_allow_single_cluster", True),
-                        sli_data,
-                    )
-                case _:
-                    raise ValueError('method_name must be "hierarchy" or "dbscan" or "changepoint')
-            return future
-
+        clusterinf_fn: Callable = self._prepare_clustering_fn(
+            series.shape[0], sli_data, **self.params
+        )
+        comp_to_metrics_df: dict[str, pd.DataFrame] = {}
         clusters_stats: list[dict[str, Any]] = []
-        with futures.ProcessPoolExecutor(max_workers=n_workers) as executor:
-            # Clustering metrics by service including services, containers and middlewares metrics
-            future_to_comp: dict[futures.Future, str] = {}
-            for service, containers in pk.get_containers_of_service().items():
-                # 1. service-level clustering
-                # TODO: retrieve service metrics efficently
-                service_metrics_df = series.loc[:, series.columns.str.startswith(f"s-{service}_")]
-                if len(service_metrics_df.columns) > 1:
-                    f = make_clusters(service_metrics_df, **self.params)
-                    future_to_comp[f] = f"s-{service}"
+        # Clustering metrics by service including services, containers and middlewares metrics
+        for service, containers in pk.get_containers_of_service().items():
+            # 1. service-level clustering
+            # TODO: retrieve service metrics efficently
+            service_metrics_df = series.loc[
+                :, series.columns.str.startswith(f"s-{service}_")
+            ]
+            if len(service_metrics_df.columns) > 1:
+                comp_to_metrics_df[f"s-{service}"] = service_metrics_df
 
-                # 2. container-level clustering
-                for container in containers:
-                    # perform clustering in each type of metric
-                    # TODO: retrieve container and middleware metrics efficently
-                    container_metrics_df = series.loc[
-                        :,
-                        series.columns.str.startswith((f"c-{container}_", f"m-{container}_")),
-                    ]
-                    if len(container_metrics_df.columns) <= 1:
-                        continue
-                    f = make_clusters(container_metrics_df, **self.params)
-                    future_to_comp[f] = f"c-{container}"
-
-            # 3. node-level clustering
-            for node in pk.get_nodes():
-                node_metrics_df = series.loc[:, series.columns.str.startswith(f"n-{node}_")]
-                if len(node_metrics_df.columns) <= 1:
+            # 2. container-level clustering
+            for container in containers:
+                # perform clustering in each type of metric
+                # TODO: retrieve container and middleware metrics efficently
+                container_metrics_df = series.loc[
+                    :,
+                    series.columns.str.startswith(
+                        (f"c-{container}_", f"m-{container}_")
+                    ),
+                ]
+                if len(container_metrics_df.columns) <= 1:
                     continue
-                f = make_clusters(node_metrics_df, **self.params)
-                future_to_comp[f] = f"n-{node}"
-            for future in futures.as_completed(future_to_comp):
-                comp = future_to_comp[future]
-                c_info, remove_list = future.result()
-                for rep_metric, sub_metrics in c_info.items():
-                    clusters_stats.append({"component": comp, "rep_metric": rep_metric, "sub_metrics": sub_metrics})
-                series.drop(remove_list, axis=1, inplace=True)
+                comp_to_metrics_df[f"c-{container}"] = container_metrics_df
+
+        # 3. node-level clustering
+        for node in pk.get_nodes():
+            node_metrics_df = series.loc[:, series.columns.str.startswith(f"n-{node}_")]
+            if len(node_metrics_df.columns) <= 1:
+                continue
+            comp_to_metrics_df[f"n-{node}"] = node_metrics_df
+
+        clustering_results = []
+        if n_workers == 1:
+            for comp, metrics_df in comp_to_metrics_df.items():
+                c_info, remove_list = clusterinf_fn(metrics_df)
+                clustering_results.append((comp, c_info, remove_list))
+        else:
+            with futures.ProcessPoolExecutor(max_workers=n_workers) as executor:
+                future_to_comp: dict[futures.Future, str] = {
+                    executor.submit(clusterinf_fn, metrics_df): comp
+                    for comp, metrics_df in comp_to_metrics_df.items()
+                }
+                for future in futures.as_completed(future_to_comp):
+                    comp = future_to_comp[future]
+                    c_info, remove_list = future.result()
+                    clustering_results.append((comp, c_info, remove_list))
+
+        for comp, c_info, remove_list in clustering_results:
+            for rep_metric, sub_metrics in c_info.items():
+                clusters_stats.append(
+                    {
+                        "component": comp,
+                        "rep_metric": rep_metric,
+                        "sub_metrics": sub_metrics,
+                    }
+                )
+            series.drop(remove_list, axis=1, inplace=True)
         return series, pd.DataFrame(clusters_stats)
 
+    @staticmethod
+    def _prepare_clustering_fn(
+        series_w: int, sli_data: np.ndarray | None, **kwargs: Any
+    ) -> Callable:
+        method_name = kwargs["step2_clustering_method_name"]
+        choice_method = kwargs["step2_clustering_choice_method"]
 
-def filter_out_no_change_metrics(data_df: pd.DataFrame, parallel: bool = False) -> pd.DataFrame:
+        match method_name:
+            case "hierarchy":
+                dist_type = kwargs["step2_hierarchy_dist_type"]
+                dist_threshold = kwargs["step2_hierarchy_dist_threshold"]
+                linkage_method = kwargs["step2_hierarchy_linkage_method"]
+
+                dist_func: str | Callable
+                match dist_type:
+                    case "sbd":
+                        dist_func = sbd
+                    case "pearsonr":
+                        dist_func = pearsonr_as_dist
+                    case "hamming":
+                        if dist_threshold >= 1.0:
+                            # make the distance threshold intuitive
+                            dist_threshold /= series_w
+                        dist_func = hamming
+                    case _:
+                        dist_func = dist_type
+
+                return partial(
+                    multireducer.hierarchical_clustering,
+                    dist_func=dist_func,
+                    dist_threshold=dist_threshold,
+                    choice_method=choice_method,
+                    linkage_method=linkage_method,
+                    sli_data=sli_data,
+                    top_k=kwargs.get("step2_clustering_choice_top_k", 1),
+                )
+            case "dbscan":
+                dist_type = kwargs["step2_dbscan_dist_type"]
+                match dist_type:
+                    case "sbd":
+                        dist_func = sbd
+                    case "hamming":
+                        dist_func = hamming
+                    case "pearsonr":
+                        dist_func = pearsonr_as_dist
+                    case _:
+                        dist_func = dist_type
+
+                return partial(
+                    multireducer.dbscan_clustering,
+                    dist_func=dist_func,
+                    min_pts=kwargs["step2_dbscan_min_pts"],
+                    algorithm=kwargs["step2_dbscan_algorithm"],
+                    eps=kwargs.get("step2_dbscan_eps", 0.0),
+                    choice_method=choice_method,
+                    sli_data=sli_data,
+                    top_k=kwargs.get("step2_clustering_choice_top_k", 1),
+                )
+            case "changepoint":
+                return partial(
+                    multireducer.change_point_clustering,
+                    n_bkps=kwargs["step2_changepoint_n_bkps"],
+                    proba_threshold=kwargs["step2_changepoint_proba_threshold"],
+                    choice_method=choice_method,
+                    cluster_selection_method=kwargs.get(
+                        "step2_changepoint_cluster_selection_method", "leaf"
+                    ),
+                    cluster_selection_epsilon=kwargs.get(
+                        "step2_changepoint_cluster_selection_epsilon", 3.0
+                    ),
+                    cluster_allow_single_cluster=kwargs.get(
+                        "step2_changepoint_allow_single_cluster", True
+                    ),
+                    sli_data=sli_data,
+                    n_jobs=kwargs.get("step2_changepoint_n_jobs", -1),
+                )
+            case _:
+                raise ValueError(
+                    'method_name must be "hierarchy" or "dbscan" or "changepoint'
+                )
+
+
+def filter_out_no_change_metrics(
+    data_df: pd.DataFrame, parallel: bool = False
+) -> pd.DataFrame:
     vf: Callable = np.vectorize(lambda x: np.isnan(x) or x == 0)
 
     def filter(x: pd.Series) -> bool:
         # pd.Series.diff returns a series with the first element is NaN
-        if x.isna().all() or (x == x.iat[0]).all() or ((diff_x := np.diff(x)) == diff_x[0]).all():
+        if (
+            x.isna().all()
+            or (x == x.iat[0]).all()
+            or ((diff_x := np.diff(x)) == diff_x[0]).all()
+        ):
             return False
         # remove an array including only the same value or nan
         return not vf(diff_x).all()
@@ -384,7 +489,9 @@ def filter_out_no_change_metrics(data_df: pd.DataFrame, parallel: bool = False) 
         return data_df.loc[:, data_df.apply(filter)]
 
 
-def filter_out_duplicated_metrics(data_df: pd.DataFrame, pk: PriorKnowledge) -> pd.DataFrame:
+def filter_out_duplicated_metrics(
+    data_df: pd.DataFrame, pk: PriorKnowledge
+) -> pd.DataFrame:
     def duplicated(x: pd.DataFrame) -> list[str]:
         indices = np.unique(x.T.to_numpy(), return_index=True, axis=0)[1]
         return x.iloc[:, indices].columns.tolist()
@@ -392,7 +499,9 @@ def filter_out_duplicated_metrics(data_df: pd.DataFrame, pk: PriorKnowledge) -> 
     unique_cols: list[str] = []
     for service, containers in pk.get_containers_of_service().items():
         # 1. service-level duplication
-        service_metrics_df = data_df.loc[:, data_df.columns.str.startswith(f"s-{service}_")]
+        service_metrics_df = data_df.loc[
+            :, data_df.columns.str.startswith(f"s-{service}_")
+        ]
         if len(service_metrics_df.columns) > 1:
             unique_cols += duplicated(service_metrics_df)
         # 2. container-level duplication
@@ -412,4 +521,5 @@ def filter_out_duplicated_metrics(data_df: pd.DataFrame, pk: PriorKnowledge) -> 
         if len(node_metrics_df.columns) <= 1:
             continue
         unique_cols += duplicated(node_metrics_df)
+    return data_df.loc[:, unique_cols]
     return data_df.loc[:, unique_cols]

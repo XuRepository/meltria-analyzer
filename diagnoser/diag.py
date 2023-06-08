@@ -828,6 +828,23 @@ def prepare_monitor_rank_based_random_walk(
     return G, u
 
 
+def walk_causal_graph_with_pagerank(
+    G: nx.DiGraph,
+    **kwargs: Any,
+) -> tuple[nx.DiGraph, list[tuple[str, float]]]:
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+        warnings.filterwarnings("ignore", category=FutureWarning)
+
+        pr = nx.pagerank(
+            G,
+            alpha=kwargs.get("pagerank_alpha", 0.85),  # type: ignore
+            weight="weight",
+        )
+    # sort by rank
+    return G, sorted(pr.items(), key=lambda item: item[1], reverse=True)
+
+
 def walk_causal_graph_with_monitorrank(
     G: nx.DiGraph,
     dataset: pd.DataFrame,
@@ -905,6 +922,10 @@ def build_and_walk_causal_graph(
         target_graph = max_graph
     ranks: list[tuple[str, float]]
     match (walk_method := kwargs["walk_method"]):
+        case "pagerank":
+            modified_g, ranks = walk_causal_graph_with_pagerank(
+                target_graph, dataset, pk, root_metric_type, **kwargs
+            )
         case "monitorrank":
             modified_g, ranks = walk_causal_graph_with_monitorrank(
                 target_graph, dataset, pk, root_metric_type, **kwargs

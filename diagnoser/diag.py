@@ -33,6 +33,7 @@ from diagnoser.causalgraph.pgmpy_PC import PC
 from diagnoser.citest.fisher_z import ci_test_fisher_z
 from diagnoser.citest.fisher_z_pgmpy import fisher_z
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
+from tsdr.clustering.pearsonr import pearsonr_left_shift
 
 # from .citest.rlm import citest_rlm
 
@@ -55,30 +56,49 @@ def filter_by_target_metrics(data_df: pd.DataFrame, pk: PriorKnowledge) -> pd.Da
     target: dict[str, list[str]] = pk.get_diagnoser_target_data()
 
     if pk.target_metric_types["containers"]:
-        containers_df = data_df.filter(regex=f"^c-.+({'|'.join(target['containers'])})$")
+        containers_df = data_df.filter(
+            regex=f"^c-.+({'|'.join(target['containers'])})$"
+        )
     if pk.target_metric_types["services"]:
         services_df = data_df.filter(regex=f"^s-.+({'|'.join(target['services'])})$")
     if pk.target_metric_types["nodes"]:
         nodes_df = data_df.filter(regex=f"^n-.+({'|'.join(target['nodes'])})$")
     if pk.target_metric_types["middlewares"]:
-        middlewares_df = data_df.filter(regex=f"^m-.+({'|'.join(target['middlewares'])})$")
+        middlewares_df = data_df.filter(
+            regex=f"^m-.+({'|'.join(target['middlewares'])})$"
+        )
 
     if len(skip_ctnrs := pk.get_skip_containers()) > 0:
         if containers_df is not None:
-            cols = containers_df.filter(regex=f"^c-({'|'.join(skip_ctnrs)})_.+").columns.tolist()
+            cols = containers_df.filter(
+                regex=f"^c-({'|'.join(skip_ctnrs)})_.+"
+            ).columns.tolist()
             containers_df.drop(columns=cols, inplace=True)
         if middlewares_df is not None:
-            cols = middlewares_df.filter(regex=f"^m-({'|'.join(skip_ctnrs)})_.+").columns.tolist()
+            cols = middlewares_df.filter(
+                regex=f"^m-({'|'.join(skip_ctnrs)})_.+"
+            ).columns.tolist()
             middlewares_df.drop(columns=cols, inplace=True)
     if len(skip_services := pk.get_skip_services()) > 0:
         if services_df is not None:
-            cols = services_df.filter(regex=f"^s-({'|'.join(skip_services)})_.+").columns.tolist()
+            cols = services_df.filter(
+                regex=f"^s-({'|'.join(skip_services)})_.+"
+            ).columns.tolist()
             services_df.drop(columns=cols, inplace=True)
 
-    return pd.concat([df for df in [containers_df, services_df, nodes_df, middlewares_df] if df is not None], axis=1)
+    return pd.concat(
+        [
+            df
+            for df in [containers_df, services_df, nodes_df, middlewares_df]
+            if df is not None
+        ],
+        axis=1,
+    )
 
 
-def build_subgraph_of_removal_edges(nodes: mn.MetricNodes, pk: PriorKnowledge) -> nx.Graph:
+def build_subgraph_of_removal_edges(
+    nodes: mn.MetricNodes, pk: PriorKnowledge
+) -> nx.Graph:
     """Build a subgraph consisting of removal edges with prior knowledges."""
     ctnr_graph: nx.Graph = pk.get_container_call_digraph().to_undirected()
     service_graph: nx.Graph = pk.get_service_call_digraph().to_undirected()
@@ -87,7 +107,9 @@ def build_subgraph_of_removal_edges(nodes: mn.MetricNodes, pk: PriorKnowledge) -
     G: nx.Graph = nx.Graph()
     for u, v in combinations(nodes, 2):
         # "container" and "middleware" is the same.
-        if (u.is_container() or u.is_middleware()) and (v.is_container() or v.is_middleware()):
+        if (u.is_container() or u.is_middleware()) and (
+            v.is_container() or v.is_middleware()
+        ):
             if u.comp == v.comp or ctnr_graph.has_edge(u.comp, v.comp):
                 continue
         elif (u.is_container() or u.is_middleware()) and v.is_service():
@@ -136,7 +158,10 @@ def build_subgraph_of_removal_edges(nodes: mn.MetricNodes, pk: PriorKnowledge) -
 
 
 def prepare_init_graph(
-    nodes: mn.MetricNodes, pk: PriorKnowledge, enable_orientation: bool = False, enable_prior_knowledge: bool = True
+    nodes: mn.MetricNodes,
+    pk: PriorKnowledge,
+    enable_orientation: bool = False,
+    enable_prior_knowledge: bool = True,
 ) -> nx.Graph:
     """Prepare initialized causal graph."""
     init_g = nx.Graph()
@@ -150,7 +175,9 @@ def prepare_init_graph(
     return init_g
 
 
-def fix_edge_direction_based_hieralchy(G: nx.DiGraph, u: mn.MetricNode, v: mn.MetricNode, pk: PriorKnowledge) -> None:
+def fix_edge_direction_based_hieralchy(
+    G: nx.DiGraph, u: mn.MetricNode, v: mn.MetricNode, pk: PriorKnowledge
+) -> None:
     # Force direction from (container -> service) to (service -> container) in same service
     if u.is_service() and v.is_container():
         # check whether u and v in the same service
@@ -172,7 +199,9 @@ def fix_edge_direction_based_network_call(
         # If u and v is in the same service, force bi-directed edge.
         if u.comp == v.comp:
             nx_util.set_bidirected_edge(G, u, v)
-        elif (v.comp not in service_dep_graph[u.comp]) and (u.comp in service_dep_graph[v.comp]):
+        elif (v.comp not in service_dep_graph[u.comp]) and (
+            u.comp in service_dep_graph[v.comp]
+        ):
             nx_util.reverse_edge_direction(G, u, v)
 
     # From container to container
@@ -180,19 +209,25 @@ def fix_edge_direction_based_network_call(
         # If u and v is in the same container, force bi-directed edge.
         if u.comp == v.comp:
             nx_util.set_bidirected_edge(G, u, v)
-        elif (v.comp not in container_dep_graph[u.comp]) and (u.comp in container_dep_graph[v.comp]):
+        elif (v.comp not in container_dep_graph[u.comp]) and (
+            u.comp in container_dep_graph[v.comp]
+        ):
             nx_util.reverse_edge_direction(G, u, v)
 
     # From service to container
     if u.is_service() and v.is_container_or_middleware():
         v_service = pk.get_service_by_container(v.comp)
-        if (v_service not in service_dep_graph[u.comp]) and (u.comp in service_dep_graph[v_service]):
+        if (v_service not in service_dep_graph[u.comp]) and (
+            u.comp in service_dep_graph[v_service]
+        ):
             nx_util.reverse_edge_direction(G, u, v)
 
     # From container to service
     if u.is_container_or_middleware() and v.is_service():
         u_service = pk.get_service_by_container(u.comp)
-        if (v.comp not in service_dep_graph[u_service]) and (u_service in service_dep_graph[v.comp]):
+        if (v.comp not in service_dep_graph[u_service]) and (
+            u_service in service_dep_graph[v.comp]
+        ):
             nx_util.reverse_edge_direction(G, u, v)
 
 
@@ -210,11 +245,15 @@ def fix_edge_directions_in_causal_graph(
     container_dep_graph: nx.DiGraph = pk.get_container_call_digraph().reverse()
     # Traverse the all edges of G via the neighbors
     for u, nbrsdict in G.adjacency():
-        nbrs = list(nbrsdict.keys())  # to avoid 'RuntimeError: dictionary changed size during iteration'
+        nbrs = list(
+            nbrsdict.keys()
+        )  # to avoid 'RuntimeError: dictionary changed size during iteration'
         for v in nbrs:
             # u -> v
             fix_edge_direction_based_hieralchy(G, u, v, pk)
-            fix_edge_direction_based_network_call(G, u, v, service_dep_graph, container_dep_graph, pk)
+            fix_edge_direction_based_network_call(
+                G, u, v, service_dep_graph, container_dep_graph, pk
+            )
     return G
 
 
@@ -334,6 +373,7 @@ def build_causal_graphs_with_causallearn(
     pc_citest_alpha: float = 0.05,
     pc_citest: str = "fisherz",
     pc_citest_bins: int = 5,
+    pc_stable: bool = True,
     disable_orientation: bool = False,
 ) -> nx.Graph:
     init_dg = fix_edge_directions_in_causal_graph(init_g, pk)
@@ -354,10 +394,10 @@ def build_causal_graphs_with_causallearn(
         case "mv_fisherz":
             indep_test = cit.mv_fisherz
         case "chisq":
-            df = _discretize(df, bins=pc_citest_bins, standardize=False)
+            df = _discretize(df, bins=pc_citest_bins, standardize=True)
             indep_test = cit.chisq
         case "gsq":
-            df = _discretize(df, bins=pc_citest_bins, standardize=False)
+            df = _discretize(df, bins=pc_citest_bins, standardize=True)
             indep_test = cit.gsq
         case _:
             raise ValueError(f"Unsupported independence test: {pc_citest}")
@@ -369,7 +409,7 @@ def build_causal_graphs_with_causallearn(
                 data=df.to_numpy(dtype=np.float32),
                 alpha=pc_citest_alpha,
                 indep_test=indep_test,
-                stable=True,
+                stable=pc_stable,
                 uc_rule=2,  # definiteMaxP
                 uc_priority=2,
                 mvpc=False,
@@ -379,7 +419,9 @@ def build_causal_graphs_with_causallearn(
                 show_progress=False,
             )
             G_.to_nx_graph()
-            G = nx.relabel_nodes(G_.nx_graph, mapping=nodes.num_to_node_for_causallearn())
+            G = nx.relabel_nodes(
+                G_.nx_graph, mapping=nodes.num_to_node_for_causallearn()
+            )
         case "fci":
             G_, edges = fci(
                 dataset=df.to_numpy(dtype=np.float32),
@@ -446,10 +488,16 @@ def build_causal_graph_without_citest(
             G.remove_edge(u, v)
 
     G = nx.relabel_nodes(G, mapping=nodes.num_to_node)
-    return G if disable_orientation else fix_edge_directions_in_causal_graph(G.to_directed(), pk)
+    return (
+        G
+        if disable_orientation
+        else fix_edge_directions_in_causal_graph(G.to_directed(), pk)
+    )
 
 
-def find_connected_subgraphs(G: nx.Graph, root_labels: tuple[str, ...]) -> tuple[list[nx.Graph], list[nx.Graph]]:
+def find_connected_subgraphs(
+    G: nx.Graph, root_labels: tuple[str, ...]
+) -> tuple[list[nx.Graph], list[nx.Graph]]:
     """Find subgraphs connected components."""
     root_contained_subg: list[nx.Graph] = []
     root_uncontained_subg: list[nx.Graph] = []
@@ -463,7 +511,9 @@ def find_connected_subgraphs(G: nx.Graph, root_labels: tuple[str, ...]) -> tuple
     return root_contained_subg, root_uncontained_subg
 
 
-def remove_nodes_subgraph_uncontained_root(G: nx.Graph, root_labels: tuple[str, ...]) -> nx.Graph:
+def remove_nodes_subgraph_uncontained_root(
+    G: nx.Graph, root_labels: tuple[str, ...]
+) -> nx.Graph:
     """Find graphs containing root metric node."""
     remove_nodes = []
     UG: nx.Graph = G.to_undirected()
@@ -533,6 +583,7 @@ def build_causal_graph_with_library(
                 pc_citest=kwargs["pc_citest"],
                 pc_citest_alpha=kwargs["pc_citest_alpha"],
                 pc_citest_bins=kwargs["pc_citest_bins"],
+                pc_stable=kwargs["pc_stable"],
                 disable_orientation=kwargs["disable_orientation"],
             )
         case "causality":
@@ -570,9 +621,13 @@ def build_causal_graph(
     ), "use_call_graph and use_complete_graph cannot be True at the same time"
 
     if use_call_graph:
-        assert enable_prior_knowledge, "use_call_graph=True requires enable_prior_knowledge=True"
+        assert (
+            enable_prior_knowledge
+        ), "use_call_graph=True requires enable_prior_knowledge=True"
     if use_complete_graph:
-        assert not enable_prior_knowledge, "use_complete_graph=True requires enable_prior_knowledge=False"
+        assert (
+            not enable_prior_knowledge
+        ), "use_complete_graph=True requires enable_prior_knowledge=False"
 
     dataset = filter_by_target_metrics(dataset, pk)
     if not any(label in dataset.columns for label in pk.get_root_metrics()):
@@ -581,7 +636,9 @@ def build_causal_graph(
     building_graph_start: float = time.time()
 
     nodes: mn.MetricNodes = mn.MetricNodes.from_dataframe(dataset)
-    init_g: nx.Graph = prepare_init_graph(nodes, pk, enable_prior_knowledge=enable_prior_knowledge)
+    init_g: nx.Graph = prepare_init_graph(
+        nodes, pk, enable_prior_knowledge=enable_prior_knowledge
+    )
 
     if use_call_graph or use_complete_graph:
         G = fix_edge_directions_in_causal_graph(init_g, pk)
@@ -594,7 +651,9 @@ def build_causal_graph(
             **kwargs,
         )
 
-    root_contained_graphs, root_uncontained_graphs = find_connected_subgraphs(G, pk.get_root_metrics())
+    root_contained_graphs, root_uncontained_graphs = find_connected_subgraphs(
+        G, pk.get_root_metrics()
+    )
 
     building_graph_elapsed: float = time.time() - building_graph_start
 
@@ -607,7 +666,9 @@ def build_causal_graph(
         "causal_graph_nodes_num": G.number_of_nodes(),
         "causal_graph_edges_num": G.number_of_edges(),
         "causal_graph_density": nx.density(G),
-        "causal_graph_flow_hierarchy": nx.flow_hierarchy(G) if G.is_directed() else np.nan,
+        "causal_graph_flow_hierarchy": nx.flow_hierarchy(G)
+        if G.is_directed()
+        else np.nan,
         "building_graph_elapsed_sec": building_graph_elapsed,
     }
     return G, (root_contained_graphs, root_uncontained_graphs), stats
@@ -628,27 +689,45 @@ def xcorr(X: np.ndarray, y: np.ndarray) -> np.ndarray:
     return np.apply_along_axis(lambda x: max_xcorr_pair(x, y), axis=1, arr=X)
 
 
+def corr_pearsonr_left_shift(X: np.ndarray, y: np.ndarray, l_p: int) -> np.ndarray:
+    # expected X is 2darray, y is 1darray
+    assert X.ndim == 2, f"X.ndim must be 2, but {X.ndim}"
+    assert y.ndim == 1, f"y.ndim must be 1, but {y.ndim}"
+    return np.apply_along_axis(
+        lambda x: pearsonr_left_shift(x, y, l_p=l_p, apply_abs=True), axis=1, arr=X
+    )
+
+
 def prepare_monitor_rank_based_random_walk(
     G: nx.DiGraph,
     dataset: pd.DataFrame,
     pk: PriorKnowledge,
     root_metric_type: str,
     corr_method: str = "pearsonr",  # or "xcorr"
+    corr_left_shift_lp: int = 0,
 ) -> tuple[nx.DiGraph, dict[str, float]]:
     """MonitorRank-based ranked algorithm
     G must be a call graph, not causal graph
     """
-    assert G.number_of_nodes() > 1, f"number of nodes must be > 1, but {G.number_of_nodes()}."
+    assert (
+        G.number_of_nodes() > 1
+    ), f"number of nodes must be > 1, but {G.number_of_nodes()}."
 
     G = mn.relabel_graph_nodes_to_label(G)
     data = dataset.filter(list(G.nodes), axis=1)
-    front_root_metrics = [m for m in data.columns.tolist() if m in pk.get_root_metrics()]
-    assert len(front_root_metrics) > 0, f"dataset has no root metric node: {pk.get_root_metrics()}"
+    front_root_metrics = [
+        m for m in data.columns.tolist() if m in pk.get_root_metrics()
+    ]
+    assert (
+        len(front_root_metrics) > 0
+    ), f"dataset has no root metric node: {pk.get_root_metrics()}"
     start_front_root_metric = pk.get_root_metric_by_type(root_metric_type)
     if start_front_root_metric not in front_root_metrics:
         start_front_root_metric = front_root_metrics[0]
     start_front_root_metric_id = data.columns.tolist().index(start_front_root_metric)
-    assert start_front_root_metric_id >= 0, f"dataset has no root metric node: {start_front_root_metric}"
+    assert (
+        start_front_root_metric_id >= 0
+    ), f"dataset has no root metric node: {start_front_root_metric}"
 
     match corr_method:
         case "pearsonr":
@@ -656,9 +735,19 @@ def prepare_monitor_rank_based_random_walk(
             corr = corr[start_front_root_metric_id]
         case "xcorr":
             corr = np.corrcoef(data.values.T)  # calculate pearson correlation
-            corr = xcorr(data.values.T, data.values[:, start_front_root_metric_id])  # calculate cross correlation
+            corr = xcorr(
+                data.values.T, data.values[:, start_front_root_metric_id]
+            )  # calculate cross correlation
+        case "left_shift":
+            corr = corr_pearsonr_left_shift(
+                X=data.values.T,
+                y=data.values[:, start_front_root_metric_id],
+                l_p=corr_left_shift_lp,
+            )
         case _:
-            raise ValueError(f"corr_method must be 'pearsonr' or 'xcorr', but {corr_method}")
+            raise ValueError(
+                f"corr_method must be 'pearsonr' or 'xcorr', or 'left_shift', but {corr_method}"
+            )
 
     sim = [abs(x) for x in corr]  # similarity to front root metric
     rho = 0.1
@@ -686,7 +775,9 @@ def prepare_monitor_rank_based_random_walk(
         for j in G[i]:
             G.edges[i, j]["weight"] /= adj_sum
 
-    u = {n: sim[list(G.nodes).index(n)] for n in G.nodes if n != start_front_root_metric}  # preference vector
+    u = {
+        n: sim[list(G.nodes).index(n)] for n in G.nodes if n != start_front_root_metric
+    }  # preference vector
     u[start_front_root_metric] = 0
 
     return G, u
@@ -697,7 +788,7 @@ def walk_causal_graph_with_monitorrank(
     dataset: pd.DataFrame,
     pk: PriorKnowledge,
     root_metric_type: str,
-    **kwargs: dict[str, Any],
+    **kwargs: Any,
 ) -> tuple[nx.DiGraph, list[tuple[str, float]]]:
     modified_g, preference_vector = prepare_monitor_rank_based_random_walk(
         G.reverse(),
@@ -705,6 +796,7 @@ def walk_causal_graph_with_monitorrank(
         pk,
         root_metric_type,
         corr_method=kwargs["corr_method"],  # type: ignore
+        corr_left_shift_lp=kwargs["corr_left_shift_lp"],
     )
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -729,13 +821,15 @@ def build_and_walk_causal_graph(
     use_complete_graph: bool = False,
     use_causalrca: bool = False,
     use_rcd: bool = False,
-    **kwargs: dict[str, Any],
+    **kwargs: Any,
 ) -> tuple[nx.Graph, list[tuple[str, float]]]:
     assert not (
         use_call_graph and use_complete_graph
     ), "use_call_graph and use_complete_graph cannot be True at the same time."
 
-    assert not (use_causalrca and use_rcd), "use_causalrca and use_rcd cannot be True at the same time."
+    assert not (
+        use_causalrca and use_rcd
+    ), "use_causalrca and use_rcd cannot be True at the same time."
     if use_causalrca:
         return causalrca.build_and_walk_causal_graph(dataset, **kwargs)
     if use_rcd:
@@ -754,7 +848,10 @@ def build_and_walk_causal_graph(
         return max_graph, []
 
     target_graph = next(
-        filter(lambda g: g.has_node(pk.get_root_metric_by_type(root_metric_type)), root_contained_graphs),
+        filter(
+            lambda g: g.has_node(pk.get_root_metric_by_type(root_metric_type)),
+            root_contained_graphs,
+        ),
         None,
     )
     if target_graph is None:

@@ -830,8 +830,22 @@ def prepare_monitor_rank_based_random_walk(
 
 def walk_causal_graph_with_pagerank(
     G: nx.DiGraph,
+    dataset: pd.DataFrame,
     **kwargs: Any,
 ) -> tuple[nx.DiGraph, list[tuple[str, float]]]:
+    if kwargs.get("pagerank_adj_corr", False):
+        # use adj correlation as weight
+        G = mn.relabel_graph_nodes_to_label(G)
+        corr = np.corrcoef(dataset.values.T)  # calculate pearson correlation
+        for i in G.nodes:
+            for j in G.nodes:
+                if i == j:
+                    continue
+                if G.has_edge(i, j):
+                    G.edges[i, j]["weight"] = abs(
+                        corr[list(G.nodes).index(i)][list(G.nodes).index(j)]
+                    )
+
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         warnings.filterwarnings("ignore", category=FutureWarning)
@@ -924,7 +938,7 @@ def build_and_walk_causal_graph(
     match (walk_method := kwargs["walk_method"]):
         case "pagerank":
             modified_g, ranks = walk_causal_graph_with_pagerank(
-                target_graph, dataset, pk, root_metric_type, **kwargs
+                target_graph, dataset, **kwargs
             )
         case "monitorrank":
             modified_g, ranks = walk_causal_graph_with_monitorrank(

@@ -5,7 +5,7 @@ import os
 import pathlib
 from collections import defaultdict
 from multiprocessing import cpu_count
-from typing import Any, Final, Generator
+from typing import Any, Final
 
 import joblib
 import neptune
@@ -14,10 +14,11 @@ import pandas as pd
 
 from eval import validation
 from eval.groundtruth import check_cause_metrics
-from meltria.loader import DatasetRecord
+from meltria import loader
 from meltria.metric_types import ALL_METRIC_TYPES, METRIC_PREFIX_TO_TYPE
 from tsdr import tsdr
 
+RAW_DATA_DIR = "/datasets"
 DEFAULT_CHAOS_TYPES: Final[set[str]] = {"pod-cpu-hog", "pod-memory-hog"}
 DATA_DIR = pathlib.Path(__file__).parent.parent / "dataset" / "data"
 TSDR_DEFAULT_PHASE1_METHOD: Final[str] = "residual_integral"
@@ -51,13 +52,20 @@ tsdr_default_options: Final[dict[str, Any]] = {
 
 
 def generate_file_path_suffix_as_id(
-    tsdr_options: dict[str, Any], metric_types: dict[str, bool], time_range: tuple[int, int], **kwargs: Any
+    tsdr_options: dict[str, Any],
+    metric_types: dict[str, bool],
+    time_range: tuple[int, int],
+    **kwargs: Any,
 ) -> str:
     return hashlib.md5(
         "".join(
             [f"{k}{v}" for k, v in sorted(tsdr_options.items())]
             + [f"{k}{v}" for k, v in sorted(metric_types.items())]
-            + ([] if time_range[0] == 0 and time_range[1] == 0 else [f"time_range{time_range[0]}{time_range[1]}"])
+            + (
+                []
+                if time_range[0] == 0 and time_range[1] == 0
+                else [f"time_range{time_range[0]}{time_range[1]}"]
+            )
             + [f"{k}{v}" for k, v in sorted(kwargs.items())]
         ).encode()
     ).hexdigest()
@@ -65,7 +73,7 @@ def generate_file_path_suffix_as_id(
 
 def sweep_tsdr_and_save_as_cache(
     dataset_id: str,
-    records: list[DatasetRecord],
+    records: list[loader.DatasetRecord],
     list_of_tsdr_options: list[dict[str, Any]],
     use_manually_selected_metrics: list[bool] = [True, False],
     metric_types_pairs: list[dict[str, bool]] = METRIC_TYPES_PAIRS,
@@ -77,7 +85,7 @@ def sweep_tsdr_and_save_as_cache(
     for tsdr_options in list_of_tsdr_options:
         for metric_types in metric_types_pairs:
             for use_manually_selected_metric in use_manually_selected_metrics:
-                run_tsdr_and_save_as_cache(
+                run_tsdr_and_save_as_cache_with_tracking(
                     experiment_id=experiment_id,
                     dataset_id=dataset_id,
                     metric_types=metric_types,
@@ -88,28 +96,15 @@ def sweep_tsdr_and_save_as_cache(
                 )
 
 
-def run_tsdr_and_save_as_cache(
+def run_tsdr_and_save_as_cache_with_tracking(
     experiment_id: str,
     dataset_id: str,
     metric_types: dict[str, bool],
-    records: list[DatasetRecord],
+    records: list[loader.DatasetRecord],
     tsdr_options: dict[str, Any] = tsdr_default_options,
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
 ) -> None:
-    # Workaround
-    # if (
-    #     metric_types["middlewares"]
-    #     and tsdr_options.get("step2_dbscan_algorithm") == "dbscan"
-    #     and tsdr_options.get("step2_dbscan_dist_type") == "pearsonr"
-    # ):
-    #     logging.info("Skip dbscan with pearsonr to dataset including middlewares because it takes too long time.")
-    #     return
-
-    file_path_suffix = generate_file_path_suffix_as_id(
-        tsdr_options, metric_types, time_range=time_range, use_manually_selected_metrics=use_manually_selected_metrics
-    )
-
     run = neptune.init_run(project=os.environ["TSDR_NEPTUNE_PROJECT"])
     run["experiment_id"] = experiment_id
     run["dataset/dataset_id"] = dataset_id
@@ -120,10 +115,55 @@ def run_tsdr_and_save_as_cache(
     run["dataset/time_range/end"] = time_range[1]
     run["parameters"] = tsdr_options
 
+    scores_df, clusters_stats = run_tsdr_and_save_as_cache(
+        dataset_id=dataset_id,
+        metric_types=metric_types,
+        records=records,
+        tsdr_options=tsdr_options,
+        use_manually_selected_metrics=use_manually_selected_metrics,
+        time_range=time_range,
+    )
+
+    upload_scores_to_neptune(run, scores_df, metric_types)
+    upload_clusters_to_neptune(run, clusters_stats)
+    run.stop()
+
+
+def run_tsdr_and_save_as_cache(
+    dataset_id: str,
+    metric_types: dict[str, bool],
+    records: list[loader.DatasetRecord],
+    tsdr_options: dict[str, Any] = tsdr_default_options,
+    use_manually_selected_metrics: bool = False,
+    time_range: tuple[int, int] = (0, 0),
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    # Workaround
+    # if (
+    #     metric_types["middlewares"]
+    #     and tsdr_options.get("step2_dbscan_algorithm") == "dbscan"
+    #     and tsdr_options.get("step2_dbscan_dist_type") == "pearsonr"
+    # ):
+    #     logging.info("Skip dbscan with pearsonr to dataset including middlewares because it takes too long time.")
+    #     return
+
+    file_path_suffix = generate_file_path_suffix_as_id(
+        tsdr_options,
+        metric_types,
+        time_range=time_range,
+        use_manually_selected_metrics=use_manually_selected_metrics,
+    )
+
     score_dfs: list[pd.DataFrame] = []
     clusters_stats: list[pd.DataFrame] = []
     for record in records:
-        prefiltered_df, filtered_df, anomalous_df, reduced_df, tsdr_stat, clusters_stat = run_tsdr(
+        (
+            prefiltered_df,
+            filtered_df,
+            anomalous_df,
+            reduced_df,
+            tsdr_stat,
+            clusters_stat,
+        ) = run_tsdr(
             record,
             tsdr_options=tsdr_options,
             enable_unireducer=tsdr_options["enable_unireducer"],
@@ -132,7 +172,9 @@ def run_tsdr_and_save_as_cache(
             use_manually_selected_metrics=use_manually_selected_metrics,
             time_range=time_range,
         )
-        score_dfs.append(calculate_scores_from_tsdr_result(tsdr_stat, record, metric_types))
+        score_dfs.append(
+            calculate_scores_from_tsdr_result(tsdr_stat, record, metric_types)
+        )
 
         clusters_stat["dataset_id"] = dataset_id
         clusters_stat["chaos_type"] = record.chaos_type()
@@ -141,16 +183,26 @@ def run_tsdr_and_save_as_cache(
         clusters_stats.append(clusters_stat)
 
         # TODO: should save prefiltered_df?
-        save_tsdr(dataset_id, record, filtered_df, anomalous_df, reduced_df, file_path_suffix=file_path_suffix)
-        del record, prefiltered_df, filtered_df, anomalous_df, reduced_df  # for memory efficiency
-
-    upload_scores_to_neptune(run, pd.concat(score_dfs, axis=0), metric_types)
-    upload_clusters_to_neptune(run, pd.concat(clusters_stats, axis=0))
-    run.stop()
+        save_tsdr(
+            dataset_id,
+            record,
+            filtered_df,
+            anomalous_df,
+            reduced_df,
+            file_path_suffix=file_path_suffix,
+        )
+        del (
+            record,
+            prefiltered_df,
+            filtered_df,
+            anomalous_df,
+            reduced_df,
+        )  # for memory efficiency
+    return pd.concat(score_dfs, axis=0), pd.concat(clusters_stats, axis=0)
 
 
 def run_tsdr(
-    record: DatasetRecord,
+    record: loader.DatasetRecord,
     tsdr_options: dict[str, Any],
     enable_unireducer: bool = True,
     enable_multireducer: bool = True,
@@ -175,7 +227,9 @@ def run_tsdr(
     start, end = time_range
     if end == 0:
         end = prefiltered_df.shape[0]
-    prefiltered_df = filter_metrics_by_metric_type(prefiltered_df.iloc[start:end, :], metric_types)
+    prefiltered_df = filter_metrics_by_metric_type(
+        prefiltered_df.iloc[start:end, :], metric_types
+    )
 
     reducer = tsdr.Tsdr(tsdr_options["step1_method_name"], **tsdr_options)
     tsdr_stat, clusters_stat, _ = reducer.run(
@@ -193,11 +247,49 @@ def run_tsdr(
         reduced_df = tsdr_stat[-1][0]
     else:
         reduced_df = anomalous_df
-    return (prefiltered_df, filtered_df, anomalous_df, reduced_df, tsdr_stat, clusters_stat)
+    return (
+        prefiltered_df,
+        filtered_df,
+        anomalous_df,
+        reduced_df,
+        tsdr_stat,
+        clusters_stat,
+    )
+
+
+def run_tsdr_and_save_as_cache_from_orig_data(
+    dataset_id: str,
+    tsdr_options: dict[str, Any],
+    num_datapoints: int,
+    metric_types: dict[str, bool] = ALL_METRIC_TYPES,
+    use_manually_selected_metrics: bool = False,
+    time_range: tuple[int, int] = (0, 0),
+    validation_filtering: tuple[bool, int] = (False, 0),
+) -> None:
+    metrics_files = loader.find_metrics_files(RAW_DATA_DIR, dataset_id=dataset_id)
+    records = loader.load_dataset(
+        metrics_files,
+        target_metric_types=metric_types,
+        num_datapoints=num_datapoints,
+    )
+    valid, faulty_pos = validation_filtering
+    if valid:
+        records = validation.find_records_detected_anomalies_of_sli(records, faulty_pos)
+        records = validation.find_records_detected_anomalies_of_cause_metrics(
+            records, faulty_pos
+        )
+    run_tsdr_and_save_as_cache(
+        records=records,
+        dataset_id=dataset_id,
+        metric_types=metric_types,
+        tsdr_options=tsdr_options,
+        use_manually_selected_metrics=use_manually_selected_metrics,
+        time_range=time_range,
+    )
 
 
 def sweep_tsdr_for_recall(
-    records: list[DatasetRecord],
+    records: list[loader.DatasetRecord],
     list_of_tsdr_options: list[dict[str, Any]],
     use_manually_selected_metrics: list[bool] = [True, False],
     metric_types_pairs: list[dict[str, bool]] = METRIC_TYPES_PAIRS,
@@ -225,12 +317,17 @@ def sweep_tsdr_for_recall(
     return pd.concat(score_dfs, axis=0)
 
 
-def transform_record_only_metrics_in_cause_services(record: DatasetRecord) -> DatasetRecord:
-    sli_df = record.data_df[[m for m in record.pk.get_root_metrics() if m in record.data_df.columns]]
+def transform_record_only_metrics_in_cause_services(record: loader.DatasetRecord) -> loader.DatasetRecord:
+    sli_df = record.data_df[
+        [m for m in record.pk.get_root_metrics() if m in record.data_df.columns]
+    ]
     ctnr = record.chaos_comp()
     service = record.pk.get_service_by_container(ctnr)
     cause_service_df = record.data_df.loc[
-        :, record.data_df.columns.str.startswith((f"s-{service}_", f"c-{ctnr}_", f"m-{ctnr}_"))
+        :,
+        record.data_df.columns.str.startswith(
+            (f"s-{service}_", f"c-{ctnr}_", f"m-{ctnr}_")
+        ),
     ]
     record.data_df = pd.concat([sli_df, cause_service_df], axis=1)
     return record
@@ -238,12 +335,14 @@ def transform_record_only_metrics_in_cause_services(record: DatasetRecord) -> Da
 
 def run_tsdr_for_recall(
     metric_types: dict[str, bool],
-    records: list[DatasetRecord],
+    records: list[loader.DatasetRecord],
     tsdr_options: dict[str, Any] = tsdr_default_options,
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
 ) -> pd.DataFrame:
-    records = [transform_record_only_metrics_in_cause_services(record) for record in records]
+    records = [
+        transform_record_only_metrics_in_cause_services(record) for record in records
+    ]
 
     tsdr_results = joblib.Parallel(n_jobs=-1)(
         joblib.delayed(run_tsdr)(
@@ -261,7 +360,9 @@ def run_tsdr_for_recall(
     assert tsdr_results is not None
 
     scores: list[dict[str, float]] = []
-    for record, (prefiltered_df, filtered_df, anomalous_df, reduced_df, _, _) in zip(records, tsdr_results):
+    for record, (prefiltered_df, filtered_df, anomalous_df, reduced_df, _, _) in zip(
+        records, tsdr_results
+    ):
         total_mandatory_cause_metrics = check_cause_metrics(
             record.pk,
             prefiltered_df.columns.tolist(),
@@ -277,7 +378,10 @@ def run_tsdr_for_recall(
             optional_cause=True,
         )[1]
         score: dict[str, Any] = {}
-        for name, df in zip(["filtered", "anomalous", "reduced"], [filtered_df, anomalous_df, reduced_df]):
+        for name, df in zip(
+            ["filtered", "anomalous", "reduced"],
+            [filtered_df, anomalous_df, reduced_df],
+        ):
             _, found_mandatory_metrics = check_cause_metrics(
                 record.pk,
                 df.columns.tolist(),
@@ -293,11 +397,14 @@ def run_tsdr_for_recall(
                 optional_cause=True,
             )
             score[f"{name}/mand_recall"] = recall_of_cause_metrics(
-                set(total_mandatory_cause_metrics.tolist()), set(found_mandatory_metrics.tolist())
+                set(total_mandatory_cause_metrics.tolist()),
+                set(found_mandatory_metrics.tolist()),
             )
             score[f"{name}/n_total_mand_metrics"] = len(total_mandatory_cause_metrics)
             score[f"{name}/n_found_mand_metrics"] = len(found_mandatory_metrics)
-            score[f"{name}/recall"] = recall_of_cause_metrics(set(total_cause_metrics), set(found_metrics.tolist()))
+            score[f"{name}/recall"] = recall_of_cause_metrics(
+                set(total_cause_metrics), set(found_metrics.tolist())
+            )
             score[f"{name}/n_total_metrics"] = len(total_cause_metrics)
             score[f"{name}/n_found_metrics"] = len(found_metrics)
         score.update(
@@ -313,7 +420,9 @@ def run_tsdr_for_recall(
     return pd.DataFrame(scores)
 
 
-def _get_cause_metrics(record: DatasetRecord, metrics: list, optional_cause: bool = True) -> list[str]:
+def _get_cause_metrics(
+    record: loader.DatasetRecord, metrics: list, optional_cause: bool = True
+) -> list[str]:
     cause_metrics_exist, found_metrics = check_cause_metrics(
         pk=record.pk,
         metrics=metrics,
@@ -328,21 +437,27 @@ def _get_cause_metrics(record: DatasetRecord, metrics: list, optional_cause: boo
     return found_metrics.tolist()
 
 
-def recall_of_cause_metrics(total_cause_metrics: set[str], found_cause_metrics: set[str]) -> float:
+def recall_of_cause_metrics(
+    total_cause_metrics: set[str], found_cause_metrics: set[str]
+) -> float:
     return len(total_cause_metrics & found_cause_metrics) / len(total_cause_metrics)
 
 
-def proportion_of_cause_metrics(total_metrics: set[str], found_cause_metrics: set[str]) -> float:
+def proportion_of_cause_metrics(
+    total_metrics: set[str], found_cause_metrics: set[str]
+) -> float:
     return len(found_cause_metrics) / len(total_metrics)
 
 
 def calculate_scores_from_tsdr_result(
     tsdr_stat: list[tuple[pd.DataFrame, pd.DataFrame, float]],
-    record: DatasetRecord,
+    record: loader.DatasetRecord,
     metric_types: dict[str, bool],
 ) -> pd.DataFrame:
     # metrics denominator after phase0 simple filtering
-    total_cause_metrics: set[str] = set(_get_cause_metrics(record, list(tsdr_stat[1][0].columns)))
+    total_cause_metrics: set[str] = set(
+        _get_cause_metrics(record, list(tsdr_stat[1][0].columns))
+    )
     total_mandatory_cause_metrics: set[str] = set(
         _get_cause_metrics(record, list(tsdr_stat[1][0].columns), optional_cause=False)
     )
@@ -359,9 +474,13 @@ def calculate_scores_from_tsdr_result(
         for metric_type, enable in metric_types.items():
             if not enable:
                 continue
-            num_series_by_type[f"num_series/{metric_type}/raw"] = tsdr_stat[0][1].loc[metric_type]["count"].sum()
+            num_series_by_type[f"num_series/{metric_type}/raw"] = (
+                tsdr_stat[0][1].loc[metric_type]["count"].sum()
+            )
             num_series_by_type[f"num_series/{metric_type}/filtered"] = (
-                tsdr_stat[1][1].loc[metric_type]["count"].sum() if metric_type in tsdr_stat[1][1] else 0
+                tsdr_stat[1][1].loc[metric_type]["count"].sum()
+                if metric_type in tsdr_stat[1][1]
+                else 0
             )
             num_series_by_type[f"num_series/{metric_type}/reduced"] = (
                 stat_df.loc[metric_type]["count"].sum() if metric_type in stat_df else 0
@@ -376,22 +495,32 @@ def calculate_scores_from_tsdr_result(
                 "cause_metrics/only_mandatory_recall": recall_of_cause_metrics(
                     total_mandatory_cause_metrics, set(found_metrics)
                 ),
-                "cause_metrics/recall": recall_of_cause_metrics(total_cause_metrics, set(found_metrics)),
-                "cause_metrics/proportion": proportion_of_cause_metrics(set(reduced_df.columns), set(found_metrics)),
+                "cause_metrics/recall": recall_of_cause_metrics(
+                    total_cause_metrics, set(found_metrics)
+                ),
+                "cause_metrics/proportion": proportion_of_cause_metrics(
+                    set(reduced_df.columns), set(found_metrics)
+                ),
                 "cause_metrics/num_total": len(total_cause_metrics),
                 "cause_metrics/num_found": len(found_metrics),
                 "num_series/total/raw": tsdr_stat[0][1]["count"].sum(),  # raw
-                "num_series/total/filtered": tsdr_stat[1][1]["count"].sum(),  # after step0
+                "num_series/total/filtered": tsdr_stat[1][1][
+                    "count"
+                ].sum(),  # after step0
                 "num_series/total/reduced": stat_df["count"].sum(),  # after step{i}
                 **num_series_by_type,
                 "elapsed_time": elapsed_time,
                 "found_metrics": ",".join(found_metrics),
             }
         )
-    return pd.DataFrame(tests).set_index(["chaos_type", "chaos_comp", "metrics_file", "phase"])
+    return pd.DataFrame(tests).set_index(
+        ["chaos_type", "chaos_comp", "metrics_file", "phase"]
+    )
 
 
-def upload_scores_to_neptune(run: neptune.Run, tests_df: pd.DataFrame, target_metric_types: dict[str, bool]) -> None:
+def upload_scores_to_neptune(
+    run: neptune.Run, tests_df: pd.DataFrame, target_metric_types: dict[str, bool]
+) -> None:
     def agg_score(x: pd.DataFrame) -> pd.Series:
         tp = int(x["cause_metrics/exist"].sum())
         fn = int((~x["cause_metrics/exist"]).sum())
@@ -412,7 +541,9 @@ def upload_scores_to_neptune(run: neptune.Run, tests_df: pd.DataFrame, target_me
             "fn": fn,
             "accuracy": tp / (tp + fn),
             "cause_metrics/recall_mean": x["cause_metrics/recall"].mean(),
-            "cause_metrics/recall_mandatory_mean": x["cause_metrics/only_mandatory_recall"].mean(),
+            "cause_metrics/recall_mandatory_mean": x[
+                "cause_metrics/only_mandatory_recall"
+            ].mean(),
             "cause_metrics/proportion_mean": x["cause_metrics/proportion"].mean(),
             "cause_metrics/num_total_mean": x["cause_metrics/num_total"].mean(),
             "cause_metrics/num_found_mean": x["cause_metrics/num_found"].mean(),
@@ -434,12 +565,20 @@ def upload_scores_to_neptune(run: neptune.Run, tests_df: pd.DataFrame, target_me
         return pd.Series(d)
 
     run["scores/summary"].upload(neptune.types.File.as_html(tests_df))
-    scores_by_phase = tests_df.groupby("phase").apply(agg_score).reset_index().set_index("phase")
+    scores_by_phase = (
+        tests_df.groupby("phase").apply(agg_score).reset_index().set_index("phase")
+    )
     scores_by_chaos_type = (
-        tests_df.groupby(["chaos_type", "phase"]).apply(agg_score).reset_index().set_index(["chaos_type", "phase"])
+        tests_df.groupby(["chaos_type", "phase"])
+        .apply(agg_score)
+        .reset_index()
+        .set_index(["chaos_type", "phase"])
     )
     scores_by_chaos_comp = (
-        tests_df.groupby(["chaos_comp", "phase"]).apply(agg_score).reset_index().set_index(["chaos_comp", "phase"])
+        tests_df.groupby(["chaos_comp", "phase"])
+        .apply(agg_score)
+        .reset_index()
+        .set_index(["chaos_comp", "phase"])
     )
     scores_by_chaos_type_and_comp = (
         tests_df.groupby(
@@ -463,8 +602,12 @@ def upload_scores_to_neptune(run: neptune.Run, tests_df: pd.DataFrame, target_me
 
     run["scores"] = total_scores.to_dict()
     run["scores/summary_by_phase"].upload(neptune.types.File.as_html(scores_by_phase))
-    run["scores/summary_by_chaos_type"].upload(neptune.types.File.as_html(scores_by_chaos_type))
-    run["scores/summary_by_chaos_comp"].upload(neptune.types.File.as_html(scores_by_chaos_comp))
+    run["scores/summary_by_chaos_type"].upload(
+        neptune.types.File.as_html(scores_by_chaos_type)
+    )
+    run["scores/summary_by_chaos_comp"].upload(
+        neptune.types.File.as_html(scores_by_chaos_comp)
+    )
     run["scores/summary_by_chaos_type_and_chaos_comp"].upload(
         neptune.types.File.as_html(scores_by_chaos_type_and_comp)
     )
@@ -474,29 +617,49 @@ def upload_clusters_to_neptune(run: neptune.Run, clusters_stats: pd.DataFrame) -
     if clusters_stats.empty:
         return
 
-    clusters_stats.set_index(["dataset_id", "chaos_type", "chaos_comp", "chaos_case_num"], inplace=True)
+    clusters_stats.set_index(
+        ["dataset_id", "chaos_type", "chaos_comp", "chaos_case_num"], inplace=True
+    )
     run["clusters_stats/details"].upload(neptune.types.File.as_html(clusters_stats))
 
     num_clusters = clusters_stats.groupby(
         ["dataset_id", "chaos_type", "chaos_comp", "chaos_case_num", "component"]
     ).size()
-    run["clusters_stats/num_clusters-df"].upload(neptune.types.File.as_html(num_clusters.to_frame()))
-    run["clusters_stats/num_clusters"] = num_clusters.agg(["mean", "max", "min", "std"]).to_dict()
+    run["clusters_stats/num_clusters-df"].upload(
+        neptune.types.File.as_html(num_clusters.to_frame())
+    )
+    run["clusters_stats/num_clusters"] = num_clusters.agg(
+        ["mean", "max", "min", "std"]
+    ).to_dict()
 
     cluster_size = clusters_stats.groupby(
-        ["dataset_id", "chaos_type", "chaos_comp", "chaos_case_num", "component", "rep_metric"]
+        [
+            "dataset_id",
+            "chaos_type",
+            "chaos_comp",
+            "chaos_case_num",
+            "component",
+            "rep_metric",
+        ]
     )["sub_metrics"].apply(lambda x: np.array(x[0]).flatten().size + 1)
-    run["clusters_stats/cluster_size-df"].upload(neptune.types.File.as_html(cluster_size.to_frame()))
-    run["clusters_stats/cluster_size"] = cluster_size.agg(["mean", "max", "min", "std"]).to_dict()
+    run["clusters_stats/cluster_size-df"].upload(
+        neptune.types.File.as_html(cluster_size.to_frame())
+    )
+    run["clusters_stats/cluster_size"] = cluster_size.agg(
+        ["mean", "max", "min", "std"]
+    ).to_dict()
 
 
-def filter_metrics_by_metric_type(df: pd.DataFrame, metric_types: dict[str, bool]) -> pd.DataFrame:
+def filter_metrics_by_metric_type(
+    df: pd.DataFrame, metric_types: dict[str, bool]
+) -> pd.DataFrame:
     return df[
         [
             metric_name
             for metric_name in df.columns.tolist()
             for metric_type, is_selected in metric_types.items()
-            if is_selected and metric_name.startswith(METRIC_PREFIX_TO_TYPE[metric_type])
+            if is_selected
+            and metric_name.startswith(METRIC_PREFIX_TO_TYPE[metric_type])
         ]
     ]
 
@@ -530,7 +693,12 @@ def filter_manually_selected_metrics(df: pd.DataFrame) -> pd.DataFrame:
         [
             metric_name.startswith("s-")
             or metric_name.startswith("n-")
-            or any([metric_name.endswith(base_name) for base_name in MANUALLY_SELECTED_METRICS])
+            or any(
+                [
+                    metric_name.endswith(base_name)
+                    for base_name in MANUALLY_SELECTED_METRICS
+                ]
+            )
             for metric_name in df.columns.tolist()
         ],
     ]
@@ -552,9 +720,13 @@ def load_tsdr_by_chaos(
     time_range: tuple[int, int] = (0, 0),
     target_chaos_types: set[str] = DEFAULT_CHAOS_TYPES,
     validation_filtering: tuple[bool, int] = (False, 0),
+    from_orig: tuple[bool, int] = (False, 0),  # from_orig flag, from_orig_num_datapoints
     n_jobs: int = -1,
 ) -> dict[
-    tuple[str, str], list[tuple[DatasetRecord, dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]]]
+    tuple[str, str],
+    list[
+        tuple[loader.DatasetRecord, dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]]
+    ],
 ]:  # (chaos_type, chaos_comp)
     datasets = load_tsdr_grouped_by_metric_type(
         dataset_id,
@@ -564,13 +736,16 @@ def load_tsdr_by_chaos(
         use_manually_selected_metrics,
         time_range,
         validation_filtering,
+        from_orig,
         n_jobs,
     )
     results = defaultdict(list)
     for record, df_by_metric_type in datasets:
         if record.chaos_type() not in target_chaos_types:
             continue
-        results[(record.chaos_type(), record.chaos_comp())].append((record, df_by_metric_type))
+        results[(record.chaos_type(), record.chaos_comp())].append(
+            (record, df_by_metric_type)
+        )
     return results
 
 
@@ -582,8 +757,23 @@ def load_tsdr_grouped_by_metric_type(
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
     validation_filtering: tuple[bool, int] = (False, 0),
+    from_orig: tuple[bool, int] = (False, 0),  # from_orig flag, from_orig_num_datapoints
     n_jobs: int = -1,
-) -> list[tuple[DatasetRecord, dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]]]:
+) -> list[
+    tuple[loader.DatasetRecord, dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]]
+]:
+    from_orig_ok, from_orig_num_datapoints = from_orig
+    if from_orig_ok:
+        run_tsdr_and_save_as_cache_from_orig_data(
+            dataset_id=dataset_id,
+            tsdr_options=tsdr_options,
+            num_datapoints=from_orig_num_datapoints,
+            metric_types=metric_types,
+            use_manually_selected_metrics=use_manually_selected_metrics,
+            time_range=time_range,
+            validation_filtering=validation_filtering,
+        )
+
     ok, parent_path = check_cache_suffix(
         dataset_id,
         metric_types,
@@ -598,13 +788,20 @@ def load_tsdr_grouped_by_metric_type(
 
     def load_data(
         path: pathlib.Path,
-    ) -> tuple[DatasetRecord, dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]] | None:
+    ) -> (
+        tuple[loader.DatasetRecord, dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]]
+        | None
+    ):
         with (path / "record.bz2").open("rb") as f:
             record = joblib.load(f)
             valid, faulty_pos = validation_filtering
             if valid:
-                sli_ok = validation.find_records_detected_anomalies_of_sli([record], faulty_pos)
-                cause_ok = validation.find_records_detected_anomalies_of_cause_metrics([record], faulty_pos)
+                sli_ok = validation.find_records_detected_anomalies_of_sli(
+                    [record], faulty_pos
+                )
+                cause_ok = validation.find_records_detected_anomalies_of_cause_metrics(
+                    [record], faulty_pos
+                )
                 if not (sli_ok and cause_ok):
                     return None
             record.data_df = record.data_df
@@ -617,11 +814,15 @@ def load_tsdr_grouped_by_metric_type(
         with (path / "reduced_df.bz2").open("rb") as f:
             reduced_df = joblib.load(f)
             reduced_df = _group_by_metric_type(reduced_df)
-        df_by_metric_type: dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]] = {}
+        df_by_metric_type: dict[
+            str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]
+        ] = {}
         for metric_type in ALL_METRIC_TYPES.keys():
             if revert_normalized_time_series:  # Workaround
                 for metric_name, _ in reduced_df[metric_type].items():
-                    reduced_df[metric_type][metric_name] = anomalous_df[metric_type][metric_name]
+                    reduced_df[metric_type][metric_name] = anomalous_df[metric_type][
+                        metric_name
+                    ]
             df_by_metric_type[metric_type] = (
                 filtered_df[metric_type],
                 anomalous_df[metric_type],
@@ -630,7 +831,9 @@ def load_tsdr_grouped_by_metric_type(
         return record, df_by_metric_type
 
     results = joblib.Parallel(n_jobs=n_jobs)(
-        joblib.delayed(load_data)(path) for path in parent_path.iterdir() if any(path.iterdir())
+        joblib.delayed(load_data)(path)
+        for path in parent_path.iterdir()
+        if any(path.iterdir())
     )
     assert results is not None
     return [result for result in results if result is not None]
@@ -644,7 +847,10 @@ def check_cache_suffix(
     time_range: tuple[int, int] = (0, 0),
 ) -> tuple[bool, pathlib.Path]:
     file_path_suffix = generate_file_path_suffix_as_id(
-        tsdr_options, metric_types, time_range=time_range, use_manually_selected_metrics=use_manually_selected_metrics
+        tsdr_options,
+        metric_types,
+        time_range=time_range,
+        use_manually_selected_metrics=use_manually_selected_metrics,
     )
     dir_name: str = f"tsdr_{dataset_id}_{file_path_suffix}"
     parent_path = DATA_DIR / dir_name
@@ -688,7 +894,7 @@ def check_cache_suffix(
 
 def save_tsdr(
     dataset_id: str,
-    record: DatasetRecord,
+    record: loader.DatasetRecord,
     filtered_df: pd.DataFrame,
     anomalous_df: pd.DataFrame,
     reduced_df: pd.DataFrame,
@@ -698,9 +904,15 @@ def save_tsdr(
     assert (
         record.data_df.shape[1] >= filtered_df.shape[1]
     ), f"{record.data_df.shape[1]} should be > {filtered_df.shape[1]}"
-    assert filtered_df.shape[1] >= reduced_df.shape[1], f"{filtered_df.shape[1]} should be > {reduced_df.shape[1]}"
+    assert (
+        filtered_df.shape[1] >= reduced_df.shape[1]
+    ), f"{filtered_df.shape[1]} should be > {reduced_df.shape[1]}"
 
-    dir_name: str = f"tsdr_{dataset_id}" if file_path_suffix == "" else f"tsdr_{dataset_id}_{file_path_suffix}"
+    dir_name: str = (
+        f"tsdr_{dataset_id}"
+        if file_path_suffix == ""
+        else f"tsdr_{dataset_id}_{file_path_suffix}"
+    )
     path = DATA_DIR / dir_name / record.chaos_case_full().replace("/", "_")
     path.mkdir(parents=True, exist_ok=True)
     for obj, name in (
@@ -713,7 +925,7 @@ def save_tsdr(
 
 
 def validate_tsdr_results(
-    datasets: list[tuple[DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]
+    datasets: list[tuple[loader.DatasetRecord, pd.DataFrame, pd.DataFrame, pd.DataFrame]]
 ) -> tuple[pd.DataFrame, dict]:
     check_results = []
     dataset_by_chaos_case = {}
@@ -744,7 +956,9 @@ def validate_tsdr_results(
                 reduced_cause_metrics,
             )
         )
-        dataset_by_chaos_case[(record.chaos_type(), record.chaos_comp(), record.chaos_case_num())] = (
+        dataset_by_chaos_case[
+            (record.chaos_type(), record.chaos_comp(), record.chaos_case_num())
+        ] = (
             record,
             filtered_df,
             anomalous_df,

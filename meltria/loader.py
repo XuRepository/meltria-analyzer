@@ -5,13 +5,14 @@ import warnings
 from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Final
 
 import joblib
 import numpy as np
 import pandas as pd
 
-from eval import groundtruth, validation
+from eval import groundtruth
 from meltria.metric_types import (METRIC_TYPE_MAP, METRIC_TYPE_MIDDLEWARES,
                                   METRIC_TYPE_NODES, METRIC_TYPE_SERVICES)
 from meltria.priorknowledge.priorknowledge import PriorKnowledge, new_knowledge
@@ -88,13 +89,12 @@ class DatasetRecord:
         return self.data_df[ground_truth_metrics]
 
 
-def find_metrics_files(path: str) -> list[str]:
+def find_metrics_files(root_path: str, dataset_id: str) -> list[str]:
     """Find metrics files"""
+    path = Path(root_path) / f"argowf-chaos-{dataset_id}"
     metrics_files: list[str] = []
-    for root, _, files in os.walk(path):
-        for file in files:
-            if file.endswith(".json"):
-                metrics_files.append(os.path.join(root, file))
+    for file in path.glob("**/*.json"):
+        metrics_files.append(file.absolute().as_posix())
     return metrics_files
 
 
@@ -125,7 +125,6 @@ def load_dataset(
     target_metric_types: dict[str, bool],
     num_datapoints: int,
     interpolate: bool = True,
-    validation_filtering: tuple[bool, int] = (False, 0),
     n_jobs: int = -1,
 ) -> list[DatasetRecord]:
     """Load metrics dataset"""
@@ -140,13 +139,6 @@ def load_dataset(
     if records is None or len(records) < 1:
         raise ValueError("No metrics data loaded")
     records = [r for r in records if r is not None]
-
-    valid, faulty_pos = validation_filtering
-    if valid:
-        records = validation.find_records_detected_anomalies_of_sli(records, faulty_pos)
-        records = validation.find_records_detected_anomalies_of_cause_metrics(
-            records, faulty_pos
-        )
 
     return records
 
@@ -191,9 +183,7 @@ def check_counter_and_rate(ts: np.ndarray) -> np.ndarray:
     if not is_counter(ts):
         return ts
     rated_ts = rate_of_metrics(ts)
-    if np.any(
-        rated_ts < 0.0
-    ):  # return the unrated series if the rated series has a negative value.
+    if np.any(rated_ts < 0.0):  # return the unrated series if the rated series has a negative value.
         return ts
     return rated_ts
 
@@ -364,14 +354,12 @@ def read_metrics_file(
         for metrics in raw_data[metric_type].values():
             for metric in metrics:
                 # Remove prefix of label name that Prometheus gives
-                metric_name = (metric["metric_name"].removeprefix("container_").removeprefix("node_"))
+                metric_name = metric["metric_name"].removeprefix("container_").removeprefix("node_")
                 # Skip metrics of Prometheus exporter itself.
                 if is_excluded_metrics(metric_name):
                     continue
                 target_name = metric[
-                    "{}_name".format(metric_type[:-1])
-                    if metric_type != METRIC_TYPE_MIDDLEWARES
-                    else "container_name"
+                    "{}_name".format(metric_type[:-1]) if metric_type != METRIC_TYPE_MIDDLEWARES else "container_name"
                 ]
                 if metric_type == METRIC_TYPE_SERVICES:
                     if service := pk.get_service_by_container_or_empty(target_name):
@@ -386,7 +374,11 @@ def read_metrics_file(
                     ts = check_counter_and_rate(ts)
                 metric_name = "{}-{}_{}".format(metric_type[0], target_name, metric_name)
                 metrics_name_to_values[metric_name] = ts
-    data_df = pd.DataFrame(metrics_name_to_values).round(4)
+
+    try:
+        data_df = pd.DataFrame(metrics_name_to_values).round(4)
+    except ValueError as e:
+        raise ValueError(f"Reading file {data_file}: {e}")
     if interporate:
         try:
             with warnings.catch_warnings():

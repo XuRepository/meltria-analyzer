@@ -238,14 +238,15 @@ def change_point_clustering(
     clusters = clusters.inliner(
         threshold=proba_threshold,
         eps=int(cluster_selection_epsilon),
-        copy=False,
     )
 
     # return all metrics if all clusters are noise
     if all([c.is_noise() for c in clusters]):
         return {metric: [] for metric in metrics}, []
 
-    choiced_cluster = changepoint.choice_cluster(clusters, choice_method=choice_method)
+    choiced_cluster = changepoint.choice_cluster(
+        clusters, choice_method=choice_method, sli_data=sli_data
+    )
 
     keep_metrics: set[str] = set([m.metric_name for m in choiced_cluster.members])
     remove_metrics: list[str] = list(set(metrics) - keep_metrics)

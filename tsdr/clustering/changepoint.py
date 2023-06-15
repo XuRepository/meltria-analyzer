@@ -48,9 +48,6 @@ class Cluster:
             if m.proba >= threshold or self._has_near_members(m, eps)
         ]
 
-    def keep_only_inliers(self, threshold: float, eps: int) -> None:
-        self.members = self._inliers(threshold, eps)
-
     def size(self) -> int:
         return len(self.members)
 
@@ -92,26 +89,18 @@ class Clusters(UserList[Cluster]):
     def inliner(
         self, threshold: float = 1.0, eps: int = 1, copy: bool = True
     ) -> Clusters:
-        if copy:
-            _orig_clusters = self.data
-            return Clusters(
-                [
-                    Cluster(
-                        c.cluster_id,
-                        c.centroid,
-                        c._inliers(threshold=threshold, eps=eps),
-                    )
-                    for c in _orig_clusters
-                    if c.cluster_id != -1
-                ]
-            )
-        else:
-            for c in self:
-                if c.cluster_id == -1:
-                    self.data.remove(c)
-                    continue
-                c.keep_only_inliers(threshold=threshold, eps=eps)
-            return self
+        _orig_clusters = self.data
+        return Clusters(
+            [
+                Cluster(
+                    c.cluster_id,
+                    c.centroid,
+                    c._inliers(threshold=threshold, eps=eps),
+                )
+                for c in _orig_clusters
+                if c.cluster_id != -1
+            ]
+        )
 
     def cluster_of_max_size(self) -> Cluster:
         return max(self, key=lambda c: c.size())
@@ -147,7 +136,7 @@ def cluster_changepoints(
 ) -> Clusters:
     clusterer = hdbscan.HDBSCAN(
         min_cluster_size=2,
-        metric="euclidean",
+        metric=lambda x, y: abs(x - y),  # type: ignore
         allow_single_cluster=cluster_allow_single_cluster,
         cluster_selection_method=cluster_selection_method,
         cluster_selection_epsilon=cluster_selection_epsilon,

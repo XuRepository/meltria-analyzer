@@ -11,8 +11,9 @@ import joblib
 import numpy as np
 import pandas as pd
 
-from eval import groundtruth
-from meltria.metric_types import METRIC_TYPE_MAP, METRIC_TYPE_MIDDLEWARES, METRIC_TYPE_NODES, METRIC_TYPE_SERVICES
+from eval import groundtruth, validation
+from meltria.metric_types import (METRIC_TYPE_MAP, METRIC_TYPE_MIDDLEWARES,
+                                  METRIC_TYPE_NODES, METRIC_TYPE_SERVICES)
 from meltria.priorknowledge.priorknowledge import PriorKnowledge, new_knowledge
 
 
@@ -54,13 +55,25 @@ class DatasetRecord:
 
     def chaos_case_num(self) -> str:
         # eg. '2021-12-09-argowf-chaos-hg68n-carts-db_pod-cpu-hog_4.json'
-        return self.basename_of_metrics_file().rsplit("_", maxsplit=1)[1].removesuffix(".json")
+        return (
+            self.local_dataset_id()
+            + "-"
+            + (
+                self.basename_of_metrics_file()
+                .rsplit("_", maxsplit=1)[1]
+                .removesuffix(".json")
+            )
+        )
 
     def metrics_names(self) -> list[str]:
         return self.data_df.columns.tolist()  # type: ignore
 
     def basename_of_metrics_file(self) -> str:
         return os.path.basename(self.metrics_file)
+
+    def local_dataset_id(self) -> str:
+        # eg. '2021-12-09-argowf-chaos-hg68n-carts-db_pod-cpu-hog_4.json'
+        return self.basename_of_metrics_file().split("-")[5]
 
     def ground_truth_metrics_frame(self) -> pd.DataFrame | None:
         _, ground_truth_metrics = groundtruth.check_tsdr_ground_truth_by_route(
@@ -75,6 +88,16 @@ class DatasetRecord:
         return self.data_df[ground_truth_metrics]
 
 
+def find_metrics_files(path: str) -> list[str]:
+    """Find metrics files"""
+    metrics_files: list[str] = []
+    for root, _, files in os.walk(path):
+        for file in files:
+            if file.endswith(".json"):
+                metrics_files.append(os.path.join(root, file))
+    return metrics_files
+
+
 def load_dataset_as_generator(
     metrics_files: list[str],
     target_metric_types: dict[str, bool],
@@ -84,11 +107,17 @@ def load_dataset_as_generator(
 ) -> Iterator[list[DatasetRecord]]:
     """Load n_jobs files at a time as generator"""
     if len(metrics_files) < n_jobs:
-        yield load_dataset(metrics_files, target_metric_types, num_datapoints, interpolate, n_jobs)
+        yield load_dataset(
+            metrics_files, target_metric_types, num_datapoints, interpolate, n_jobs
+        )
     else:
-        parts_of_files: list[np.ndarray] = np.array_split(metrics_files, int(len(metrics_files) / n_jobs))
+        parts_of_files: list[np.ndarray] = np.array_split(
+            metrics_files, int(len(metrics_files) / n_jobs)
+        )
         for part_of_files in parts_of_files:
-            yield load_dataset(part_of_files.tolist(), target_metric_types, num_datapoints, interpolate)
+            yield load_dataset(
+                part_of_files.tolist(), target_metric_types, num_datapoints, interpolate
+            )
 
 
 def load_dataset(
@@ -96,16 +125,30 @@ def load_dataset(
     target_metric_types: dict[str, bool],
     num_datapoints: int,
     interpolate: bool = True,
+    validation_filtering: tuple[bool, int] = (False, 0),
     n_jobs: int = -1,
 ) -> list[DatasetRecord]:
     """Load metrics dataset"""
-    records: list[DatasetRecord] | None = joblib.Parallel(n_jobs=n_jobs, backend="multiprocessing")(
-        joblib.delayed(read_metrics_file)(path, target_metric_types, num_datapoints, interpolate)
+    records: list[DatasetRecord] | None = joblib.Parallel(
+        n_jobs=n_jobs, backend="multiprocessing"
+    )(
+        joblib.delayed(read_metrics_file)(
+            path, target_metric_types, num_datapoints, interpolate
+        )
         for path in metrics_files
     )
     if records is None or len(records) < 1:
         raise ValueError("No metrics data loaded")
-    return [r for r in records if r is not None]
+    records = [r for r in records if r is not None]
+
+    valid, faulty_pos = validation_filtering
+    if valid:
+        records = validation.find_records_detected_anomalies_of_sli(records, faulty_pos)
+        records = validation.find_records_detected_anomalies_of_cause_metrics(
+            records, faulty_pos
+        )
+
+    return records
 
 
 RANGE_VECTOR_DURATION = 60
@@ -114,7 +157,9 @@ PER_MINUTE_NUM: int = int(RANGE_VECTOR_DURATION / 15) + 1
 
 def rate_of_metrics(ts: np.ndarray) -> np.ndarray:
     slides = np.lib.stride_tricks.sliding_window_view(ts, PER_MINUTE_NUM)
-    rate = (np.max(slides, axis=1).reshape(-1) - np.min(slides, axis=1).reshape(-1)) / RANGE_VECTOR_DURATION
+    rate = (
+        np.max(slides, axis=1).reshape(-1) - np.min(slides, axis=1).reshape(-1)
+    ) / RANGE_VECTOR_DURATION
     first_val = rate[0]
     for _ in range(PER_MINUTE_NUM - 1):
         rate = np.insert(rate, 0, first_val)  # backfill
@@ -136,7 +181,9 @@ def is_counter(x: np.ndarray) -> bool:
         not np.all(x == x[0])  # check all values are the same
         and np.any(x > 0)  # check all values are positive
         and is_monotonic_increasing(x)  # check monotonic increasing
-        and np.any(x == np.round(x))  # check including float because a counter metric should be integer.
+        and np.any(
+            x == np.round(x)
+        )  # check including float because a counter metric should be integer.
     )
 
 
@@ -144,7 +191,9 @@ def check_counter_and_rate(ts: np.ndarray) -> np.ndarray:
     if not is_counter(ts):
         return ts
     rated_ts = rate_of_metrics(ts)
-    if np.any(rated_ts < 0.0):  # return the unrated series if the rated series has a negative value.
+    if np.any(
+        rated_ts < 0.0
+    ):  # return the unrated series if the rated series has a negative value.
         return ts
     return rated_ts
 
@@ -276,12 +325,23 @@ def is_excluded_metrics(metric_base_name: str) -> bool:
 
 def update_count_of_meta(data_df: pd.DataFrame, meta: dict[str, Any]) -> None:
     """Update meta data"""
-    meta["count"]["containers"] = data_df.loc[:, data_df.columns.str.startswith("c-")].shape[1]
-    meta["count"]["middlewares"] = data_df.loc[:, data_df.columns.str.startswith("m-")].shape[1]
-    meta["count"]["services"] = data_df.loc[:, data_df.columns.str.startswith("s-")].shape[1]
-    meta["count"]["nodes"] = data_df.loc[:, data_df.columns.str.startswith("n-")].shape[1]
+    meta["count"]["containers"] = data_df.loc[
+        :, data_df.columns.str.startswith("c-")
+    ].shape[1]
+    meta["count"]["middlewares"] = data_df.loc[
+        :, data_df.columns.str.startswith("m-")
+    ].shape[1]
+    meta["count"]["services"] = data_df.loc[
+        :, data_df.columns.str.startswith("s-")
+    ].shape[1]
+    meta["count"]["nodes"] = data_df.loc[:, data_df.columns.str.startswith("n-")].shape[
+        1
+    ]
     assert data_df.shape[1] == (
-        meta["count"]["containers"] + meta["count"]["middlewares"] + meta["count"]["nodes"] + meta["count"]["services"]
+        meta["count"]["containers"]
+        + meta["count"]["middlewares"]
+        + meta["count"]["nodes"]
+        + meta["count"]["services"]
     )
 
 
@@ -294,7 +354,9 @@ def read_metrics_file(
     """Read metrics data file"""
     with open(data_file) as f:
         raw_data: dict[str, Any] = json.load(f)
-    pk: PriorKnowledge = new_knowledge(raw_data["meta"]["target_app"], target_metric_types, raw_data["mappings"])
+    pk: PriorKnowledge = new_knowledge(
+        raw_data["meta"]["target_app"], target_metric_types, raw_data["mappings"]
+    )
     metrics_name_to_values: dict[str, np.ndarray] = {}
     for metric_type, enable in target_metric_types.items():
         if not enable:
@@ -302,12 +364,14 @@ def read_metrics_file(
         for metrics in raw_data[metric_type].values():
             for metric in metrics:
                 # Remove prefix of label name that Prometheus gives
-                metric_name = metric["metric_name"].removeprefix("container_").removeprefix("node_")
+                metric_name = (metric["metric_name"].removeprefix("container_").removeprefix("node_"))
                 # Skip metrics of Prometheus exporter itself.
                 if is_excluded_metrics(metric_name):
                     continue
                 target_name = metric[
-                    "{}_name".format(metric_type[:-1]) if metric_type != METRIC_TYPE_MIDDLEWARES else "container_name"
+                    "{}_name".format(metric_type[:-1])
+                    if metric_type != METRIC_TYPE_MIDDLEWARES
+                    else "container_name"
                 ]
                 if metric_type == METRIC_TYPE_SERVICES:
                     if service := pk.get_service_by_container_or_empty(target_name):
@@ -317,12 +381,7 @@ def read_metrics_file(
                     target_name = target_name.removesuffix(";")
                 if target_name in pk.get_skip_containers():
                     continue
-                ts = np.array(
-                    metric["values"],
-                    dtype=np.float64,
-                )[
-                    :, 1
-                ][-num_datapoints:]
+                ts = np.array(metric["values"], dtype=np.float64)[:, 1][-num_datapoints:]
                 if metric_type in [METRIC_TYPE_MIDDLEWARES, METRIC_TYPE_NODES]:
                     ts = check_counter_and_rate(ts)
                 metric_name = "{}-{}_{}".format(metric_type[0], target_name, metric_name)
@@ -334,15 +393,21 @@ def read_metrics_file(
                 warnings.simplefilter("ignore")
                 # The interpolated time serie should not have negative values.
                 # See https://stackoverflow.com/questions/40072420/interpolate-without-having-negative-values-in-python.
-                data_df.interpolate(method="pchip", limit_direction="both", inplace=True)
+                data_df.interpolate(
+                    method="pchip", limit_direction="both", inplace=True
+                )
         except:  # To cacth `dfitpack.error: (m>k) failed for hidden m: fpcurf0:m=3`
             logging.info(f"calculating spline error: {data_file}")
             return None
         # Set negative values to 0.0 because interpolating may cause negative values.
         data_df.where(data_df >= 0.0, 0.0, inplace=True)
 
-    update_count_of_meta(data_df, raw_data["meta"])  # update the number of metrics because some metrics are removed.
-    return DatasetRecord(data_df=data_df, pk=pk, metrics_file=data_file, meta=raw_data["meta"])
+    update_count_of_meta(
+        data_df, raw_data["meta"]
+    )  # update the number of metrics because some metrics are removed.
+    return DatasetRecord(
+        data_df=data_df, pk=pk, metrics_file=data_file, meta=raw_data["meta"]
+    )
 
 
 def count_metrics(df: pd.DataFrame) -> pd.DataFrame:
@@ -352,5 +417,9 @@ def count_metrics(df: pd.DataFrame) -> pd.DataFrame:
             if col.startswith(prefix):
                 comp_name = col.split("_")[0].removeprefix(prefix)
                 counter[metric_type][comp_name] += 1
-    clist = [{"metric_type": t, "comp_name": n, "count": cnt} for t, v in counter.items() for n, cnt in v.items()]
+    clist = [
+        {"metric_type": t, "comp_name": n, "count": cnt}
+        for t, v in counter.items()
+        for n, cnt in v.items()
+    ]
     return pd.DataFrame(clist).set_index(["metric_type", "comp_name"])

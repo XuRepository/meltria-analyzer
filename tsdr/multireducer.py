@@ -254,6 +254,30 @@ def change_point_clustering(
     return clustering_info, remove_metrics
 
 
+def change_point_clustering_with_kde(
+    data: pd.DataFrame,
+    n_bkps: int,
+    kde_bandwidth: float,
+    n_jobs: int = -1,
+):
+    change_points: list[int] = changepoint.detect_changepoints(data, n_bkps, n_jobs)
+    metrics: list[str] = data.columns.tolist()
+    cluster_label_to_metrics = changepoint.cluster_changepoints_with_kde(
+        change_points=change_points,
+        metrics=metrics,
+        time_series_length=data.shape[0],
+        kde_bandwidth=kde_bandwidth,
+    )
+
+    choiced_cluster = max(cluster_label_to_metrics.items(), key=lambda x: len(x[1]))
+    members = choiced_cluster[1]
+
+    keep_metrics: set[str] = set(members)
+    remove_metrics: list[str] = list(set(metrics) - keep_metrics)
+    clustering_info: dict[str, list[str]] = {metric: [] for metric in keep_metrics}
+    return clustering_info, remove_metrics
+
+
 def create_clusters(data: pd.DataFrame, columns: list[str], service_name: str, n: int):
     words_list: list[str] = [col[2:] for col in columns]
     init_labels = cluster_words(words_list, service_name, n)

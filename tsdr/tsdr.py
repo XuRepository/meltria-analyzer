@@ -461,6 +461,13 @@ class Tsdr:
                     sli_data=sli_data,
                     n_jobs=kwargs.get("step2_changepoint_n_jobs", -1),
                 )
+            case "changepoint-kde":
+                return partial(
+                    multireducer.change_point_clustering_with_kde,
+                    n_bkps=kwargs["step2_changepoint_n_bkps"],
+                    kde_bandwidth=kwargs["step2_changepoint_kde_bandwidth"],
+                    n_jobs=kwargs.get("step2_changepoint_n_jobs", -1),
+                )
             case _:
                 raise ValueError(
                     'method_name must be "hierarchy" or "dbscan" or "changepoint'

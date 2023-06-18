@@ -10,6 +10,8 @@ import pandas as pd
 import ruptures as rpt
 import scipy.stats
 from joblib import Parallel, delayed
+from scipy.signal import argrelextrema
+from sklearn.neighbors import KernelDensity
 
 
 @dataclass
@@ -87,7 +89,7 @@ class Clusters(UserList[Cluster]):
         return Clusters(clusters)
 
     def inliner(
-        self, threshold: float = 1.0, eps: int = 1, copy: bool = True
+        self, threshold: float = 1.0, eps: int = 1,
     ) -> Clusters:
         _orig_clusters = self.data
         return Clusters(
@@ -145,6 +147,33 @@ def cluster_changepoints(
         clusterer, metrics=metrics, change_points=change_points
     )
     return clusters
+
+
+def cluster_changepoints_with_kde(
+    change_points: list[int],
+    metrics: list[str],
+    time_series_length: int,
+    kde_bandwidth: float,
+) -> dict[int, list[str]]:
+    x = np.array(change_points, dtype=int)
+    kde = KernelDensity(kernel='gaussian', bandwidth=kde_bandwidth).fit(x.reshape(-1, 1))
+    s = np.linspace(start=0, stop=time_series_length - 1)
+    e = kde.score_samples(s.reshape(-1, 1))
+
+    mi = argrelextrema(e, np.less)[0]
+    clusters = []
+    if len(mi) <= 0:
+        clusters.append(np.arange(len(x)))
+    else:
+        clusters.append(np.where(x < s[mi][0])[0])  # most left cluster
+        for i_cluster in range(len(mi) - 1):  # all middle cluster
+            clusters.append(np.where((x >= s[mi][i_cluster]) * (x <= s[mi][i_cluster + 1]))[0])
+        clusters.append(np.where(x >= s[mi][-1])[0])  # most right cluster
+
+    # x_indice_to_cluster_id = {x_indice: cluster_id for cluster_id, x_indices in enumerate(clusters) for x_indice in x_indices}
+    # cluster_labels = np.array([x_indice_to_cluster_id[x_indice] for x_indice in range(len(x))])
+    # cluster_label_to_metrics = defaultdict(list)
+    return {cluster_id: [metrics[x_indice] for x_indice in x_indices] for cluster_id, x_indices in enumerate(clusters)}
 
 
 def choice_cluster(

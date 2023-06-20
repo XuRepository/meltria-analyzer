@@ -210,6 +210,7 @@ def choose_metrics_within_cluster_of_max_corr_to_sli(
 
 def change_point_clustering(
     data: pd.DataFrame,
+    cost_model: str,
     n_bkps: int,
     proba_threshold: float,
     choice_method: str,
@@ -224,7 +225,7 @@ def change_point_clustering(
         0.0 <= proba_threshold and proba_threshold <= 1.0
     ), f"proba_threshold must be in [0.0, 1.0]: {proba_threshold}"
 
-    change_points: list[int] = changepoint.detect_changepoints(data, n_bkps, n_jobs)
+    change_points: list[int] = changepoint.detect_changepoints(data, cost_model, n_bkps, n_jobs)
     metrics: list[str] = data.columns.tolist()
     clusters: changepoint.Clusters = changepoint.cluster_changepoints(
         change_points=change_points,
@@ -256,11 +257,12 @@ def change_point_clustering(
 
 def change_point_clustering_with_kde(
     data: pd.DataFrame,
+    cost_model: str,
     n_bkps: int,
     kde_bandwidth: float,
     n_jobs: int = -1,
 ):
-    change_points: list[int] = changepoint.detect_changepoints(data, n_bkps, n_jobs)
+    change_points: list[int] = changepoint.detect_changepoints(data, cost_model, n_bkps, n_jobs)
     metrics: list[str] = data.columns.tolist()
     cluster_label_to_metrics = changepoint.cluster_changepoints_with_kde(
         change_points=change_points,

@@ -112,12 +112,12 @@ class Clusters(UserList[Cluster]):
 
 
 def detect_changepoints(
-    data: pd.DataFrame, n_bkps: int = 1, n_jobs: int = -1
+    data: pd.DataFrame, cost_model: str = "normal", n_bkps: int = 1, n_jobs: int = -1
 ) -> list[int]:
     metrics: list[str] = data.columns.tolist()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        binseg = rpt.Binseg(model="normal", jump=1)
+        binseg = rpt.Binseg(model=cost_model, jump=1)
 
     def detect_changepoint(metric: str) -> int:
         return binseg.fit(data[metric].to_numpy()).predict(n_bkps=n_bkps)[0]

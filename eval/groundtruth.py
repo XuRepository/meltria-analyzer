@@ -6,7 +6,9 @@ from typing import Final, cast
 import networkx as nx
 
 import diagnoser.metric_node as mn
-from meltria.metric_types import METRIC_TYPE_CONTAINERS, METRIC_TYPE_MIDDLEWARES, METRIC_TYPE_SERVICES
+from meltria.metric_types import (METRIC_TYPE_CONTAINERS,
+                                  METRIC_TYPE_MIDDLEWARES,
+                                  METRIC_TYPE_SERVICES)
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
 # TODO: define this by each target app.
@@ -145,9 +147,9 @@ CHAOS_TO_CAUSE_METRIC_PATTERNS: Final[dict[str, dict[tuple[str, str], dict[str, 
                 "mongodb_ss_tcmalloc_tcmalloc_pageheap_free_bytes",
                 "mongodb_ss_tcmalloc_tcmalloc_pageheap_reserve_count",
                 "mongodb_ss_tcmalloc_tcmalloc_pageheap_scavenge_count",
-                "mongodb_ss_tcmalloc_tcmalloc_pageheap_total_commit_bytes",
-                "mongodb_ss_tcmalloc_tcmalloc_pageheap_total_decommit_bytes",
-                "mongodb_ss_tcmalloc_tcmalloc_pageheap_total_reserve_bytes",
+                # "mongodb_ss_tcmalloc_tcmalloc_pageheap_total_commit_bytes",
+                # "mongodb_ss_tcmalloc_tcmalloc_pageheap_total_decommit_bytes",
+                # "mongodb_ss_tcmalloc_tcmalloc_pageheap_total_reserve_bytes",
                 # "mongodb_ss_tcmalloc_tcmalloc_pageheap_unmapped_bytes",
             ],
         },

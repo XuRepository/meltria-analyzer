@@ -258,23 +258,38 @@ def change_point_clustering(
 def change_point_clustering_with_kde(
     data: pd.DataFrame,
     cost_model: str,
-    n_bkps: int,
-    kde_bandwidth: float,
+    penalty: str | float,  # penalty is not used if step2_changepoint_multi_change_points is false.
+    kde_bandwidth: float | str,
+    n_bkps: int = 1,  # n_bkps is not used if multi_change_points is true.
+    multi_change_points: bool = False,
     n_jobs: int = -1,
-):
-    change_points: list[int] = changepoint.detect_changepoints(data, cost_model, n_bkps, n_jobs)
+) -> tuple[dict[str, Any], list[str]]:
     metrics: list[str] = data.columns.tolist()
-    cluster_label_to_metrics = changepoint.cluster_changepoints_with_kde(
-        change_points=change_points,
-        metrics=metrics,
-        time_series_length=data.shape[0],
-        kde_bandwidth=kde_bandwidth,
-    )
-
-    choiced_cluster = max(cluster_label_to_metrics.items(), key=lambda x: len(x[1]))
-    members = choiced_cluster[1]
-
-    keep_metrics: set[str] = set(members)
+    if not multi_change_points:
+        change_points: list[int] = changepoint.detect_changepoints(data, cost_model, n_bkps, n_jobs)
+        cluster_labels, _ = changepoint.cluster_changepoints_with_kde(
+            change_points=change_points,
+            time_series_length=data.shape[0],
+            kde_bandwidth=kde_bandwidth,
+        )
+        cluster_label_to_metrics = defaultdict(list)
+        for label, metric in zip(cluster_labels, metrics):
+            if label == changepoint.NO_CHANGE_POINTS:  # skip no anomaly metrics
+                continue
+            cluster_label_to_metrics[label].append(metric)
+    else:
+        cluster_label_to_metrics = changepoint.cluster_multi_changepoints(
+            X=data,
+            cost_model=cost_model,
+            penalty=penalty,
+            kde_bandwidth=kde_bandwidth,
+            n_jobs=n_jobs,
+        )
+    if cluster_label_to_metrics:
+        choiced_cluster = max(cluster_label_to_metrics.items(), key=lambda x: len(x[1]))
+        keep_metrics: set[str] = set(choiced_cluster[1])
+    else:
+        keep_metrics = set()
     remove_metrics: list[str] = list(set(metrics) - keep_metrics)
     clustering_info: dict[str, list[str]] = {metric: [] for metric in keep_metrics}
     return clustering_info, remove_metrics

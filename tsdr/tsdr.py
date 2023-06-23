@@ -466,8 +466,10 @@ class Tsdr:
                 return partial(
                     multireducer.change_point_clustering_with_kde,
                     cost_model=kwargs["step2_changepoint_cost_model"],
+                    penalty=kwargs["step2_changepoint_penalty"],
                     n_bkps=kwargs["step2_changepoint_n_bkps"],
                     kde_bandwidth=kwargs["step2_changepoint_kde_bandwidth"],
+                    multi_change_points=kwargs["step2_changepoint_multi_change_points"],
                     n_jobs=kwargs.get("step2_changepoint_n_jobs", -1),
                 )
             case _:

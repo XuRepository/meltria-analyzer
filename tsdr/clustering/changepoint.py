@@ -3,6 +3,7 @@ from __future__ import annotations
 import warnings
 from collections import UserList, defaultdict
 from dataclasses import dataclass
+from typing import Final
 
 import hdbscan
 import numpy as np
@@ -13,6 +14,7 @@ from joblib import Parallel, delayed
 from scipy.signal import argrelextrema
 from sklearn.neighbors import KernelDensity
 
+NO_CHANGE_POINTS: Final[int] = -1
 
 @dataclass
 class ClusterMember:
@@ -129,6 +131,61 @@ def detect_changepoints(
     return change_points
 
 
+def cluster_multi_changepoints(
+    X: pd.DataFrame,
+    cost_model: str = "l2",
+    penalty: str | float = "aic",
+    kde_bandwidth: float | str = "silverman",
+    n_jobs: int = -1,
+) -> dict[int, list[str]]:
+    metrics: list[str] = X.columns.tolist()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        algo = rpt.Binseg(model=cost_model, jump=1)
+
+    def detect_changepoints(x: np.ndarray, penalty: str | float) -> list[int]:
+        n_segs = 2
+        sigma = np.std(x)
+        match penalty:
+            case "aic":
+                pen = n_segs * sigma * sigma
+            case "bic":
+                pen = np.log(x.size) * n_segs * sigma * sigma
+            case _:
+                pen = penalty
+        return algo.fit(x).predict(pen=pen)[:-1]
+
+    multi_change_points: list[list[int]] | None = Parallel(n_jobs=n_jobs)(
+        delayed(detect_changepoints)(X[metric].to_numpy(), penalty) for metric in metrics
+    )
+    assert multi_change_points is not None
+
+    cp_to_metrics: dict[int, list[str]] = defaultdict(list)
+    for metric, change_points in zip(metrics, multi_change_points):
+        if len(change_points) < 1:
+            cp_to_metrics[NO_CHANGE_POINTS].append(metric)  # cp == -1 means no change point
+            continue
+        for cp in change_points:
+            cp_to_metrics[cp].append(metric)
+
+    flatten_change_points: list[int] = sum(multi_change_points, [])
+    if len(flatten_change_points) == 0:
+        return {}
+
+    _, label_to_change_points = cluster_changepoints_with_kde(
+        flatten_change_points, time_series_length=X.shape[0], kde_bandwidth=kde_bandwidth, unique_values=True,
+    )
+
+    label_to_metrics: dict[int, list[str]] = defaultdict(list)
+    for label, cps in label_to_change_points.items():
+        if label == NO_CHANGE_POINTS:  # skip no anomaly metrics
+            continue
+        for cp in cps:
+            for metric in cp_to_metrics[cp]:
+                label_to_metrics[label].append(metric)
+    return label_to_metrics
+
+
 def cluster_changepoints(
     change_points: list[int],
     metrics: list[str],
@@ -151,13 +208,15 @@ def cluster_changepoints(
 
 def cluster_changepoints_with_kde(
     change_points: list[int],
-    metrics: list[str],
     time_series_length: int,
-    kde_bandwidth: float,
-) -> dict[int, list[str]]:
+    kde_bandwidth: float | str,
+    unique_values: bool = False,
+) -> tuple[np.ndarray, dict[int, np.ndarray]]:
+    assert len(change_points) > 0, "change_points should not be empty"
+
     x = np.array(change_points, dtype=int)
     kde = KernelDensity(kernel='gaussian', bandwidth=kde_bandwidth).fit(x.reshape(-1, 1))
-    s = np.linspace(start=0, stop=time_series_length - 1)
+    s = np.linspace(start=0, stop=time_series_length - 1, num=time_series_length + 1)  # +1 means avoid integer boundaries of clusters
     e = kde.score_samples(s.reshape(-1, 1))
 
     mi = argrelextrema(e, np.less)[0]
@@ -170,10 +229,12 @@ def cluster_changepoints_with_kde(
             clusters.append(np.where((x >= s[mi][i_cluster]) * (x <= s[mi][i_cluster + 1]))[0])
         clusters.append(np.where(x >= s[mi][-1])[0])  # most right cluster
 
-    # x_indice_to_cluster_id = {x_indice: cluster_id for cluster_id, x_indices in enumerate(clusters) for x_indice in x_indices}
-    # cluster_labels = np.array([x_indice_to_cluster_id[x_indice] for x_indice in range(len(x))])
-    # cluster_label_to_metrics = defaultdict(list)
-    return {cluster_id: [metrics[x_indice] for x_indice in x_indices] for cluster_id, x_indices in enumerate(clusters)}
+    labels = np.zeros(len(x), dtype=int)
+    for label, x_args in enumerate(clusters):
+        clusters[label] = np.unique(x[x_args]) if unique_values else x[x_args]
+        labels[x_args] = label
+    label_to_values: dict[int, np.ndarray] = {label: vals for label, vals in enumerate(clusters)}
+    return labels, label_to_values
 
 
 def choice_cluster(

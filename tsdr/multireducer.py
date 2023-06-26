@@ -1,21 +1,18 @@
 import random
-import warnings
 from collections import defaultdict
 from collections.abc import Callable
 from concurrent import futures
 from typing import Any
 
-import hdbscan
 import numpy as np
 import pandas as pd
 import ruptures as rpt
 import scipy.signal
 import scipy.stats
-from joblib import Parallel, delayed
 from scipy.cluster.hierarchy import fcluster, linkage
 from scipy.spatial.distance import pdist, squareform
 
-from tsdr.clustering import dbscan
+from tsdr.clustering import changepoint, dbscan
 from tsdr.clustering.kshape import kshape
 from tsdr.clustering.metricsnamecluster import cluster_words
 from tsdr.clustering.pearsonr import pearsonr
@@ -213,6 +210,7 @@ def choose_metrics_within_cluster_of_max_corr_to_sli(
 
 def change_point_clustering(
     data: pd.DataFrame,
+    cost_model: str,
     n_bkps: int,
     proba_threshold: float,
     choice_method: str,
@@ -220,74 +218,94 @@ def change_point_clustering(
     cluster_selection_epsilon: float,
     cluster_allow_single_cluster: bool,
     sli_data: np.ndarray | None = None,
-    n_jobs=-1,
+    n_jobs: int = -1,
 ) -> tuple[dict[str, Any], list[str]]:
     assert n_bkps >= 1, f"n_bkps must be >= 1: {n_bkps}"
     assert (
         0.0 <= proba_threshold and proba_threshold <= 1.0
     ), f"proba_threshold must be in [0.0, 1.0]: {proba_threshold}"
 
+    change_points: list[int] = changepoint.detect_changepoints(data, cost_model, n_bkps, n_jobs)
     metrics: list[str] = data.columns.tolist()
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        binseg = rpt.Binseg(model="normal", jump=1)
-
-    def detect_changepoint(metric: str) -> int:
-        return binseg.fit(data[metric].to_numpy()).predict(n_bkps=n_bkps)[0]
-
-    change_points: list[int] | None = Parallel(n_jobs=n_jobs)(
-        delayed(detect_changepoint)(metric) for metric in metrics
-    )
-    assert change_points is not None
-
-    clusterer = hdbscan.HDBSCAN(
-        min_cluster_size=2,
-        metric="euclidean",
-        allow_single_cluster=cluster_allow_single_cluster,
+    clusters: changepoint.Clusters = changepoint.cluster_changepoints(
+        change_points=change_points,
+        metrics=metrics,
         cluster_selection_method=cluster_selection_method,
         cluster_selection_epsilon=cluster_selection_epsilon,
-    ).fit(np.array([change_points]).T)
+        cluster_allow_single_cluster=cluster_allow_single_cluster,
+    )
+    assert len(clusters) > 0, f"clusters is empty: {clusters}"
 
-    # return all metrics if all labels (cluster_ids) are -1
-    if np.all(clusterer.labels_ == -1):
+    clusters = clusters.inliner(
+        threshold=proba_threshold,
+        eps=int(cluster_selection_epsilon),
+    )
+
+    # return all metrics if all clusters are noise
+    if all([c.is_noise() for c in clusters]):
         return {metric: [] for metric in metrics}, []
 
-    cluster_id_to_centroid = {
-        cluster_id: clusterer.weighted_cluster_centroid(cluster_id)[0]
-        for cluster_id in np.unique(clusterer.labels_)
-        if cluster_id != -1  # skip noise cluster
-    }
-    clusters_with_centroid: dict[tuple[int, int], list[str]] = defaultdict(list)
-    for cluster_id, metric, change_point, prob in zip(
-        clusterer.labels_, metrics, change_points, clusterer.probabilities_
-    ):
-        if cluster_id == -1 or prob <= proba_threshold:  # skip noise or outlier metric
-            continue
-        centroid = cluster_id_to_centroid[cluster_id]
-        clusters_with_centroid[(cluster_id, centroid)].append(metric)
-    assert (
-        clusters_with_centroid
-    ), f"clusters_with_centroid is empty: {clusters_with_centroid}, prob_threshold={proba_threshold}, (metric,cluster_id,probability)={list(zip(metrics, clusterer.labels_ ,clusterer.probabilities_))}"
+    choiced_cluster = changepoint.choice_cluster(
+        clusters, choice_method=choice_method, sli_data=sli_data
+    )
 
-    # Choose cluster including root cause metrics
-    def choice_fn(x: dict[tuple[int, int], list[str]]):
-        match choice_method:
-            case "max_members_changepoint":
-                return max(x.items(), key=lambda y: len(y[1]))
-            case "nearest_sli_changepoint":
-                assert sli_data is not None
-                slis_cp: int = binseg.fit(scipy.stats.zscore(sli_data)).predict(
-                    n_bkps=n_bkps
-                )[0]
-                return min(
-                    x.items(), key=lambda y: abs(y[0][1] - slis_cp)
-                )  # the distance between centroid and sli changepoint
-            case _:
-                raise ValueError("choice_method is required.")
+    keep_metrics: set[str] = set([m.metric_name for m in choiced_cluster.members])
+    remove_metrics: list[str] = list(set(metrics) - keep_metrics)
+    clustering_info: dict[str, list[str]] = {metric: [] for metric in keep_metrics}
+    return clustering_info, remove_metrics
 
-    max_cluster = choice_fn(clusters_with_centroid)
 
-    keep_metrics: set[str] = set(max_cluster[1])
+def change_point_clustering_with_kde(
+    data: pd.DataFrame,
+    cost_model: str,
+    penalty: str | float,  # penalty is not used if step2_changepoint_multi_change_points is false.
+    kde_bandwidth: float | str,
+    n_bkps: int = 1,  # n_bkps is not used if multi_change_points is true.
+    multi_change_points: bool = False,
+    representative_method: bool = False,
+    n_jobs: int = -1,
+) -> tuple[dict[str, Any], list[str]]:
+    if representative_method:
+        assert multi_change_points, "multi_change_points must be true if representative_method is true."
+
+    metrics: list[str] = data.columns.tolist()
+    if not multi_change_points:
+        change_points: list[int] = changepoint.detect_changepoints(data, cost_model, n_bkps, n_jobs)
+        cluster_labels, _ = changepoint.cluster_changepoints_with_kde(
+            change_points=change_points,
+            time_series_length=data.shape[0],
+            kde_bandwidth=kde_bandwidth,
+        )
+        cluster_label_to_metrics = defaultdict(list)
+        for label, metric in zip(cluster_labels, metrics):
+            if label == changepoint.NO_CHANGE_POINTS:  # skip no anomaly metrics
+                continue
+            cluster_label_to_metrics[label].append(metric)
+    else:
+        if representative_method:
+            cluster_label_to_metrics = changepoint.cluster_multi_changepoints_by_repsentative_change_point(
+                X=data,
+                cost_model=cost_model,
+                penalty=penalty,
+                kde_bandwidth=kde_bandwidth,
+                n_jobs=n_jobs,
+            )
+        else:
+            multi_change_points = changepoint.detect_multi_changepoints(
+                X=data, cost_model=cost_model, penalty=penalty, n_jobs=n_jobs
+            )
+            cluster_label_to_metrics, _ = changepoint.cluster_multi_changepoints(
+                multi_change_points=multi_change_points,
+                metrics=metrics,
+                time_series_length=data.shape[0],
+                kde_bandwidth=kde_bandwidth,
+            )
+
+    if cluster_label_to_metrics:
+        choiced_cluster = max(cluster_label_to_metrics.items(), key=lambda x: len(x[1]))
+        keep_metrics: set[str] = set(choiced_cluster[1])
+    else:
+        keep_metrics = set()
     remove_metrics: list[str] = list(set(metrics) - keep_metrics)
     clustering_info: dict[str, list[str]] = {metric: [] for metric in keep_metrics}
     return clustering_info, remove_metrics

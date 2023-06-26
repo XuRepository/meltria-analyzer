@@ -446,6 +446,7 @@ class Tsdr:
             case "changepoint":
                 return partial(
                     multireducer.change_point_clustering,
+                    cost_model=kwargs["step2_changepoint_cost_model"],
                     n_bkps=kwargs["step2_changepoint_n_bkps"],
                     proba_threshold=kwargs["step2_changepoint_proba_threshold"],
                     choice_method=choice_method,
@@ -459,6 +460,17 @@ class Tsdr:
                         "step2_changepoint_allow_single_cluster", True
                     ),
                     sli_data=sli_data,
+                    n_jobs=kwargs.get("step2_changepoint_n_jobs", -1),
+                )
+            case "changepoint-kde":
+                return partial(
+                    multireducer.change_point_clustering_with_kde,
+                    cost_model=kwargs["step2_changepoint_cost_model"],
+                    penalty=kwargs.get("step2_changepoint_penalty", "aic"),
+                    n_bkps=kwargs.get("step2_changepoint_n_bkps", 2),
+                    kde_bandwidth=kwargs["step2_changepoint_kde_bandwidth"],
+                    multi_change_points=kwargs["step2_changepoint_multi_change_points"],
+                    representative_method=kwargs.get("step2_changepoint_representative_method", False),
                     n_jobs=kwargs.get("step2_changepoint_n_jobs", -1),
                 )
             case _:

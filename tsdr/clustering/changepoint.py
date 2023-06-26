@@ -131,13 +131,12 @@ def detect_changepoints(
     return change_points
 
 
-def cluster_multi_changepoints(
+def detect_multi_changepoints(
     X: pd.DataFrame,
     cost_model: str = "l2",
     penalty: str | float = "aic",
-    kde_bandwidth: float | str = "silverman",
     n_jobs: int = -1,
-) -> dict[int, list[str]]:
+) -> list[list[int]]:
     metrics: list[str] = X.columns.tolist()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -160,6 +159,15 @@ def cluster_multi_changepoints(
     )
     assert multi_change_points is not None
 
+    return multi_change_points
+
+
+def cluster_multi_changepoints(
+    multi_change_points: list[list[int]],
+    metrics: list[str],
+    time_series_length: int,
+    kde_bandwidth: float | str = "silverman",
+) -> tuple[dict[int, list[str]], dict[int, np.ndarray]]:
     cp_to_metrics: dict[int, list[str]] = defaultdict(list)
     for metric, change_points in zip(metrics, multi_change_points):
         if len(change_points) < 1:
@@ -170,10 +178,54 @@ def cluster_multi_changepoints(
 
     flatten_change_points: list[int] = sum(multi_change_points, [])
     if len(flatten_change_points) == 0:
-        return {}
+        return {}, {}
 
     _, label_to_change_points = cluster_changepoints_with_kde(
-        flatten_change_points, time_series_length=X.shape[0], kde_bandwidth=kde_bandwidth, unique_values=True,
+        flatten_change_points, time_series_length=time_series_length, kde_bandwidth=kde_bandwidth, unique_values=True,
+    )
+
+    label_to_metrics: dict[int, list[str]] = defaultdict(list)
+    for label, cps in label_to_change_points.items():
+        if label == NO_CHANGE_POINTS:  # skip no anomaly metrics
+            continue
+        for cp in cps:
+            for metric in cp_to_metrics[cp]:
+                label_to_metrics[label].append(metric)
+    return label_to_metrics, label_to_change_points
+
+
+def cluster_multi_changepoints_by_repsentative_change_point(
+    X: pd.DataFrame,
+    cost_model: str = "l2",
+    penalty: str | float = "aic",
+    kde_bandwidth: float | str = "silverman",
+    n_jobs: int = -1,
+) -> dict[int, list[str]]:
+    multi_change_points = detect_multi_changepoints(
+        X, cost_model=cost_model, penalty=penalty, n_jobs=n_jobs
+    )
+    metrics = X.columns.tolist()
+    label_to_metrics, label_to_change_points = cluster_multi_changepoints(
+        multi_change_points=multi_change_points,
+        metrics=metrics,
+        time_series_length=X.shape[0],
+        kde_bandwidth=kde_bandwidth,
+    )
+    max_cluster = max(label_to_metrics.items(), key=lambda _: len(_[1]))
+    rep_change_point = label_to_change_points[max_cluster[0]][0]  # choose first change point as representative in max cluster
+
+    cp_to_metrics: dict[int, list[str]] = defaultdict(list)
+    choiced_change_points = []
+    for metric, cps in zip(metrics, multi_change_points):
+        if len(cps) < 1:
+            cp_to_metrics[NO_CHANGE_POINTS].append(metric)
+            continue
+        choiced_cp = cps[np.argmin(np.abs(cps - rep_change_point))]
+        choiced_change_points.append(choiced_cp)
+        cp_to_metrics[choiced_cp].append(metric)
+
+    _, label_to_change_points = cluster_changepoints_with_kde(
+        choiced_change_points, time_series_length=X.shape[0], kde_bandwidth=kde_bandwidth, unique_values=True,
     )
 
     label_to_metrics: dict[int, list[str]] = defaultdict(list)
@@ -216,7 +268,7 @@ def cluster_changepoints_with_kde(
 
     x = np.array(change_points, dtype=int)
     kde = KernelDensity(kernel='gaussian', bandwidth=kde_bandwidth).fit(x.reshape(-1, 1))
-    s = np.linspace(start=0, stop=time_series_length - 1, num=time_series_length + 1)  # +1 means avoid integer boundaries of clusters
+    s = np.linspace(start=0, stop=time_series_length - 1, num=time_series_length // 2)  # If 'num' are larger, cluster size will be smaller.
     e = kde.score_samples(s.reshape(-1, 1))
 
     mi = argrelextrema(e, np.less)[0]

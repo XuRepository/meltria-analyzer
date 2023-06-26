@@ -262,8 +262,12 @@ def change_point_clustering_with_kde(
     kde_bandwidth: float | str,
     n_bkps: int = 1,  # n_bkps is not used if multi_change_points is true.
     multi_change_points: bool = False,
+    representative_method: bool = False,
     n_jobs: int = -1,
 ) -> tuple[dict[str, Any], list[str]]:
+    if representative_method:
+        assert multi_change_points, "multi_change_points must be true if representative_method is true."
+
     metrics: list[str] = data.columns.tolist()
     if not multi_change_points:
         change_points: list[int] = changepoint.detect_changepoints(data, cost_model, n_bkps, n_jobs)
@@ -278,13 +282,25 @@ def change_point_clustering_with_kde(
                 continue
             cluster_label_to_metrics[label].append(metric)
     else:
-        cluster_label_to_metrics = changepoint.cluster_multi_changepoints(
-            X=data,
-            cost_model=cost_model,
-            penalty=penalty,
-            kde_bandwidth=kde_bandwidth,
-            n_jobs=n_jobs,
-        )
+        if representative_method:
+            cluster_label_to_metrics = changepoint.cluster_multi_changepoints_by_repsentative_change_point(
+                X=data,
+                cost_model=cost_model,
+                penalty=penalty,
+                kde_bandwidth=kde_bandwidth,
+                n_jobs=n_jobs,
+            )
+        else:
+            multi_change_points = changepoint.detect_multi_changepoints(
+                X=data, cost_model=cost_model, penalty=penalty, n_jobs=n_jobs
+            )
+            cluster_label_to_metrics, _ = changepoint.cluster_multi_changepoints(
+                multi_change_points=multi_change_points,
+                metrics=metrics,
+                time_series_length=data.shape[0],
+                kde_bandwidth=kde_bandwidth,
+            )
+
     if cluster_label_to_metrics:
         choiced_cluster = max(cluster_label_to_metrics.items(), key=lambda x: len(x[1]))
         keep_metrics: set[str] = set(choiced_cluster[1])

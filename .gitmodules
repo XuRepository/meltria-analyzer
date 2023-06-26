@@ -1,3 +1,6 @@
 [submodule "rcd"]
 	path = rcd
 	url = git@github.com:yuuki/rcd.git
+[submodule "PyRCA"]
+	path = PyRCA
+	url = git@github.com:salesforce/PyRCA.git

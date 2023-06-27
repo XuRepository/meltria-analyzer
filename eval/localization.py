@@ -207,6 +207,7 @@ def load_tsdr_and_localize(
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
     target_chaos_types: set[str] = DEFAULT_CHAOS_TYPES,
+    from_orig: tuple[bool, int] = (False, 0),  # from_orig flag, from_orig_num_datapoints
     experiment_n_workers: int = -1,
 ) -> None:
     datasets = load_tsdr_by_chaos(
@@ -217,6 +218,7 @@ def load_tsdr_and_localize(
         use_manually_selected_metrics=use_manually_selected_metrics,
         time_range=time_range,
         target_chaos_types=target_chaos_types,
+        from_orig=from_orig,
     )
 
     first_record = list(datasets.values())[0][0][0]
@@ -291,7 +293,7 @@ def load_tsdr_and_localize(
     run.stop()
 
 
-def sweep_localization_and_save_as_cache(
+def sweep_localization(
     dataset_id: str,
     n: int,
     list_of_tsdr_options: list[dict[str, Any]],
@@ -300,11 +302,13 @@ def sweep_localization_and_save_as_cache(
     metric_types_pairs: list[dict[str, bool]] = METRIC_TYPES_PAIRS,
     time_ranges: list[tuple[int, int]] = [(0, 0)],
     target_chaos_types: set[str] = DEFAULT_CHAOS_TYPES,
+    from_orig: tuple[bool, int] = (False, 0),  # from_orig flag, from_orig_num_datapoints
     experiment_id: str = "",
     experiment_n_workers: int = -1,
 ) -> None:
     if experiment_id == "":
         experiment_id = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+
 
     for (
         tsdr_options,
@@ -359,4 +363,5 @@ def sweep_localization_and_save_as_cache(
             use_manually_selected_metrics=use_manually_selected_metrics,
             time_range=time_range,
             target_chaos_types=target_chaos_types,
+            from_orig=from_orig,
         )

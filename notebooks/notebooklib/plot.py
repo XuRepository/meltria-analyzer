@@ -1,4 +1,5 @@
 import math
+import sys
 from collections import defaultdict
 
 import matplotlib.pyplot as plt
@@ -52,12 +53,19 @@ def plot_dataset_dataframe(
     fig_width: float = 20,
     graph_height: float = 2.7,
     ncols: int = 3,
+    grid: bool = False,
+    logging: bool = False,
 ) -> None:
     nrows = math.ceil(data_df.shape[1] / ncols)
     fig, axs = plt.subplots(figsize=(fig_width, graph_height * nrows), nrows=nrows, ncols=ncols)
     for (label, data), ax in zip(data_df.items(), axs.flatten()):  # type: ignore
-        ax.plot(data.to_numpy())
+        ax.plot(data.to_numpy(), label=label)
         ax.set_title(f"{record.chaos_case_full()}: {label}")
+        if logging:
+            print(f"{record.chaos_case_full()}: {label}", file=sys.stderr)
+        start, end = ax.get_xlim()
+        ax.xaxis.set_ticks(np.arange(int(math.ceil(start)), int(math.ceil(end)), 1))
+        ax.grid(grid)
     plt.show()
 
 
@@ -70,6 +78,8 @@ def plot_sli_and_causal_metrics(
     ncols: int = 3,
     stacked: bool = False,
     n_metrics_per_graph: int = 3,
+    grid: bool = False,
+    logging: bool = False,
 ) -> None:
     root_metrics = [m for m in list(record.pk.get_root_metrics()) if m in data_df.columns.tolist()]
     ok, cause_metrics = check_cause_metrics(
@@ -81,7 +91,7 @@ def plot_sli_and_causal_metrics(
     )
     assert ok, "The causal metrics are not correct."
 
-    data_df = record.data_df.loc[:, root_metrics + cause_metrics.tolist()]
+    data_df = pd.concat([record.data_df.loc[:, root_metrics], data_df.loc[:, cause_metrics.tolist()]], axis=1)
     if stacked:
         nrows = math.ceil(data_df.shape[1] / (ncols * n_metrics_per_graph))
         fig, axs = plt.subplots(figsize=(fig_width, graph_height * nrows), nrows=nrows, ncols=ncols)
@@ -91,12 +101,22 @@ def plot_sli_and_causal_metrics(
                 ax.plot(minmax_scale(data.to_numpy()), label=label)
             ax.legend(loc="upper left")
             ax.set_title(f"{record.chaos_case_full()}")
+            start, end = ax.get_xlim()
+            ax.xaxis.set_ticks(np.arange(int(math.ceil(start)), int(math.ceil(end)), 1))
+            ax.grid(grid)
+        fig.tight_layout()
     else:
         nrows = math.ceil(data_df.shape[1] / ncols)
         fig, axs = plt.subplots(figsize=(fig_width, graph_height * nrows), nrows=nrows, ncols=ncols)
         for (label, data), ax in zip(data_df.items(), axs.flatten()):  # type: ignore
             ax.plot(data.to_numpy(), label=label)
-            ax.set_title(f"{record.chaos_case_full()}: {label}")
+            ax.set_title(f"{record.chaos_case_full()}: {label}", fontsize=12)
+            if logging:
+                print(f"{record.chaos_case_full()}: {label}", file=sys.stderr)
+            start, end = ax.get_xlim()
+            ax.xaxis.set_ticks(np.arange(int(math.ceil(start)), int(math.ceil(end)), 1))
+            ax.grid(grid)
+        fig.tight_layout()
     plt.show()
 
 

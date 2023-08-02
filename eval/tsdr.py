@@ -470,6 +470,13 @@ def calculate_scores_from_tsdr_result(
             chaos_comp=record.chaos_comp(),
             optional_cause=True,
         )
+        _, found_mandatory_metrics = check_cause_metrics(
+            pk=record.pk,
+            metrics=list(reduced_df.columns),
+            chaos_type=record.chaos_type(),
+            chaos_comp=record.chaos_comp(),
+            optional_cause=False,
+        )
         num_series_by_type: dict[str, int] = {}
         for metric_type, enable in metric_types.items():
             if not enable:
@@ -493,7 +500,7 @@ def calculate_scores_from_tsdr_result(
                 "phase": f"phase{i}",
                 "cause_metrics/exist": cause_metrics_exist,
                 "cause_metrics/only_mandatory_recall": recall_of_cause_metrics(
-                    total_mandatory_cause_metrics, set(found_metrics)
+                    total_mandatory_cause_metrics, set(found_mandatory_metrics)
                 ),
                 "cause_metrics/recall": recall_of_cause_metrics(
                     total_cause_metrics, set(found_metrics)
@@ -501,8 +508,12 @@ def calculate_scores_from_tsdr_result(
                 "cause_metrics/proportion": proportion_of_cause_metrics(
                     set(reduced_df.columns), set(found_metrics)
                 ),
+                "cause_metrics/only_mandatory_proportion": proportion_of_cause_metrics(
+                    set(reduced_df.columns), set(found_mandatory_metrics)
+                ),
                 "cause_metrics/num_total": len(total_cause_metrics),
                 "cause_metrics/num_found": len(found_metrics),
+                "cause_metrics/num_mandatory_found": len(found_mandatory_metrics),
                 "num_series/total/raw": tsdr_stat[0][1]["count"].sum(),  # raw
                 "num_series/total/filtered": tsdr_stat[1][1][
                     "count"

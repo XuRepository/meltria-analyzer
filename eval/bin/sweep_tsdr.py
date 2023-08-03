@@ -16,6 +16,10 @@ logger.setLevel(logging.DEBUG)
 st_handler = logging.StreamHandler()
 logger.addHandler(st_handler)
 
+# Suppress Neptune log messages to console
+npt_logger = logging.getLogger("root_experiment")
+npt_logger.setLevel(logging.ERROR)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="sweep_tsdr")
@@ -36,11 +40,6 @@ def main() -> None:
     spec = runpy.run_path(config_file)
     config = spec["CONFIG"]
 
-    # spec = importlib.util.spec_from_file_location('config', config_file)
-    # if spec is None or spec.loader:
-    #     raise ValueError(f"Cannot load config file: {config_file}")
-    # config = importlib.util.module_from_spec(spec)
-    # spec.loader.exec_module(config)
     logger.info(">>> Loading dataset ...")
 
     records = loader.load_dataset(

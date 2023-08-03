@@ -1,5 +1,6 @@
 import datetime
 import hashlib
+import itertools
 import logging
 import os
 import pathlib
@@ -11,6 +12,7 @@ import joblib
 import neptune
 import numpy as np
 import pandas as pd
+from tqdm.auto import tqdm
 
 from eval import validation
 from eval.groundtruth import check_cause_metrics
@@ -77,23 +79,31 @@ def sweep_tsdr_and_save_as_cache(
     list_of_tsdr_options: list[dict[str, Any]],
     use_manually_selected_metrics: list[bool] = [True, False],
     metric_types_pairs: list[dict[str, bool]] = METRIC_TYPES_PAIRS,
-    time_range: tuple[int, int] = (0, 0),
+    time_ranges: list[tuple[int, int]] = [(0, 0)],
     experiment_id: str = "",
+    progress: bool = False,
 ) -> None:
     experiment_id = experiment_id or datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 
-    for tsdr_options in list_of_tsdr_options:
-        for metric_types in metric_types_pairs:
-            for use_manually_selected_metric in use_manually_selected_metrics:
-                run_tsdr_and_save_as_cache_with_tracking(
-                    experiment_id=experiment_id,
-                    dataset_id=dataset_id,
-                    metric_types=metric_types,
-                    records=records,
-                    tsdr_options=tsdr_options,
-                    time_range=time_range,
-                    use_manually_selected_metrics=use_manually_selected_metric,
-                )
+    combinations = list(itertools.product(
+        list_of_tsdr_options,
+        metric_types_pairs,
+        use_manually_selected_metrics,
+        time_ranges,
+    ))
+    if progress:
+        combinations = tqdm(combinations)
+
+    for tsdr_options, metric_types, _use_manually_selected_metrics, time_range in combinations:
+        run_tsdr_and_save_as_cache_with_tracking(
+            experiment_id=experiment_id,
+            dataset_id=dataset_id,
+            metric_types=metric_types,
+            records=records,
+            tsdr_options=tsdr_options,
+            time_range=time_range,
+            use_manually_selected_metrics=_use_manually_selected_metrics,
+        )
 
 
 def run_tsdr_and_save_as_cache_with_tracking(
@@ -104,6 +114,7 @@ def run_tsdr_and_save_as_cache_with_tracking(
     tsdr_options: dict[str, Any] = tsdr_default_options,
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
+    data_dir: pathlib.Path = DATA_DIR,
 ) -> None:
     run = neptune.init_run(project=os.environ["TSDR_NEPTUNE_PROJECT"])
     run["experiment_id"] = experiment_id
@@ -122,6 +133,7 @@ def run_tsdr_and_save_as_cache_with_tracking(
         tsdr_options=tsdr_options,
         use_manually_selected_metrics=use_manually_selected_metrics,
         time_range=time_range,
+        data_dir=data_dir,
     )
 
     upload_scores_to_neptune(run, scores_df, metric_types)
@@ -136,6 +148,7 @@ def run_tsdr_and_save_as_cache(
     tsdr_options: dict[str, Any] = tsdr_default_options,
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
+    data_dir: pathlib.Path = DATA_DIR,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     # Workaround
     # if (
@@ -190,6 +203,7 @@ def run_tsdr_and_save_as_cache(
             anomalous_df,
             reduced_df,
             file_path_suffix=file_path_suffix,
+            data_dir=data_dir,
         )
         del (
             record,
@@ -265,6 +279,7 @@ def run_tsdr_and_save_as_cache_from_orig_data(
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
     validation_filtering: tuple[bool, int] = (False, 0),
+    data_dir: pathlib.Path = DATA_DIR,
 ) -> None:
     metrics_files = loader.find_metrics_files(RAW_DATA_DIR, dataset_id=dataset_id)
     records = loader.load_dataset(
@@ -285,6 +300,7 @@ def run_tsdr_and_save_as_cache_from_orig_data(
         tsdr_options=tsdr_options,
         use_manually_selected_metrics=use_manually_selected_metrics,
         time_range=time_range,
+        data_dir=data_dir,
     )
 
 
@@ -910,6 +926,7 @@ def save_tsdr(
     anomalous_df: pd.DataFrame,
     reduced_df: pd.DataFrame,
     file_path_suffix: str,
+    data_dir: pathlib.Path = DATA_DIR,
 ) -> None:
     assert reduced_df.shape[1] > 0, f"{reduced_df.shape[1]} should be > 0"
     assert (
@@ -924,7 +941,7 @@ def save_tsdr(
         if file_path_suffix == ""
         else f"tsdr_{dataset_id}_{file_path_suffix}"
     )
-    path = DATA_DIR / dir_name / record.chaos_case_full().replace("/", "_")
+    path = data_dir / dir_name / record.chaos_case_full().replace("/", "_")
     path.mkdir(parents=True, exist_ok=True)
     for obj, name in (
         (record, "record"),

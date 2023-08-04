@@ -309,7 +309,6 @@ def sweep_localization(
     if experiment_id == "":
         experiment_id = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 
-
     for (
         tsdr_options,
         metric_types,

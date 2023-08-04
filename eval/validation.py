@@ -6,7 +6,8 @@ import numpy as np
 import pandas as pd
 from ads_evt import biSPOT
 
-from eval.groundtruth import check_cause_metrics, check_route, select_ground_truth_metrics_in_routes
+from eval.groundtruth import (check_cause_metrics, check_route,
+                              select_ground_truth_metrics_in_routes)
 from meltria.loader import DatasetRecord
 from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
 from tsdr.outlierdetection.spot import detect_anomalies_with_spot
@@ -31,10 +32,11 @@ def find_records_detected_anomalies_of_sli(
 def find_records_detected_anomalies_of_cause_metrics(
     records: list[DatasetRecord],
     faulty_datapoints: int,
+    optional_cause: bool = True,
 ) -> list[DatasetRecord]:
     def _detect_anomalous_cause_metrics(record: DatasetRecord, faulty_datapoints: int) -> bool:
         ok, cause_metrics = check_cause_metrics(
-            record.pk, record.data_df.columns.tolist(), record.chaos_type(), record.chaos_comp(), optional_cause=True
+            record.pk, record.data_df.columns.tolist(), record.chaos_type(), record.chaos_comp(), optional_cause=optional_cause,
         )
         anomalies: list[bool] = []
         for metric in cause_metrics.tolist():

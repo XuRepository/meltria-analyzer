@@ -135,9 +135,21 @@ def create_localization_score_as_dataframe(
     k: int = 10,
     group_by_cause_type: bool = False,
     group_by_cause_comp: bool = False,
+    no_grouping: bool = True,
 ) -> pd.DataFrame:
     ranks_df = create_rank_as_dataframe_for_multiple_cases_from_frames(list_of_rank_df)
     scores_df: pd.DataFrame
+    if no_grouping:
+        scores_df = pd.concat(
+            [
+                evaluate_ac_of_rc(
+                    ranks_df, pk, granuallity=gran, k=k,
+                )
+                for gran in ["metric", "container", "service"]
+            ],
+            axis=1,
+        )
+        return scores_df
     match (group_by_cause_type, group_by_cause_comp):
         case (False, False):
             scores_df = pd.concat(

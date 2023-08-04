@@ -291,6 +291,16 @@ def load_tsdr_and_localize(
             group_by_cause_type=True,
         )
     )
+    run["eval/score-df-raw"] = neptune.types.File.as_html(
+        create_localization_score_as_dataframe(
+            data_dfs_by_metric_type,
+            pk=pk,
+            k=n,
+            group_by_cause_comp=False,
+            group_by_cause_type=False,
+            no_grouping=True,
+        ),
+    )
     run.stop()
 
 

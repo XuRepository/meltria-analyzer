@@ -13,6 +13,7 @@ import neptune
 import neptune.types
 import networkx as nx
 import pandas as pd
+from tqdm.auto import tqdm
 
 from diagnoser import diag
 from eval.groundtruth import check_cause_metrics
@@ -305,6 +306,7 @@ def sweep_localization(
     from_orig: tuple[bool, int] = (False, 0),  # from_orig flag, from_orig_num_datapoints
     experiment_id: str = "",
     experiment_n_workers: int = -1,
+    progress: bool = False,
 ) -> None:
     if experiment_id == "":
         experiment_id = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
@@ -340,17 +342,15 @@ def sweep_localization(
             time_ranges,
         )
     )
-    n_params = len(params)
-    for i, (
+    if progress:
+        params = tqdm(params)
+    for (
         diag_options,
         tsdr_options,
         metric_types,
         use_manually_selected_metrics,
         time_range,
-    ) in enumerate(params):
-        logging.info(
-            f"Processing Pattern:{i+1}/{n_params} {metric_types}, manually_selected?={use_manually_selected_metrics}, {tsdr_options}, {diag_options}"
-        )
+    ) in params:
         load_tsdr_and_localize(
             experiment_id=experiment_id,
             experiment_n_workers=experiment_n_workers,

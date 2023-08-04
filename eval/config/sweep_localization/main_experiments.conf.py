@@ -1,8 +1,18 @@
+from diagnoser.daggnn import config
+
 ANOMALOUS_LOOKBACK_WINDOW = 20 * 4  # 20 minutes
+
 
 CONFIG = dict(
     dataset_id="9n6mf",
+    n=10,
+    experiment_n_workers=-1,
+    target_chaos_types={"pod-cpu-hog", "pod-memory-hog", "pod-network-latency"},
     list_of_tsdr_options=[
+        dict(  # None
+            enable_unireducer=False,
+            enable_multireducer=False,
+        ),
         dict(  # TSifter
             enable_unireducer=False,
             enable_multireducer=True,
@@ -64,6 +74,45 @@ CONFIG = dict(
             step2_clustering_choice_method="medoid",
         ),
     ],
-    use_manually_selected_metrics=[False],
+    # 1. e-Diagnosis
+    # 2. RCD
+    # 3. CausalRCA+PageRank
+    # 4. PC+RW-2
+    # 5. GES+RW-2
+    # 6. LiNGAM+RW-2
+    # 7. PC+PageRank
+    # 8. GES+PageRank
+    # 9. LiNGAM+PageRank
+    list_of_diag_options=[
+        dict(  # LiNGAM+PageRank
+            root_metric_type="throughput",
+            enable_prior_knowledge=True,
+            pc_library="lingam",
+            disable_orientation=True,
+            walk_method="pagerank",
+        ),
+        dict(  # RCD
+            use_rcd=True,
+            rcd_boundary_index=160,
+            rcd_localized=True,
+            rcd_gamma=5,
+            rcd_bins=5,
+            rcd_n_iters=10,
+            rcd_topk=5,
+            rcd_n_workers=1,
+            rcd_n_workers_seed_ensamble=-1,
+        ),
+        dict(  # CausalRCA
+            config.Config().to_prefixed_dict("causalrca"), use_causalrca=True
+        ),
+    ],
+    metric_types_pairs=[{
+        "services": True,
+        "containers": True,
+        "middlewares": False,
+        "nodes": False,
+    }],
+    from_orig=(True, 180),
+    pair_of_use_manually_selected_metrics=[False],
     progress=True,
 )

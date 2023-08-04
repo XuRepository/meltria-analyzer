@@ -27,7 +27,7 @@ CONFIG = dict(
         ),
         dict(  # NSigma
             enable_unireducer=True,
-            enable_multireduce=False,
+            enable_multireducer=False,
             step1_method_name="zscore_nsigma",
             step1_zscore_nsigma_anomalous_start_idx=ANOMALOUS_LOOKBACK_WINDOW,
             step1_zscore_nsigma_n_sigmas=3.0,
@@ -106,12 +106,6 @@ CONFIG = dict(
             config.Config().to_prefixed_dict("causalrca"), use_causalrca=True
         ),
     ],
-    metric_types_pairs=[{
-        "services": True,
-        "containers": True,
-        "middlewares": False,
-        "nodes": False,
-    }],
     from_orig=(True, 180),
     pair_of_use_manually_selected_metrics=[False],
     progress=True,

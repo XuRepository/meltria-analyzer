@@ -29,7 +29,7 @@ CONFIG = dict(
             "step1_method_name": "birch_model",
             "step1_birch_threshold": 10,
             "step1_birch_branching_factor": 50,
-            "step1_birch_anomalous_start_idx": ANOMALOUS_LOOKBACK_WINDOW,
+            "step1_birch_anomalous_start_idx": -ANOMALOUS_LOOKBACK_WINDOW,
         },
         {  # K-S test
             "enable_unireducer": True,

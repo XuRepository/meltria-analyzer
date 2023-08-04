@@ -46,8 +46,8 @@ def detect_anomalies_with_birch(data: pd.DataFrame, **kwargs: Any) -> dict[str, 
     threshold: float = kwargs.get("step1_birch_threshold", 10.0)
     branching_factor: int = kwargs.get("step1_birch_branching_factor", 50)
 
-    anomalous_data = data.iloc[-anomalous_start_idx:, :]
-    normal_data = data.iloc[:-anomalous_start_idx, :]
+    anomalous_data = data.iloc[anomalous_start_idx:, :]
+    normal_data = data.iloc[anomalous_start_idx - (data.shape[0] - anomalous_start_idx) : anomalous_start_idx, :]
     normal_mu, normal_sigma = normal_data.mean(), normal_data.std()
 
     def _zscore(x: np.ndarray, mu: float, sigma: float) -> np.ndarray:

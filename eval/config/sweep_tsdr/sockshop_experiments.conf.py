@@ -17,7 +17,7 @@ CONFIG = dict(
         ),
         dict(  # NSigma
             enable_unireducer=True,
-            enable_multireduce=False,
+            enable_multireducer=False,
             step1_method_name="zscore_nsigma",
             step1_zscore_nsigma_anomalous_start_idx=ANOMALOUS_LOOKBACK_WINDOW,
             step1_zscore_nsigma_n_sigmas=3.0,

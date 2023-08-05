@@ -28,7 +28,7 @@ from sklearn.preprocessing import KBinsDiscretizer
 # import diagnoser.causalgraph.causallearn_cit_fisherz_patch  # noqa: F401  for only patching
 import diagnoser.causalgraph.cdt_PC_patch  # noqa: F401  for only patching
 import diagnoser.metric_node as mn
-from diagnoser import causalrca, nx_util, rcd
+from diagnoser import causalrca, nx_util, pyrca, rcd
 from diagnoser.causalgraph.pcalg import estimate_cpdag, estimate_skeleton
 from diagnoser.causalgraph.pcalg_patch import estimate_skeleton_with_indep_test
 from diagnoser.causalgraph.pgmpy_PC import PC
@@ -897,6 +897,7 @@ def build_and_walk_causal_graph(
     use_complete_graph: bool = False,
     use_causalrca: bool = False,
     use_rcd: bool = False,
+    use_pyrca: bool = False,
     **kwargs: Any,
 ) -> tuple[nx.Graph, list[tuple[str, float]]]:
     assert not (
@@ -910,6 +911,13 @@ def build_and_walk_causal_graph(
         return causalrca.build_and_walk_causal_graph(dataset, **kwargs)
     if use_rcd:
         return nx.empty_graph(n=0), rcd.localize(dataset, **kwargs)
+    if use_pyrca:
+        return nx.empty_graph(n=0), pyrca.run_localization(
+            dataset,
+            method=kwargs.pop("method"),
+            anomalous_metrics=pk.get_root_metric_by_type(root_metric_type),
+            **kwargs,
+        )
 
     G, (root_contained_graphs, root_uncontained_graphs), stats = build_causal_graph(
         dataset,

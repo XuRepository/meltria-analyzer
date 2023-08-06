@@ -42,10 +42,7 @@ def run_localization(
             return [(r["root_cause"], r["score"]) for i, r in enumerate(results)]
         case "rcd":
             assert normal_df is not None and anomalous_df is not None
-
-            normal_df = dataset[dataset.index < kwargs["pyrca_boundary_index"]]
-            anomalous_df = dataset[dataset.index >= kwargs["pyrca_boundary_index"]]
-            model = RCD(config=RCDConfig(k=10, localized=True))
+            model = RCD(config=RCDConfig(k=root_cause_top_k, localized=True))
             results = model.find_root_causes(normal_df, anomalous_df).to_list()
             return [(r["root_cause"], r["score"]) for i, r in enumerate(results)]
         case "pc":

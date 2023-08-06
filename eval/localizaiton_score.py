@@ -151,7 +151,7 @@ def create_localization_score_as_dataframe(
                                 "chaos_comp",
                                 "chaos_idx",
                             ]
-                        )
+                        ),
                         pk,
                         granuallity=gran,
                         k=k,

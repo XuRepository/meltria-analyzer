@@ -10,8 +10,10 @@ from typing import Any, Final
 
 import joblib
 import neptune
+import neptune.internal.utils.logger as npt_logger
 import numpy as np
 import pandas as pd
+from neptune.common.hardware.gpu.gpu_monitor import GPUMonitor
 from tqdm.auto import tqdm
 
 from eval import validation
@@ -52,6 +54,8 @@ tsdr_default_options: Final[dict[str, Any]] = {
     "step2_clustering_choice_method": "medoid",
 }
 
+GPUMonitor.nvml_error_printed = True  # Suppress NVML error messages
+npt_logger.logger.setLevel(logging.WARNING)  # Suppress Neptune INFO log messages to console
 
 def generate_file_path_suffix_as_id(
     tsdr_options: dict[str, Any],
@@ -94,7 +98,10 @@ def sweep_tsdr_and_save_as_cache(
     if progress:
         combinations = tqdm(combinations)
 
-    for tsdr_options, metric_types, _use_manually_selected_metrics, time_range in combinations:
+    for i, (tsdr_options, metric_types, _use_manually_selected_metrics, time_range) in enumerate(combinations):
+        tqdm.write(
+            f"{i}/{len(combinations)}: Starting experiment {experiment_id} with {metric_types}, {tsdr_options}, {time_range}"
+        )
         run_tsdr_and_save_as_cache_with_tracking(
             experiment_id=experiment_id,
             dataset_id=dataset_id,

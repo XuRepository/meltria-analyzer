@@ -10,9 +10,11 @@ from typing import Any, Final
 
 import joblib
 import neptune
+import neptune.internal.utils.logger as npt_logger
 import neptune.types
 import networkx as nx
 import pandas as pd
+from neptune.common.hardware.gpu.gpu_monitor import GPUMonitor
 from tqdm.auto import tqdm
 
 from diagnoser import diag
@@ -25,6 +27,8 @@ from eval.tsdr import (DEFAULT_CHAOS_TYPES, METRIC_TYPES_PAIRS,
 from meltria.loader import DatasetRecord
 
 warnings.simplefilter(action="ignore", category=pd.errors.SettingWithCopyWarning)
+GPUMonitor.nvml_error_printed = True  # Suppress NVML error messages
+npt_logger.logger.setLevel(logging.WARNING)  # Suppress Neptune INFO log messages to console
 
 
 class DiagTargetPhaseOption(IntEnum):
@@ -347,14 +351,17 @@ def sweep_localization(
         )
     )
     if progress:
-        params = tqdm(params)
-    for (
+        params = tqdm(params, desc="sweeping localization", dynamic_ncols=True)
+    for i, (
         diag_options,
         tsdr_options,
         metric_types,
         use_manually_selected_metrics,
         time_range,
-    ) in params:
+    ) in enumerate(params):
+        tqdm.write(
+            f"{i}/{len(params)}: Starting experiment {experiment_id} with {metric_types}, {diag_options} and {tsdr_options}"
+        )
         load_tsdr_and_localize(
             experiment_id=experiment_id,
             experiment_n_workers=experiment_n_workers,

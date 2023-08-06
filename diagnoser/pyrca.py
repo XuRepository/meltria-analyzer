@@ -68,4 +68,4 @@ def run_localization(
         case _:
             raise ValueError(f"Unknown walk method: {walk_method}")
 
-    return [(r["root_cause"], r["score"]) for i, r in enumerate(results)]
+    return [(r["root_cause"], r["score"]) for r in results]

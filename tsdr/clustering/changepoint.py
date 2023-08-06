@@ -131,6 +131,23 @@ def detect_changepoints(
     return change_points
 
 
+def _detech_changepoints_with_missing_values(x: np.ndarray):
+    """
+    Detect changepoints with missing values
+    Sample:
+        input: [1, 2, np.nan, np.nan, 5, 6, np.nan, 8, 9, np.nan, np.nan])
+        output: [2 6 9]
+    """
+    is_nan = np.isnan(x)
+    # Get the index where NaN value changes
+    nans = np.where(is_nan, 1, 0)
+    change_indices = np.where(np.diff(nans) == 1)[0] + 1
+    # If array starts with NaN, add 0 to indices
+    if is_nan[0]:
+        change_indices = np.concatenate(([0], change_indices))
+    return change_indices
+
+
 def detect_multi_changepoints(
     X: pd.DataFrame,
     cost_model: str = "l2",
@@ -152,7 +169,9 @@ def detect_multi_changepoints(
                 pen = np.log(x.size) * n_segs * sigma * sigma
             case _:
                 pen = penalty
-        return algo.fit(x).predict(pen=pen)[:-1]
+        cps = algo.fit(x).predict(pen=pen)[:-1]
+        mvs = _detech_changepoints_with_missing_values(x)
+        return sorted(list(set(cps) | set(mvs)))
 
     multi_change_points: list[list[int]] | None = Parallel(n_jobs=n_jobs)(
         delayed(detect_changepoints)(X[metric].to_numpy(), penalty) for metric in metrics

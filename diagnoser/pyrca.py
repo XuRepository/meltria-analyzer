@@ -54,6 +54,9 @@ def run_localization(
         case _:
             raise ValueError(f"Unknown localization method: {method}")
 
+    if anomalous_metrics not in graph.nodes:
+        anomalous_metrics = None
+
     match walk_method:
         case "ht":
             model = HT(config=HTConfig(graph=graph, root_cause_top_k=root_cause_top_k))
@@ -63,6 +66,8 @@ def run_localization(
             rank = nx.pagerank(nx.DiGraph(graph).reverse())
             results = [{"root_cause": k, "score": v} for k, v in sorted(rank.items(), key=lambda item: item[1], reverse=True)][:root_cause_top_k]
         case "rw-2":
+            if anomalous_metrics is None:
+                return []
             model = RandomWalk(config=RandomWalkConfig(graph=graph, root_cause_top_k=root_cause_top_k, use_partial_corr=False))
             results = model.find_root_causes([anomalous_metrics], anomalous_df).to_list()
         case _:

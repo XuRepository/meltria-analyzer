@@ -17,8 +17,9 @@ from tqdm.auto import tqdm
 
 from diagnoser import diag
 from eval.groundtruth import check_cause_metrics
-from eval.localizaiton_score import (create_localization_score_as_dataframe,
-                                     create_rank_as_dataframe)
+from eval.localizaiton_score import (
+    create_localization_score_as_dataframe, create_rank_as_dataframe,
+    create_rank_as_dataframe_for_multiple_cases_from_frames)
 from eval.tsdr import (DEFAULT_CHAOS_TYPES, METRIC_TYPES_PAIRS,
                        check_cache_suffix, load_tsdr_by_chaos)
 from meltria.loader import DatasetRecord
@@ -263,6 +264,9 @@ def load_tsdr_and_localize(
                 f"{name}@K (metric) (mandatory)"
             ]
 
+    run["eval/ranks-df"] = neptune.types.File.as_html(
+        create_rank_as_dataframe_for_multiple_cases_from_frames(data_dfs_by_metric_type, n=30),
+    )
     run["eval/score-df"] = neptune.types.File.as_html(df)
     run["eval/score-df-by-cause-comp"] = neptune.types.File.as_html(
         create_localization_score_as_dataframe(

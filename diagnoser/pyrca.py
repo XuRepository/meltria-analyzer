@@ -21,7 +21,7 @@ def run_localization(
     method: str,
     walk_method: str | None = None,
     root_cause_top_k: int = 15,
-    anomalous_metrics: str | None = None,
+    anomalous_metrics: list[str] | None = None,
     **kwargs,
 ) -> list[tuple[str, float]]:
     if "pyrca_boundary_index" in kwargs:
@@ -54,14 +54,23 @@ def run_localization(
         case _:
             raise ValueError(f"Unknown localization method: {method}")
 
-    if anomalous_metrics not in graph.nodes:
-        anomalous_metrics = None
+    anomalous_metrics_for_walk: list[str] | None = []
+    if anomalous_metrics is not None:
+        for anomalous_metric in anomalous_metrics:
+            if anomalous_metric in graph.columns:
+                anomalous_metrics_for_walk.append(anomalous_metric)
+    if len(anomalous_metrics_for_walk) == 0:
+        anomalous_metrics_for_walk = None
 
     match walk_method:
         case "ht":
             model = HT(config=HTConfig(graph=graph, root_cause_top_k=root_cause_top_k))
             model.train(normal_df)
-            results = model.find_root_causes(anomalous_df, anomalous_metrics, adjustment=True).to_list()
+            results = model.find_root_causes(
+                anomalous_df,
+                anomalous_metrics_for_walk[0] if anomalous_metrics_for_walk is not None else None,
+                adjustment=True,
+            ).to_list()
         case "pagerank":
             rank = nx.pagerank(nx.DiGraph(graph).reverse())
             results = [{"root_cause": k, "score": v} for k, v in sorted(rank.items(), key=lambda item: item[1], reverse=True)][:root_cause_top_k]
@@ -69,7 +78,7 @@ def run_localization(
             if anomalous_metrics is None:
                 return []
             model = RandomWalk(config=RandomWalkConfig(graph=graph, root_cause_top_k=root_cause_top_k, use_partial_corr=False))
-            results = model.find_root_causes([anomalous_metrics], anomalous_df).to_list()
+            results = model.find_root_causes(anomalous_metrics_for_walk, anomalous_df).to_list()
         case _:
             raise ValueError(f"Unknown walk method: {walk_method}")
 

@@ -34,6 +34,7 @@ from diagnoser.causalgraph.pcalg_patch import estimate_skeleton_with_indep_test
 from diagnoser.causalgraph.pgmpy_PC import PC
 from diagnoser.citest.fisher_z import ci_test_fisher_z
 from diagnoser.citest.fisher_z_pgmpy import fisher_z
+from eval.validation import detect_anomalies_with_spot
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
 from tsdr.clustering.pearsonr import pearsonr_left_shift
 
@@ -742,7 +743,6 @@ def corr_pearsonr_left_shift(X: np.ndarray, y: np.ndarray, l_p: int) -> np.ndarr
         lambda x: pearsonr_left_shift(x, y, l_p=l_p, apply_abs=True), axis=1, arr=X
     )
 
-
 def prepare_monitor_rank_based_random_walk(
     G: nx.DiGraph,
     dataset: pd.DataFrame,
@@ -888,10 +888,20 @@ def walk_causal_graph_with_monitorrank(
     return modified_g, sorted(pr.items(), key=lambda item: item[1], reverse=True)
 
 
+def get_anomalous_slis(data: pd.DataFrame, slis: list[str], sli_anomaly_start_time_index: int) -> list[str]:
+    assert len(slis) > 0, "slis is empty"
+    sli_df: pd.DataFrame = data.loc[
+        :, [col for col in slis if col in series.columns]
+    ]  # retrieve only existing slis
+    return sli_df[(sli_df.apply(
+        lambda x: detect_anomalies_with_spot(x.to_numpy(), sli_anomaly_start_time_index)[0].size > 0
+    ) == True)].columns.tolist()
+
+
 def build_and_walk_causal_graph(
     dataset: pd.DataFrame,
     pk: PriorKnowledge,
-    root_metric_type: str,  # "latency" or "throughput" or "error"
+    root_metric_type: str = "",  # "latency" or "throughput" or "error"
     enable_prior_knowledge: bool = True,
     use_call_graph: bool = False,
     use_complete_graph: bool = False,
@@ -904,6 +914,11 @@ def build_and_walk_causal_graph(
         use_call_graph and use_complete_graph
     ), "use_call_graph and use_complete_graph cannot be True at the same time."
 
+    if root_metric_type == "" and "sli_anomaly_start_time_index" in kwargs:
+        anomalous_slis = get_anomalous_slis(dataset, pk.get_root_metrics(), kwargs["sli_anomaly_start_time_index"])
+    else:
+        anomalous_slis = [pk.get_root_metric_by_type(root_metric_type)]
+
     assert not (
         use_causalrca and use_rcd
     ), "use_causalrca and use_rcd cannot be True at the same time."
@@ -915,7 +930,7 @@ def build_and_walk_causal_graph(
         return nx.empty_graph(n=0), pyrca.run_localization(
             dataset,
             method=kwargs.pop("method"),
-            anomalous_metrics=pk.get_root_metric_by_type(root_metric_type),
+            anomalous_metrics=anomalous_slis,
             **kwargs,
         )
 
@@ -933,10 +948,9 @@ def build_and_walk_causal_graph(
 
     target_graph = next(
         filter(
-            lambda g: g.has_node(pk.get_root_metric_by_type(root_metric_type)),
+            lambda g: g.has_node(anomalous_slis[0]),
             root_contained_graphs,
-        ),
-        None,
+        ), None,
     )
     if target_graph is None:
         target_graph = max_graph

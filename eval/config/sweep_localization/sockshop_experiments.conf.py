@@ -1,6 +1,8 @@
 from diagnoser.daggnn import config
 
 ANOMALOUS_LOOKBACK_WINDOW = 20 * 4  # 20 minutes
+pyrca_boundary_index = 100
+sli_anomaly_start_time_index = 160
 
 
 CONFIG = dict(
@@ -83,13 +85,14 @@ CONFIG = dict(
     # 7. PC+PageRank
     # 8. GES+PageRank
     # 9. LiNGAM+PageRank
+    # 10. PC+HT
+    # 11. GES+HT
+    # 12. LiNGAM+HT
     list_of_diag_options=[
-        dict(  # LiNGAM+PageRank
-            root_metric_type="throughput",
-            enable_prior_knowledge=True,
-            pc_library="lingam",
-            disable_orientation=True,
-            walk_method="pagerank",
+        dict(  # e-Diagnosis
+            use_pyrca=True,
+            method="epsilon_diagnosis",
+            pyrca_boundary_index=pyrca_boundary_index,
         ),
         dict(  # RCD
             use_rcd=True,
@@ -104,6 +107,68 @@ CONFIG = dict(
         ),
         dict(  # CausalRCA
             config.Config().to_prefixed_dict("causalrca"), use_causalrca=True
+        ),
+        dict(  # PC+RW-2
+            use_pyrca=True,
+            method="pc",
+            walk_method="rw-2",
+            sli_anomaly_start_time_index=sli_anomaly_start_time_index,
+            pyrca_boundary_index=pyrca_boundary_index,
+        ),
+        dict(  # GES+RW-2
+            use_pyrca=True,
+            method="fges",
+            walk_method="rw-2",
+            sli_anomaly_start_time_index=sli_anomaly_start_time_index,
+            pyrca_boundary_index=pyrca_boundary_index,
+        ),
+        dict(  # LiNGAM+RW-2
+            use_pyrca=True,
+            root_metric_type="latency",
+            method="lingam",
+            walk_method="rw-2",
+            sli_anomaly_start_time_index=sli_anomaly_start_time_index,
+            pyrca_boundary_index=pyrca_boundary_index,
+        ),
+        dict(  # PC+PageRank
+            use_pyrca=True,
+            method="pc",
+            walk_method="pagerank",
+            pyrca_boundary_index=pyrca_boundary_index,
+        ),
+        dict(  # GES+PageRank
+            use_pyrca=True,
+            root_metric_type="latency",
+            method="ges",
+            walk_method="pagerank",
+            pyrca_boundary_index=pyrca_boundary_index,
+        ),
+        dict(  # LiNGAM+PageRank
+            use_pyrca=True,
+            method="lingam",
+            walk_method="pagerank",
+            pyrca_boundary_index=pyrca_boundary_index,
+        ),
+        dict(  # PC+HT
+            use_pyrca=True,
+            method="pc",
+            walk_method="ht",
+            sli_anomaly_start_time_index=sli_anomaly_start_time_index,
+            pyrca_boundary_index=pyrca_boundary_index,
+        ),
+        dict(  # GES+HT
+            use_pyrca=True,
+            method="ges",
+            walk_method="ht",
+            sli_anomaly_start_time_index=sli_anomaly_start_time_index,
+            pyrca_boundary_index=pyrca_boundary_index,
+        ),
+        dict(  # LiNGAM+HT
+            use_pyrca=True,
+            method="lingam",
+            walk_method="ht",
+            sli_anomaly_start_time_index=sli_anomaly_start_time_index,
+            pyrca_boundary_index=pyrca_boundary_index,
         ),
     ],
     from_orig=(True, 180),

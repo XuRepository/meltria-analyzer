@@ -330,6 +330,7 @@ def sweep_localization(
     experiment_id: str = "",
     experiment_n_workers: int = -1,
     progress: bool = False,
+    resuming_no: int = 0,
 ) -> None:
     if experiment_id == "":
         experiment_id = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
@@ -374,6 +375,8 @@ def sweep_localization(
         use_manually_selected_metrics,
         time_range,
     ) in enumerate(params, 1):
+        if resuming_no > i:
+            continue
         tqdm.write(
             f"{i}/{len(params)}: Starting experiment {experiment_id} with {metric_types}, {diag_options} and {tsdr_options}"
         )

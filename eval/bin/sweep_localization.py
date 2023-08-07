@@ -23,6 +23,8 @@ def main() -> None:
     parser.print_usage = parser.print_help
     parser.add_argument('-c', '--config', type=str, required=True, help='config file')
     parser.add_argument('--neptune-mode', type=str, required=True, help='neptune mode name')
+    parser.add_argument('--resuming-no', type=int, required=False, help='the number of combinations for resuming')
+    parser.add_argument('--experiment-id', type=str, required=False, help='experiment id')
     args = parser.parse_args()
 
     os.environ["NEPTUNE_MODE"] = args.neptune_mode
@@ -32,7 +34,7 @@ def main() -> None:
     spec = runpy.run_path(config_file)
     config = spec["CONFIG"]
 
-    localization.sweep_localization(**config)
+    localization.sweep_localization(**config, experiment_id=args.experiment_id, resuming_no=args.resuming_no)
 
 
 if __name__ == "__main__":

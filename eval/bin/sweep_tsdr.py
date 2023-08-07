@@ -32,6 +32,8 @@ def main() -> None:
     parser.add_argument('--num-faulty-datapoints', type=int, required=True, help='num faulty datapoins')
     parser.add_argument('--neptune-project', type=str, required=True, help='neptune project name')
     parser.add_argument('--neptune-mode', type=str, required=True, help='neptune project name')
+    parser.add_argument('--resuming-no', type=int, required=False, help='the number of combinations for resuming')
+    parser.add_argument('--experiment-id', type=str, required=False, help='experiment id')
     parser.add_argument('files', nargs='+', help='metrics files')
     args = parser.parse_args()
 
@@ -71,7 +73,7 @@ def main() -> None:
 
     logger.info(f"Filtered records: num_sli_anomalies {num_sli_anomalies}, num_cause_metrics_anomalies: {num_cause_metrics_anomalies}")
 
-    tsdr.sweep_tsdr_and_save_as_cache(records=records, **config)
+    tsdr.sweep_tsdr_and_save_as_cache(records=records, experiment_id=args.experiment_id, resuming_no=args.resuming_no, **config)
 
 
 if __name__ == "__main__":

@@ -88,6 +88,7 @@ def sweep_tsdr_and_save_as_cache(
     time_ranges: list[tuple[int, int]] = [(0, 0)],
     experiment_id: str = "",
     progress: bool = False,
+    resuming_no: int = 0,
 ) -> None:
     experiment_id = experiment_id or datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 
@@ -98,9 +99,11 @@ def sweep_tsdr_and_save_as_cache(
         time_ranges,
     ))
     if progress:
-        combinations = tqdm(combinations)
+        combinations = tqdm(combinations, descripion="sweeping tsdr", dynamic_ncols=True)
 
     for i, (tsdr_options, metric_types, _use_manually_selected_metrics, time_range) in enumerate(combinations, 1):
+        if resuming_no > i:
+            continue
         tqdm.write(
             f"{i}/{len(combinations)}: Starting experiment {experiment_id} with {metric_types}, {tsdr_options}, {time_range}"
         )

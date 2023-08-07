@@ -13,11 +13,12 @@ import neptune
 import neptune.internal.utils.logger as npt_logger
 import numpy as np
 import pandas as pd
-from neptune.common.hardware.gpu.gpu_monitor import GPUMonitor
+from neptune.internal.hardware.gpu.gpu_monitor import GPUMonitor
 from tqdm.auto import tqdm
 
 from eval import validation
 from eval.groundtruth import check_cause_metrics
+from eval.util.logger import logger
 from meltria import loader
 from meltria.metric_types import ALL_METRIC_TYPES, METRIC_PREFIX_TO_TYPE
 from tsdr import tsdr
@@ -55,7 +56,8 @@ tsdr_default_options: Final[dict[str, Any]] = {
 }
 
 GPUMonitor.nvml_error_printed = True  # Suppress NVML error messages
-npt_logger.logger.setLevel(logging.WARNING)  # Suppress Neptune INFO log messages to console
+npt_logger.logger.setLevel(logging.ERROR)  # Suppress Neptune INFO log messages to console
+
 
 def generate_file_path_suffix_as_id(
     tsdr_options: dict[str, Any],
@@ -98,7 +100,7 @@ def sweep_tsdr_and_save_as_cache(
     if progress:
         combinations = tqdm(combinations)
 
-    for i, (tsdr_options, metric_types, _use_manually_selected_metrics, time_range) in enumerate(combinations):
+    for i, (tsdr_options, metric_types, _use_manually_selected_metrics, time_range) in enumerate(combinations, 1):
         tqdm.write(
             f"{i}/{len(combinations)}: Starting experiment {experiment_id} with {metric_types}, {tsdr_options}, {time_range}"
         )
@@ -163,7 +165,7 @@ def run_tsdr_and_save_as_cache(
     #     and tsdr_options.get("step2_dbscan_algorithm") == "dbscan"
     #     and tsdr_options.get("step2_dbscan_dist_type") == "pearsonr"
     # ):
-    #     logging.info("Skip dbscan with pearsonr to dataset including middlewares because it takes too long time.")
+    #     logger.info("Skip dbscan with pearsonr to dataset including middlewares because it takes too long time.")
     #     return
 
     file_path_suffix = generate_file_path_suffix_as_id(
@@ -454,7 +456,7 @@ def _get_cause_metrics(
         optional_cause=optional_cause,
     )
     if not cause_metrics_exist:
-        logging.warning(
+        logger.warning(
             f"Cause metrics not found: pk={record.pk}, chaos_type={record.chaos_type()}, chaos_comp={record.chaos_comp()}"
         )
     return found_metrics.tolist()

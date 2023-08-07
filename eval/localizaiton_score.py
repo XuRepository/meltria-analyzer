@@ -1,4 +1,3 @@
-import logging
 from collections import defaultdict
 
 import pandas as pd
@@ -6,6 +5,7 @@ from pandas.core.groupby.generic import DataFrameGroupBy
 
 from diagnoser.metric_node import MetricNodes
 from eval.groundtruth import check_cause_metrics
+from eval.util.logger import logger
 from meltria.loader import DatasetRecord
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
@@ -285,7 +285,7 @@ def get_ranks_by_case(
                     optional_cause=optional_cause,
                 )
                 if not ok or len(cause_metrics) == 0:
-                    logging.info(
+                    logger.warning(
                         f"no cause metrics: {dataset_id}, {target_app}, {chaos_type}/{chaos_comp}/{chaos_case_num}"
                     )
                     ranks_by_case[(chaos_type, chaos_comp, chaos_case_num)] = []

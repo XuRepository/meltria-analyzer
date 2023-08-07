@@ -14,7 +14,7 @@ import neptune.internal.utils.logger as npt_logger
 import neptune.types
 import networkx as nx
 import pandas as pd
-from neptune.common.hardware.gpu.gpu_monitor import GPUMonitor
+from neptune.internal.hardware.gpu.gpu_monitor import GPUMonitor
 from tqdm.auto import tqdm
 
 from diagnoser import diag
@@ -24,11 +24,12 @@ from eval.localizaiton_score import (
     create_rank_as_dataframe_for_multiple_cases_from_frames)
 from eval.tsdr import (DEFAULT_CHAOS_TYPES, METRIC_TYPES_PAIRS,
                        check_cache_suffix, load_tsdr_by_chaos)
+from eval.util.logger import logger
 from meltria.loader import DatasetRecord
 
 warnings.simplefilter(action="ignore", category=pd.errors.SettingWithCopyWarning)
 GPUMonitor.nvml_error_printed = True  # Suppress NVML error messages
-npt_logger.logger.setLevel(logging.WARNING)  # Suppress Neptune INFO log messages to console
+npt_logger.logger.setLevel(logging.ERROR)  # Suppress Neptune INFO log messages to console
 
 
 class DiagTargetPhaseOption(IntEnum):
@@ -95,7 +96,7 @@ def diagnose_and_rank(
     elapsed: float = end - sta
 
     if len(ranks) == 0:
-        logging.error(
+        logger.error(
             f"Failed to diagnose {record.chaos_case_full()} with {len(ranks)} ranks"
         )
         return None
@@ -130,7 +131,7 @@ def diagnose_and_rank_multi_datasets(
             if not any(
                 label in reduced_df.columns for label in record.pk.get_root_metrics()
             ):
-                logging.warn(
+                logger.warn(
                     f"No root metrics found in the dataset {record.chaos_case_full()}: {reduced_df.shape[1]}"
                 )
                 continue
@@ -358,7 +359,7 @@ def sweep_localization(
         metric_types,
         use_manually_selected_metrics,
         time_range,
-    ) in enumerate(params):
+    ) in enumerate(params, 1):
         tqdm.write(
             f"{i}/{len(params)}: Starting experiment {experiment_id} with {metric_types}, {diag_options} and {tsdr_options}"
         )

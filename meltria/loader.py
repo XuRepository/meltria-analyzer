@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import warnings
 from collections import defaultdict
@@ -13,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 from eval import groundtruth
+from eval.util.logger import logger
 from meltria.metric_types import (METRIC_TYPE_MAP, METRIC_TYPE_MIDDLEWARES,
                                   METRIC_TYPE_NODES, METRIC_TYPE_SERVICES)
 from meltria.priorknowledge.priorknowledge import PriorKnowledge, new_knowledge
@@ -389,7 +389,7 @@ def read_metrics_file(
                     method="pchip", limit_direction="both", inplace=True
                 )
         except:  # To cacth `dfitpack.error: (m>k) failed for hidden m: fpcurf0:m=3`
-            logging.info(f"calculating spline error: {data_file}")
+            logger.warning(f"calculating spline error: {data_file}")
             return None
         # Set negative values to 0.0 because interpolating may cause negative values.
         data_df.where(data_df >= 0.0, 0.0, inplace=True)

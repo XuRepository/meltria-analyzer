@@ -5180,6 +5180,18 @@ dev = ["dcor (>=0.6)", "gpytorch (>=1.9.1)", "joblib (>=1.2.0)", "matplotlib (>=
 test = ["dcor (>=0.6)", "gpytorch (>=1.9.1)", "networkx (>=3.0)", "nose", "pytest", "pytorch (>=1.13.1)", "scikit-learn (>=1.2)"]
 
 [[package]]
+name = "timeout-timer"
+version = "0.2.0"
+description = "Timeout timer use signal or thread module, support nested loop"
+category = "main"
+optional = false
+python-versions = "*"
+files = [
+    {file = "timeout-timer-0.2.0.tar.gz", hash = "sha256:e33a32dd03148527272348faa38cc6844e591948e1ce8042938de3c592751384"},
+    {file = "timeout_timer-0.2.0-py3-none-any.whl", hash = "sha256:67c512191e422849b7aa6157b978b2b354b139b23b44d9f311011e7a5f6b2300"},
+]
+
+[[package]]
 name = "tinycss2"
 version = "1.2.1"
 description = "A tiny CSS parser"
@@ -5664,4 +5676,4 @@ test = ["mypy", "pre-commit", "pytest", "pytest-asyncio", "websockets (>=10.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.11"
-content-hash = "55746317157aa98493769df1559e550187efff301b7c8b01984ef6567c49aa34"
+content-hash = "c23b574c1e60faef75e309b170f27e34000bfb936daabe229572e5bb4bf4e796"

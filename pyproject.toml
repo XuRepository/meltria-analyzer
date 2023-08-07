@@ -65,6 +65,7 @@ threadpoolctl = "^3.1.0"
 lingam = "^1.8.0"
 schema = "^0.7.5"
 fastcluster = "^1.2.6"
+timeout-timer = "^0.2.0"
 
 [tool.poetry.group.dev.dependencies]
 flake8 = "^5.0.4"

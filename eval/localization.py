@@ -15,6 +15,7 @@ import neptune.types
 import networkx as nx
 import pandas as pd
 from neptune.internal.hardware.gpu.gpu_monitor import GPUMonitor
+from timeout_timer import TimeoutInterrupt, timeout
 from tqdm.auto import tqdm
 
 from diagnoser import diag
@@ -38,6 +39,7 @@ class DiagTargetPhaseOption(IntEnum):
     RAW = 0
 
 
+DEFAULT_TIMEOUT_SEC: Final[int] = 1000
 DEFAULT_DIAG_TARGET_PHASE_OPTION: Final[
     DiagTargetPhaseOption
 ] = DiagTargetPhaseOption.LAST
@@ -79,6 +81,7 @@ def diagnose_and_rank(
     reduced_df: pd.DataFrame,
     record: DatasetRecord,
     diag_options: dict[str, str | float | bool] = DIAG_DEFAULT_OPTIONS,
+    timeout_sec: int = DEFAULT_TIMEOUT_SEC,
 ) -> tuple[nx.Graph, pd.DataFrame, float] | None:
     if diag_options.get("enable_revert_true_cause_metrics", False):
         reduced_df = revert_true_cause_metrics(record, reduced_df)
@@ -87,13 +90,20 @@ def diagnose_and_rank(
 
     opts = dict(DIAG_DEFAULT_OPTIONS, **diag_options)
     try:
-        G, ranks = diag.build_and_walk_causal_graph(
-            reduced_df,
-            record.pk,
-            **opts,
-        )
+        with timeout(DEFAULT_TIMEOUT_SEC, timer="thread"):
+            try:
+                G, ranks = diag.build_and_walk_causal_graph(
+                    reduced_df,
+                    record.pk,
+                    **opts,
+                )
+            except TimeoutInterrupt:
+                logger.error(
+                    f"TimeoutInterrupt while diagnosing {record.chaos_case_full()}, {opts}"
+                )
+                return None
     except Exception as e:
-        logger.error(f"Failed to diagnose {record.chaos_case_full()}: {e}")
+        logger.error(f"Failed to diagnose {record.chaos_case_full()}, {opts}: {e}")
         return None
 
     end: float = time.perf_counter()

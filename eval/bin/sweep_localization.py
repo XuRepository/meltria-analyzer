@@ -13,11 +13,6 @@ DATA_DIR = pathlib.Path(__file__).parent.parent.parent / "dataset" / "data"
 
 internal_logger.logger.setLevel(logging.ERROR)  # Suppress internal logging
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-st_handler = logging.StreamHandler()
-logger.addHandler(st_handler)
-
 # Suppress Neptune log messages to console
 npt_logger = logging.getLogger("root_experiment")
 npt_logger.setLevel(logging.ERROR)

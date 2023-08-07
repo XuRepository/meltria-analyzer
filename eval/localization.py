@@ -86,11 +86,15 @@ def diagnose_and_rank(
     sta: float = time.perf_counter()
 
     opts = dict(DIAG_DEFAULT_OPTIONS, **diag_options)
-    G, ranks = diag.build_and_walk_causal_graph(
-        reduced_df,
-        record.pk,
-        **opts,
-    )
+    try:
+        G, ranks = diag.build_and_walk_causal_graph(
+            reduced_df,
+            record.pk,
+            **opts,
+        )
+    except Exception as e:
+        logger.error(f"Failed to diagnose {record.chaos_case_full()}: {e}")
+        return None
 
     end: float = time.perf_counter()
     elapsed: float = end - sta

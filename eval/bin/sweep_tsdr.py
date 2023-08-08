@@ -31,7 +31,7 @@ def main() -> None:
     parser.add_argument('--num-datapoints', type=int, required=True, help='num datapoins')
     parser.add_argument('--num-faulty-datapoints', type=int, required=True, help='num faulty datapoins')
     parser.add_argument('--neptune-project', type=str, required=True, help='neptune project name')
-    parser.add_argument('--neptune-mode', type=str, required=True, help='neptune project name')
+    parser.add_argument('--neptune-mode', type=str, required=False, default="debug", help='neptune project name')
     parser.add_argument('--resuming-no', type=int, required=False, default=0, help='the number of combinations for resuming')
     parser.add_argument('--experiment-id', type=str, required=False, default="", help='experiment id')
     parser.add_argument('files', nargs='+', help='metrics files')

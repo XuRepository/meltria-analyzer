@@ -270,18 +270,6 @@ files = [
 ]
 
 [[package]]
-name = "backoff"
-version = "2.2.1"
-description = "Function decoration for backoff and retry"
-category = "main"
-optional = false
-python-versions = ">=3.7,<4.0"
-files = [
-    {file = "backoff-2.2.1-py3-none-any.whl", hash = "sha256:63579f9a0628e06278f7e47b7d7d5b6ce20dc65c5e96a6f3ca99a6adca0396e8"},
-    {file = "backoff-2.2.1.tar.gz", hash = "sha256:03f829f5bb1923180821643f8753b0502c3b682293992485b0eef2807afa5cba"},
-]
-
-[[package]]
 name = "banpei"
 version = "0.1.2"
 description = "Anomaly detection library with Python"
@@ -2853,18 +2841,17 @@ test = ["pep440", "pre-commit", "pytest", "testpath"]
 
 [[package]]
 name = "neptune"
-version = "1.4.1"
+version = "1.2.0"
 description = "Neptune Client"
 category = "main"
 optional = false
 python-versions = ">=3.7,<4.0"
 files = [
-    {file = "neptune-1.4.1-py3-none-any.whl", hash = "sha256:9e079d3a83d47bc8d6410832991023ba66c753d759b6e637f53f7257ea598941"},
-    {file = "neptune-1.4.1.tar.gz", hash = "sha256:62c36de76c65bf157ecab990489aac77dc1ccb8cf4d36df3378f75f1455bbb4e"},
+    {file = "neptune-1.2.0-py3-none-any.whl", hash = "sha256:ba1a8d32d8f86316aedc0cce683be3d9c94dcd1f8644f2e0a9af6836bf187239"},
+    {file = "neptune-1.2.0.tar.gz", hash = "sha256:becb7341ff57507a2531f1a14cd793c05687117b9bd3015433aa49c699750dc4"},
 ]
 
 [package.dependencies]
-backoff = "*"
 boto3 = ">=1.16.0"
 bravado = ">=11.0.0,<12.0.0"
 click = ">=7.0"
@@ -2887,18 +2874,16 @@ websocket-client = ">=0.35.0,<1.0.0 || >1.0.0"
 aws = ["neptune-aws"]
 detectron2 = ["neptune-detectron2"]
 dev = ["Faker", "altair", "bokeh", "freezegun", "matplotlib", "mock", "moto[s3]", "munch", "plotly", "pre-commit", "pytest", "pytest-cov", "pytest-mock", "pytest-timeout", "pytest-xdist", "tensorflow", "torch", "vega_datasets"]
-e2e = ["accelerate", "mlflow (>1.30)", "optuna", "pytorch-lightning", "scikit-learn", "torchvision", "transformers", "zenml"]
+e2e = ["optuna", "pytorch-lightning", "scikit-learn", "torchvision", "transformers", "zenml"]
 fastai = ["neptune-fastai"]
 kedro = ["kedro-neptune"]
 lightgbm = ["neptune-lightgbm"]
-mlflow = ["mlflow (>1.30)"]
 optuna = ["neptune-optuna"]
 prophet = ["neptune-prophet"]
 pytorch = ["neptune-pytorch"]
 pytorch-lightning = ["pytorch-lightning"]
 sacred = ["neptune-sacred"]
 sklearn = ["neptune-sklearn"]
-tensorboard = ["neptune-tensorboard"]
 tensorflow-keras = ["neptune-tensorflow-keras"]
 transformers = ["transformers"]
 xgboost = ["neptune-xgboost"]
@@ -5692,4 +5677,4 @@ test = ["mypy", "pre-commit", "pytest", "pytest-asyncio", "websockets (>=10.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.11"
-content-hash = "86381a766d116bc241b146a7da7ba9bef965af7e00bd84c2c25530030e077ac7"
+content-hash = "92bfa920274c61fd979a775dc2185543a729e63be986c655b9bd648276a037da"

@@ -11,6 +11,7 @@ from typing import Any, Final
 import joblib
 import neptune
 import neptune.internal.utils.logger as npt_logger
+import neptune.types
 import numpy as np
 import pandas as pd
 from neptune.internal.hardware.gpu.gpu_monitor import GPUMonitor

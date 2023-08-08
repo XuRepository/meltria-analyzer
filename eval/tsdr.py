@@ -589,6 +589,9 @@ def upload_scores_to_neptune(
                 "cause_metrics/only_mandatory_recall"
             ].mean(),
             "cause_metrics/proportion_mean": x["cause_metrics/proportion"].mean(),
+            "cause_metrics/proportion_mandatory_mean": x[
+                "cause_metrics/only_mandatory_proportion"
+            ].mean(),
             "cause_metrics/num_total_mean": x["cause_metrics/num_total"].mean(),
             "cause_metrics/num_found_mean": x["cause_metrics/num_found"].mean(),
             "num_series/total": "/".join(

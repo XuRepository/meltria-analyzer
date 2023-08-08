@@ -99,7 +99,7 @@ def sweep_tsdr_and_save_as_cache(
         time_ranges,
     ))
     if progress:
-        combinations = tqdm(combinations, descripion="sweeping tsdr", dynamic_ncols=True)
+        combinations = tqdm(combinations, desc="sweeping tsdr", dynamic_ncols=True)
 
     for i, (tsdr_options, metric_types, _use_manually_selected_metrics, time_range) in enumerate(combinations, 1):
         if resuming_no > i:

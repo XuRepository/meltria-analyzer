@@ -10,24 +10,20 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 from sknetwork.ranking import PageRank
-from torch import nn
 from torch.optim import lr_scheduler
 
 from diagnoser.daggnn.config import Config
-from diagnoser.daggnn.modules import MLPDecoder, MLPEncoder, SEMDecoder, SEMEncoder
-from diagnoser.daggnn.utils import (
-    A_connect_loss,
-    A_positive_loss,
-    Variable,
-    get_tril_offdiag_indices,
-    get_triu_offdiag_indices,
-    kl_gaussian_sem,
-    matrix_poly,
-    nll_gaussian,
-)
+from diagnoser.daggnn.modules import (MLPDecoder, MLPEncoder, SEMDecoder,
+                                      SEMEncoder)
+from diagnoser.daggnn.utils import (A_connect_loss, A_positive_loss, Variable,
+                                    get_tril_offdiag_indices,
+                                    get_triu_offdiag_indices, kl_gaussian_sem,
+                                    matrix_poly, nll_gaussian)
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.ERROR)
+st_handler = logging.StreamHandler()
+logger.addHandler(st_handler)
 
 
 class CausalRCA:
@@ -239,8 +235,7 @@ class CausalRCA:
             myA.data = self.stau(myA.data, self.conf.tau_A * lr)
 
             if torch.sum(origin_A != origin_A):
-                logging.warn("nan error")
-                
+                logger.info("nan error")
 
             # compute metrics
             graph = origin_A.data.clone().cpu().numpy()

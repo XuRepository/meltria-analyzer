@@ -9,6 +9,11 @@ from diagnoser.daggnn.utils import preprocess_adj_new, preprocess_adj_new1
 
 _EPS = 1e-10
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.ERROR)
+st_handler = logging.StreamHandler()
+logger.addHandler(st_handler)
+
 
 class MLPEncoder(nn.Module):
     """MLP encoder module."""
@@ -38,7 +43,7 @@ class MLPEncoder(nn.Module):
 
     def forward(self, inputs):
         if torch.sum(self.adj_A != self.adj_A):
-            logging.info("nan error")
+            logger.info("nan error")
 
         # to amplify the value of A and accelerate convergence.
         adj_A1 = torch.sinh(3.0 * self.adj_A)
@@ -71,7 +76,7 @@ class SEMEncoder(nn.Module):
     def forward(self, inputs):
 
         if torch.sum(self.adj_A != self.adj_A):
-            print("nan error \n")
+            logger.info("nan error")
 
         adj_A1 = torch.sinh(3.0 * self.adj_A)
 

@@ -11,7 +11,7 @@ class Config:
 
     # Batch size (note: should be divisible by sample size, otherwise throw an error)
     # batch_size: int = 50
-    sample_to_batch_size_factor: int = 5
+    sample_to_batch_size_factor: int = 3
 
     # Learning rate (baseline rate = 1e-3)
     lr: float = 1e-3
@@ -32,7 +32,7 @@ class Config:
     encoder_hidden: int = 64
     decoder_hidden: int = 64
     temp: float = 0.5
-    k_max_iter: float = 5  # default 1e2
+    k_max_iter: float = 3  # default 1e2
     encoder: str = "mlp"
     decoder: str = "mlp"
     encoder_dropout: float = 0.0

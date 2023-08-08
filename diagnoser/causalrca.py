@@ -26,6 +26,9 @@ from diagnoser.daggnn.utils import (
     nll_gaussian,
 )
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 
 class CausalRCA:
     def __init__(self, data: pd.DataFrame, conf: Config, num_threads: int = 1):
@@ -197,7 +200,7 @@ class CausalRCA:
             )
 
             if torch.sum(output != output):
-                logging.warn("nan error")
+                logger.info("nan error")
 
             target = data
             preds = output
@@ -237,6 +240,7 @@ class CausalRCA:
 
             if torch.sum(origin_A != origin_A):
                 logging.warn("nan error")
+                
 
             # compute metrics
             graph = origin_A.data.clone().cpu().numpy()

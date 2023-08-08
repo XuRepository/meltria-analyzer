@@ -3,6 +3,10 @@ ANOMALOUS_LOOKBACK_WINDOW = 20 * 4  # 20 minutes
 CONFIG = dict(
     dataset_id="m9dgg",
     list_of_tsdr_options=[
+        dict(  # None
+            enable_unireducer=False,
+            enable_multireducer=False,
+        ),
         dict(  # TSifter
             enable_unireducer=False,
             enable_multireducer=True,

@@ -12,3 +12,4 @@
 /data/**
 /dataset/**
 /figures
+/eval/config/**/*.conf.tmp.py

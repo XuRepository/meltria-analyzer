@@ -3,15 +3,16 @@ from multiprocessing import cpu_count
 from typing import Any
 
 import pandas as pd
-import utils as rcdutils
 from joblib import Parallel, delayed
 from scipy.stats import zscore
 from threadpoolctl import threadpool_limits
 
-import rcd
-
 
 def localize(dataset: pd.DataFrame, **kwargs: Any) -> list[tuple[str, float]]:
+    import utils as rcdutils
+
+    import rcd
+
     # _remove_last_seen = lambda df: df.loc[:, ~df.columns.str.endswith('last_seen')]
     # dataset = _remove_last_seen(dataset).apply(zscore).dropna(how="any", axis=1)
     dataset = dataset.apply(zscore).dropna(how="any", axis=1)

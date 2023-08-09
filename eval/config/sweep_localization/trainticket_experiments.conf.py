@@ -106,9 +106,6 @@ CONFIG = dict(
             rcd_n_workers=1,
             rcd_n_workers_seed_ensamble=-1,
         ),
-        dict(  # CausalRCA
-            config.Config().to_prefixed_dict("causalrca"), use_causalrca=True
-        ),
         dict(  # PC+RW-2
             use_pyrca=True,
             method="pc",
@@ -169,8 +166,11 @@ CONFIG = dict(
             sli_anomaly_start_time_index=sli_anomaly_start_time_index,
             pyrca_boundary_index=pyrca_boundary_index,
         ),
+        dict(  # CausalRCA
+            config.Config().to_prefixed_dict("causalrca"), use_causalrca=True
+        ),
     ],
-    from_orig=(True, 180),
+    # from_orig=(True, 180),
     pair_of_use_manually_selected_metrics=[False],
     progress=True,
 )

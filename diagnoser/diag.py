@@ -891,11 +891,12 @@ def walk_causal_graph_with_monitorrank(
 def get_anomalous_slis(data: pd.DataFrame, slis: list[str], sli_anomaly_start_time_index: int) -> list[str]:
     assert len(slis) > 0, "slis is empty"
     sli_df: pd.DataFrame = data.loc[
-        :, [col for col in slis if col in series.columns]
+        :, [col for col in slis if col in data.columns]
     ]  # retrieve only existing slis
-    return sli_df[(sli_df.apply(
-        lambda x: detect_anomalies_with_spot(x.to_numpy(), sli_anomaly_start_time_index)[0].size > 0
-    ) == True)].columns.tolist()
+    anomalous_slis = sli_df.columns[sli_df.apply(
+        lambda x: detect_anomalies_with_spot(x.to_numpy(), sli_anomaly_start_time_index)[0]
+    )]
+    return anomalous_slis.tolist()
 
 
 def build_and_walk_causal_graph(

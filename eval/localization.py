@@ -67,7 +67,7 @@ def diagnose_and_rank(
     dataset_id: str,
     reduced_df: pd.DataFrame,
     record: DatasetRecord,
-    diag_options: dict[str, str | float | bool],
+    diag_options: dict[str, Any],
     timeout_sec: int = DEFAULT_TIMEOUT_SEC,
 ) -> tuple[nx.Graph, pd.DataFrame, float] | None:
     if diag_options.get("enable_revert_true_cause_metrics", False):
@@ -85,11 +85,11 @@ def diagnose_and_rank(
                 )
             except TimeoutInterrupt:
                 logger.error(
-                    f"TimeoutInterrupt while diagnosing {record.chaos_case_full()}, {opts}"
+                    f"TimeoutInterrupt while diagnosing {record.chaos_case_full()}, {diag_options}"
                 )
                 return None
     except Exception as e:
-        logger.error(f"Failed to diagnose {record.chaos_case_full()}, {opts}: {e}")
+        logger.error(f"Failed to diagnose {record.chaos_case_full()}, {diag_options}: {e}")
         return None
 
     end: float = time.perf_counter()

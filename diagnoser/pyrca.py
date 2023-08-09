@@ -15,6 +15,8 @@ from pyrca.graphs.causal.fges import FGES, FGESConfig
 from pyrca.graphs.causal.lingam import LiNGAM, LiNGAMConfig
 from pyrca.graphs.causal.pc import PC, PCConfig
 
+import diagnoser.causalgraph.causallearn_cit_fisherz_patch  # noqa: F401  for only patching
+
 
 def run_localization(
     dataset: pd.DataFrame,

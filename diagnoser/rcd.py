@@ -1,15 +1,12 @@
-import sys
 from collections import defaultdict
 from multiprocessing import cpu_count
 from typing import Any
 
 import pandas as pd
+import utils as rcdutils
 from joblib import Parallel, delayed
 from scipy.stats import zscore
 from threadpoolctl import threadpool_limits
-
-sys.path.append("../rcd")
-import utils as rcdutils
 
 import rcd
 

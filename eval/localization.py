@@ -248,7 +248,6 @@ def load_tsdr_and_localize(
     run = neptune.init_run(
         project=os.environ["TSDR_LOCALIZATION_NEPTUNE_PROJECT"],
         api_token=os.environ["NEPTUNE_API_TOKEN"],
-        custom_run_id=experiment_id,
     )
     run["experiment_id"] = experiment_id
     run["experiment_n_workers"] = experiment_n_workers

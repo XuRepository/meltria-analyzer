@@ -39,25 +39,12 @@ class DiagTargetPhaseOption(IntEnum):
     RAW = 0
 
 
-DEFAULT_TIMEOUT_SEC: Final[int] = 1000
+DEFAULT_TIMEOUT_SEC: Final[int] = 2000
 DEFAULT_DIAG_TARGET_PHASE_OPTION: Final[
     DiagTargetPhaseOption
 ] = DiagTargetPhaseOption.LAST
 DEFAULT_RESULT_GROUPBY: Final[dict[str, bool]] = dict(
     group_by_cause_type=False, group_by_cause_comp=False
-)
-
-DIAG_DEFAULT_OPTIONS: Final[dict[str, str | float | bool]] = dict(
-    enable_prior_knowledge=False,
-    pc_library="cdt",
-    cg_algo="pc",
-    pc_citest_alpha=0.05,
-    pc_citest="gaussian",
-    pc_variant="stable",
-    disable_orientation=False,
-    disable_ci_edge_cut=False,
-    walk_method="monitorrank",
-    root_metric_type="latency",
 )
 
 
@@ -80,7 +67,7 @@ def diagnose_and_rank(
     dataset_id: str,
     reduced_df: pd.DataFrame,
     record: DatasetRecord,
-    diag_options: dict[str, str | float | bool] = DIAG_DEFAULT_OPTIONS,
+    diag_options: dict[str, str | float | bool],
     timeout_sec: int = DEFAULT_TIMEOUT_SEC,
 ) -> tuple[nx.Graph, pd.DataFrame, float] | None:
     if diag_options.get("enable_revert_true_cause_metrics", False):
@@ -88,14 +75,13 @@ def diagnose_and_rank(
 
     sta: float = time.perf_counter()
 
-    opts = dict(DIAG_DEFAULT_OPTIONS, **diag_options)
     try:
-        with timeout(DEFAULT_TIMEOUT_SEC, timer="thread"):
+        with timeout(timeout_sec, timer="thread"):
             try:
                 G, ranks = diag.build_and_walk_causal_graph(
                     reduced_df,
                     record.pk,
-                    **opts,
+                    **diag_options,
                 )
             except TimeoutInterrupt:
                 logger.error(
@@ -190,7 +176,7 @@ def load_tsdr_and_localize(
     n: int,
     metric_types: dict[str, bool],
     tsdr_options: dict[str, Any],
-    diag_options: dict[str, Any] = DIAG_DEFAULT_OPTIONS,
+    diag_options: dict[str, Any],
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
     target_chaos_types: set[str] = DEFAULT_CHAOS_TYPES,

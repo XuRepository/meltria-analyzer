@@ -863,7 +863,9 @@ def load_tsdr_grouped_by_metric_type(
         df_by_metric_type: dict[
             str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]
         ] = {}
-        for metric_type in ALL_METRIC_TYPES.keys():
+        for metric_type, is_enabled in metric_types.items():
+            if not is_enabled:
+                continue
             if revert_normalized_time_series:  # Workaround
                 for metric_name, _ in reduced_df[metric_type].items():
                     reduced_df[metric_type][metric_name] = anomalous_df[metric_type][

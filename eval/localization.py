@@ -121,6 +121,7 @@ def diagnose_and_rank_multi_datasets(
     dataset_id: str,
     datasets: dict,
     diag_options: dict[str, float | bool | int],
+    metric_types: dict[str, bool],
     diag_target_phase_option: DiagTargetPhaseOption = DEFAULT_DIAG_TARGET_PHASE_OPTION,
     n_workers: int = -1,
 ) -> tuple[list, dict[tuple[str, str, int], float]]:
@@ -131,21 +132,15 @@ def diagnose_and_rank_multi_datasets(
         for record, data_df_by_metric_type in somethings_records:
             reduced_df = pd.concat(
                 [
-                    data_df_by_metric_type["services"][diag_target_phase_option.value],
-                    data_df_by_metric_type["containers"][
-                        diag_target_phase_option.value
-                    ],
-                    data_df_by_metric_type["middlewares"][
-                        diag_target_phase_option.value
-                    ],
-                    data_df_by_metric_type["nodes"][diag_target_phase_option],
+                    data_df_by_metric_type[metric_type][diag_target_phase_option.value]
+                    for metric_type, is_enabled in metric_types.items() if is_enabled
                 ],
                 axis=1,
             )
             if not any(
                 label in reduced_df.columns for label in record.pk.get_root_metrics()
             ):
-                logger.warn(
+                logger.warning(
                     f"No root metrics found in the dataset {record.chaos_case_full()}: {reduced_df.shape[1]}"
                 )
                 continue
@@ -165,35 +160,6 @@ def diagnose_and_rank_multi_datasets(
     }
 
     return [_[1] for _ in results], elapsed_times
-
-
-def calculate_reduction(datasets: dict) -> dict[str, dict[str, int]]:
-    results: dict[str, dict[str, dict[str, int]]] = defaultdict(
-        lambda: defaultdict(lambda: defaultdict(lambda: 0))
-    )
-    for (_, _), somethings_records in datasets.items():
-        for record, data_df_by_metric_type in somethings_records:
-            for comp_group in ["services", "containers", "middlewares", "nodes"]:
-                dfs = data_df_by_metric_type[comp_group]
-                for i in range(len(dfs)):
-                    results[record.chaos_case_full()][comp_group][str(i)] = dfs[
-                        i
-                    ].shape[1]
-                    results[record.chaos_case_full()]["all"][str(i)] += dfs[i].shape[1]
-
-    avg_reductions: dict[str, dict[str, int]] = defaultdict(
-        lambda: defaultdict(lambda: 0)
-    )
-    for _, result in results.items():
-        for comp_group in ["services", "containers", "middlewares", "nodes", "all"]:
-            for phase, val in result[comp_group].items():
-                avg_reductions[comp_group][phase] += val
-    for comp_group in ["services", "containers", "middlewares", "nodes", "all"]:
-        for phase in avg_reductions[comp_group]:
-            avg_reductions[comp_group][phase] = int(
-                avg_reductions[comp_group][phase] / len(results)
-            )
-    return avg_reductions
 
 
 def calculate_mean_elapsed_time(
@@ -259,12 +225,12 @@ def load_tsdr_and_localize(
     }
     run["parameters/tsdr"] = tsdr_options
     run["parameters"] = diag_options
-    run["reduction"] = calculate_reduction(datasets)
 
     data_dfs_by_metric_type, elapsed_times = diagnose_and_rank_multi_datasets(
         dataset_id,
         datasets,
         diag_options,
+        metric_types,
         n_workers=experiment_n_workers,
     )
 

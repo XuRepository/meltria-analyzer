@@ -148,6 +148,24 @@ def _detech_changepoints_with_missing_values(x: np.ndarray):
     return change_indices
 
 
+def detect_univariate_changepoints(x: np.ndarray, cost_model: str, penalty: str | float) -> list[int]:
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        algo = rpt.Binseg(model=cost_model, jump=1)
+    n_segs = 2
+    sigma = np.std(x)
+    match penalty:
+        case "aic":
+            pen = n_segs * sigma * sigma
+        case "bic":
+            pen = np.log(x.size) * n_segs * sigma * sigma
+        case _:
+            pen = penalty
+    cps = algo.fit(x).predict(pen=pen)[:-1]
+    mvs = _detech_changepoints_with_missing_values(x)
+    return sorted(list(set(cps) | set(mvs)))
+
+
 def detect_multi_changepoints(
     X: pd.DataFrame,
     cost_model: str = "l2",
@@ -155,26 +173,9 @@ def detect_multi_changepoints(
     n_jobs: int = -1,
 ) -> list[list[int]]:
     metrics: list[str] = X.columns.tolist()
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        algo = rpt.Binseg(model=cost_model, jump=1)
-
-    def detect_changepoints(x: np.ndarray, penalty: str | float) -> list[int]:
-        n_segs = 2
-        sigma = np.std(x)
-        match penalty:
-            case "aic":
-                pen = n_segs * sigma * sigma
-            case "bic":
-                pen = np.log(x.size) * n_segs * sigma * sigma
-            case _:
-                pen = penalty
-        cps = algo.fit(x).predict(pen=pen)[:-1]
-        mvs = _detech_changepoints_with_missing_values(x)
-        return sorted(list(set(cps) | set(mvs)))
 
     multi_change_points: list[list[int]] | None = Parallel(n_jobs=n_jobs)(
-        delayed(detect_changepoints)(X[metric].to_numpy(), penalty) for metric in metrics
+        delayed(detect_univariate_changepoints)(X[metric].to_numpy(), cost_model, penalty) for metric in metrics
     )
     assert multi_change_points is not None
 

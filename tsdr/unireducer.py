@@ -12,11 +12,13 @@ from arch.utility.exceptions import InfeasibleTestException
 from statsmodels.tsa.stattools import adfuller, kpss
 
 from tsdr import smooth
+from tsdr.clustering.changepoint import detect_univariate_changepoints
 from tsdr.clustering.pearsonr import pearsonr, pearsonr_left_shift
 from tsdr.outlierdetection.ar import AROutlierDetector
 from tsdr.outlierdetection.fluxinfer import FluxInferAD
 from tsdr.outlierdetection.knn import KNNOutlierDetector
-from tsdr.outlierdetection.n_sigma_rule import detect_anomalies_with_zscore_nsigma
+from tsdr.outlierdetection.n_sigma_rule import \
+    detect_anomalies_with_zscore_nsigma
 from tsdr.outlierdetection.residual_integral import residual_integral_max
 from tsdr.outlierdetection.spot import detect_anomalies_with_spot
 
@@ -93,6 +95,8 @@ def map_model_name_to_func(model_name: str) -> Callable:
             return spot_model
         case "zscore_nsigma":
             return zscore_nsigma_model
+        case "changepoint":
+            return changepoint_model
         case _:
             raise ValueError(f"Invalid univariate time series model: {model_name}")
 
@@ -395,6 +399,18 @@ def spot_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeriesReductionRe
         n_points=kwargs["step1_spot_n_points"],
     )[0]
     return UnivariateSeriesReductionResult(series, has_kept=anomaly)
+
+
+def changepoint_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeriesReductionResult:
+    change_points = detect_univariate_changepoints(
+        series,
+        cost_model=kwargs["step1_changepoint_cost_model"],
+        penalty=kwargs["step1_changepoint_penalty"],
+    )
+    cps = [(cp, series[cp]) for cp in change_points]
+    if len(change_points) > 0:
+        return UnivariateSeriesReductionResult(series, has_kept=True, outliers=cps)
+    return UnivariateSeriesReductionResult(series, has_kept=False)
 
 
 def pearsonr_sli(series: np.ndarray, sli: np.ndarray, **kwargs: Any) -> UnivariateSeriesReductionResult:

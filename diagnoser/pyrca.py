@@ -16,11 +16,15 @@ from pyrca.graphs.causal.lingam import LiNGAM, LiNGAMConfig
 from pyrca.graphs.causal.pc import PC, PCConfig
 
 import diagnoser.causalgraph.causallearn_cit_fisherz_patch  # noqa: F401  for only patching
+from diagnoser.call_graph import get_forbits
+from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
 
 def run_localization(
     dataset: pd.DataFrame,
+    pk: PriorKnowledge,
     method: str,
+    enable_priorknowledge: bool = False,
     walk_method: str | None = None,
     root_cause_top_k: int = 15,
     anomalous_metrics: list[str] | None = None,
@@ -48,11 +52,14 @@ def run_localization(
             results = model.find_root_causes(normal_df, anomalous_df).to_list()
             return [(r["root_cause"], r["score"]) for i, r in enumerate(results)]
         case "pc":
-            graph = PC(PCConfig(run_pdag2dag=True)).train(dataset)
+            forbits = get_forbits(dataset, pk) if enable_priorknowledge else []
+            graph = PC(PCConfig(run_pdag2dag=True)).train(dataset, forbits=forbits)
         case "lingam":
-            graph = LiNGAM(LiNGAMConfig(run_pdag2dag=True)).train(dataset)
+            forbits = get_forbits(dataset, pk) if enable_priorknowledge else []
+            graph = LiNGAM(LiNGAMConfig(run_pdag2dag=True)).train(dataset, forbits=forbits)
         case "fges":
-            graph = FGES(FGESConfig(run_pdag2dag=True)).train(dataset)
+            forbits = get_forbits(dataset, pk) if enable_priorknowledge else []
+            graph = FGES(FGESConfig(run_pdag2dag=True)).train(dataset, forbits=forbits)
         case _:
             raise ValueError(f"Unknown localization method: {method}")
 

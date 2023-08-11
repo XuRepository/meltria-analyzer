@@ -1,4 +1,5 @@
 import sys
+import warnings
 from pathlib import Path
 
 import networkx as nx
@@ -53,13 +54,16 @@ def run_localization(
             return [(r["root_cause"], r["score"]) for i, r in enumerate(results)]
         case "pc":
             forbits = get_forbits(dataset, pk) if enable_priorknowledge else []
-            graph = PC(PCConfig(run_pdag2dag=True)).train(dataset, forbits=forbits)
+            with warnings.catch_warnings(action='ignore', category=UserWarning):
+                graph = PC(PCConfig(run_pdag2dag=True)).train(dataset, forbits=forbits)
         case "lingam":
             forbits = get_forbits(dataset, pk) if enable_priorknowledge else []
-            graph = LiNGAM(LiNGAMConfig(run_pdag2dag=True)).train(dataset, forbits=forbits)
+            with warnings.catch_warnings(action='ignore', category=UserWarning):
+                graph = LiNGAM(LiNGAMConfig(run_pdag2dag=True)).train(dataset, forbits=forbits)
         case "fges":
             forbits = get_forbits(dataset, pk) if enable_priorknowledge else []
-            graph = FGES(FGESConfig(run_pdag2dag=True)).train(dataset, forbits=forbits)
+            with warnings.catch_warnings(action='ignore', category=UserWarning):
+                graph = FGES(FGESConfig(run_pdag2dag=True)).train(dataset, forbits=forbits)
         case _:
             raise ValueError(f"Unknown localization method: {method}")
 

@@ -39,7 +39,7 @@ class DiagTargetPhaseOption(IntEnum):
     RAW = 0
 
 
-DEFAULT_TIMEOUT_SEC: Final[int] = 3000
+DEFAULT_TIMEOUT_SEC: Final[int] = 3600
 DEFAULT_DIAG_TARGET_PHASE_OPTION: Final[
     DiagTargetPhaseOption
 ] = DiagTargetPhaseOption.LAST

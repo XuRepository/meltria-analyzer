@@ -9,7 +9,7 @@ CONFIG = dict(
     dataset_id="m9dgg",
     n=10,
     experiment_n_workers=-1,
-    target_chaos_types={"pod-cpu-hog", "pod-memory-hog", "pod-network-latency"},
+    target_chaos_types={"pod-cpu-hog", "pod-memory-hog"},  # "pod-network-latency"},
     list_of_tsdr_options=[
         dict(  # None
             enable_unireducer=False,

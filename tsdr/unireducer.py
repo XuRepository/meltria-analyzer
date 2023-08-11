@@ -2,7 +2,6 @@ import warnings
 from collections.abc import Callable
 from typing import Any, cast
 
-import banpei
 import numpy as np
 import ruptures as rpt
 import scipy.signal
@@ -155,6 +154,8 @@ def unit_root_based_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeries
             if knn.has_anomaly(x, kwargs.get("step1_post_od_threshold", 3.0)):
                 return UnivariateSeriesReductionResult(series, has_kept=True)
         elif odmodel == "hotelling":
+            import banbei
+
             outliers = banpei.Hotelling().detect(series, kwargs.get("step1_post_od_threshold", 0.01))
             if len(outliers) > 1:
                 return UnivariateSeriesReductionResult(series, has_kept=True)

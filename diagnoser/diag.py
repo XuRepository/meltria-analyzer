@@ -14,19 +14,14 @@ from causallearn.search.ConstraintBased.CDNOD import cdnod
 from causallearn.search.ConstraintBased.FCI import fci
 from causallearn.search.ConstraintBased.PC import pc as cl_pc
 from causallearn.utils.PCUtils.BackgroundKnowledge import BackgroundKnowledge
-from lingam import DirectLiNGAM
 from sklearn.exceptions import ConvergenceWarning
 
 warnings.filterwarnings("ignore", message=r"^No GPU automatically detected")
 
 from causallearn.utils import cit
-from cdt.causality.graph import GIES as cdt_GIES
-from cdt.causality.graph import PC as cdt_PC
-from cdt.causality.graph import LiNGAM
 from sklearn.preprocessing import KBinsDiscretizer
 
 # import diagnoser.causalgraph.causallearn_cit_fisherz_patch  # noqa: F401  for only patching
-import diagnoser.causalgraph.cdt_PC_patch  # noqa: F401  for only patching
 import diagnoser.metric_node as mn
 from diagnoser import causalrca, nx_util, pyrca, rcd
 from diagnoser.causalgraph.pcalg import estimate_cpdag, estimate_skeleton
@@ -350,6 +345,12 @@ def build_causal_graphs_with_cdt(
     pc_njobs: int | None = None,
     disable_orientation: bool = False,
 ) -> nx.Graph:
+    from cdt.causality.graph import GIES as cdt_GIES
+    from cdt.causality.graph import PC as cdt_PC
+    from cdt.causality.graph import LiNGAM
+
+    import diagnoser.causalgraph.cdt_PC_patch  # noqa: F401  for only patching
+
     match cg_algo:
         case "pc":
             pc = cdt_PC(CItest=pc_citest, alpha=pc_citest_alpha, njobs=pc_njobs)
@@ -463,6 +464,8 @@ def build_causal_graph_with_lingam(
     pk: PriorKnowledge,
     disable_orientation: bool = True,
 ) -> nx.Graph:
+    from lingam import DirectLiNGAM
+
     # Build prior knowledge
     mapping = {metric: i for i, metric in enumerate(df.columns)}
     prior_knowledge = np.full((len(df.columns), len(df.columns)), -1)

@@ -108,6 +108,7 @@ CONFIG = dict(
         ),
         dict(  # PC+RW-2
             use_pyrca=True,
+            enable_prior_knowledge=True,
             method="pc",
             walk_method="rw-2",
             sli_anomaly_start_time_index=sli_anomaly_start_time_index,
@@ -115,6 +116,7 @@ CONFIG = dict(
         ),
         dict(  # GES+RW-2
             use_pyrca=True,
+            enable_prior_knowledge=True,
             method="fges",
             walk_method="rw-2",
             sli_anomaly_start_time_index=sli_anomaly_start_time_index,
@@ -122,6 +124,7 @@ CONFIG = dict(
         ),
         dict(  # LiNGAM+RW-2
             use_pyrca=True,
+            enable_prior_knowledge=True,
             method="lingam",
             walk_method="rw-2",
             sli_anomaly_start_time_index=sli_anomaly_start_time_index,
@@ -129,24 +132,28 @@ CONFIG = dict(
         ),
         dict(  # PC+PageRank
             use_pyrca=True,
+            enable_prior_knowledge=True,
             method="pc",
             walk_method="pagerank",
             pyrca_boundary_index=pyrca_boundary_index,
         ),
         dict(  # GES+PageRank
             use_pyrca=True,
+            enable_prior_knowledge=True,
             method="ges",
             walk_method="pagerank",
             pyrca_boundary_index=pyrca_boundary_index,
         ),
         dict(  # LiNGAM+PageRank
             use_pyrca=True,
+            enable_prior_knowledge=True,
             method="lingam",
             walk_method="pagerank",
             pyrca_boundary_index=pyrca_boundary_index,
         ),
         dict(  # PC+HT
             use_pyrca=True,
+            enable_prior_knowledge=True,
             root_metric_type="latency",
             method="pc",
             walk_method="ht",
@@ -154,6 +161,7 @@ CONFIG = dict(
         ),
         dict(  # GES+HT
             use_pyrca=True,
+            enable_prior_knowledge=True,
             method="ges",
             walk_method="ht",
             sli_anomaly_start_time_index=sli_anomaly_start_time_index,
@@ -161,6 +169,7 @@ CONFIG = dict(
         ),
         dict(  # LiNGAM+HT
             use_pyrca=True,
+            enable_prior_knowledge=True,
             method="lingam",
             walk_method="ht",
             sli_anomaly_start_time_index=sli_anomaly_start_time_index,

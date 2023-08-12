@@ -2,13 +2,10 @@ import networkx as nx
 import pytest
 
 import diagnoser.metric_node as mn
-from diagnoser import diag
-from meltria.metric_types import (
-    METRIC_TYPE_CONTAINERS,
-    METRIC_TYPE_MIDDLEWARES,
-    METRIC_TYPE_NODES,
-    METRIC_TYPE_SERVICES,
-)
+from diagnoser import call_graph, diag
+from meltria.metric_types import (METRIC_TYPE_CONTAINERS,
+                                  METRIC_TYPE_MIDDLEWARES, METRIC_TYPE_NODES,
+                                  METRIC_TYPE_SERVICES)
 from meltria.priorknowledge.priorknowledge import new_knowledge
 
 ss_pk_without_middlewares = new_knowledge(
@@ -56,7 +53,7 @@ def test_build_subgraph_of_removal_edges():
             }
         },
     )
-    RG: nx.Graph = diag.build_subgraph_of_removal_edges(nodes, pk)
+    RG: nx.Graph = call_graph.build_subgraph_of_removal_edges(nodes, pk)
     expected = [
         ("c-orders_sockets", "c-user-db_cpu_usage_seconds_total"),
         ("c-orders_sockets", "n-gke-test-default-pool-66a015a8-9pw7_cpu_seconds_total"),
@@ -225,7 +222,7 @@ def test_fix_edge_directions_in_causal_graph(case, input, expected):
     G = nx.DiGraph()
     paths = [(mn.MetricNode(u), mn.MetricNode(v)) for u, v in input]
     G.add_edges_from(paths)
-    got = diag.fix_edge_directions_in_causal_graph(G, ss_pk_without_middlewares)
+    got = call_graph.fix_edge_directions_in_causal_graph(G, ss_pk_without_middlewares)
     assert sorted([(u.label, v.label, {}) for u, v in got.edges]) == sorted(expected)
 
 

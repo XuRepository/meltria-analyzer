@@ -25,7 +25,7 @@ def run_localization(
     dataset: pd.DataFrame,
     pk: PriorKnowledge,
     method: str,
-    enable_priorknowledge: bool = False,
+    enable_prior_knowledge: bool = False,
     walk_method: str | None = None,
     root_cause_top_k: int = 15,
     anomalous_metrics: list[str] | None = None,
@@ -53,15 +53,15 @@ def run_localization(
             results = model.find_root_causes(normal_df, anomalous_df).to_list()
             return [(r["root_cause"], r["score"]) for i, r in enumerate(results)]
         case "pc":
-            forbits = get_forbits(dataset, pk) if enable_priorknowledge else []
+            forbits = get_forbits(dataset, pk) if enable_prior_knowledge else []
             with warnings.catch_warnings(action='ignore', category=UserWarning):
                 graph = PC(PCConfig(run_pdag2dag=True)).train(dataset, forbits=forbits)
         case "lingam":
-            forbits = get_forbits(dataset, pk) if enable_priorknowledge else []
+            forbits = get_forbits(dataset, pk) if enable_prior_knowledge else []
             with warnings.catch_warnings(action='ignore', category=UserWarning):
                 graph = LiNGAM(LiNGAMConfig(run_pdag2dag=True)).train(dataset, forbits=forbits)
         case "fges":
-            forbits = get_forbits(dataset, pk) if enable_priorknowledge else []
+            forbits = get_forbits(dataset, pk) if enable_prior_knowledge else []
             with warnings.catch_warnings(action='ignore', category=UserWarning):
                 graph = FGES(FGESConfig(run_pdag2dag=True)).train(dataset, forbits=forbits)
         case _:

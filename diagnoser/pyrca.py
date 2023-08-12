@@ -13,11 +13,13 @@ from pyrca.analyzers.ht import HT, HTConfig
 from pyrca.analyzers.random_walk import RandomWalk, RandomWalkConfig
 from pyrca.analyzers.rcd import RCD, RCDConfig
 from pyrca.graphs.causal.fges import FGES, FGESConfig
+from pyrca.graphs.causal.ges import GES, GESConfig
 from pyrca.graphs.causal.lingam import LiNGAM, LiNGAMConfig
 from pyrca.graphs.causal.pc import PC, PCConfig
 
 import diagnoser.causalgraph.causallearn_cit_fisherz_patch  # noqa: F401  for only patching
-from diagnoser.call_graph import get_forbits
+import diagnoser.metric_node as mn
+from diagnoser import call_graph
 from meltria.priorknowledge.priorknowledge import PriorKnowledge
 
 
@@ -53,17 +55,25 @@ def run_localization(
             results = model.find_root_causes(normal_df, anomalous_df).to_list()
             return [(r["root_cause"], r["score"]) for i, r in enumerate(results)]
         case "pc":
-            forbits = get_forbits(dataset, pk) if enable_prior_knowledge else []
+            forbits = call_graph.get_forbits(dataset, pk) if enable_prior_knowledge else []
             with warnings.catch_warnings(action='ignore', category=UserWarning):
                 graph = PC(PCConfig(run_pdag2dag=True)).train(dataset, forbits=forbits)
         case "lingam":
-            forbits = get_forbits(dataset, pk) if enable_prior_knowledge else []
+            forbits = call_graph.get_forbits(dataset, pk) if enable_prior_knowledge else []
             with warnings.catch_warnings(action='ignore', category=UserWarning):
                 graph = LiNGAM(LiNGAMConfig(run_pdag2dag=True)).train(dataset, forbits=forbits)
         case "fges":
-            forbits = get_forbits(dataset, pk) if enable_prior_knowledge else []
+            forbits = call_graph.get_forbits(dataset, pk) if enable_prior_knowledge else []
             with warnings.catch_warnings(action='ignore', category=UserWarning):
                 graph = FGES(FGESConfig(run_pdag2dag=True)).train(dataset, forbits=forbits)
+        case "ges":
+            forbits = call_graph.get_forbits(dataset, pk) if enable_prior_knowledge else []
+            with warnings.catch_warnings(action='ignore', category=UserWarning):
+                graph = GES(GESConfig(run_pdag2dag=True)).train(dataset, forbits=forbits)
+        case "call_graph":
+            nodes: mn.MetricNodes = mn.MetricNodes.from_dataframe(dataset)
+            init_dg = call_graph.prepare_init_graph(nodes, pk, enable_prior_knowledge=enable_prior_knowledge)
+            graph = nx.to_pandas_adjacency(init_dg)
         case _:
             raise ValueError(f"Unknown localization method: {method}")
 

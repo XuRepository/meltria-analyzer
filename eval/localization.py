@@ -1,10 +1,10 @@
 import datetime
+import gc
 import itertools
 import logging
 import os
 import time
 import warnings
-from collections import defaultdict
 from enum import IntEnum
 from typing import Any, Final
 
@@ -100,6 +100,9 @@ def diagnose_and_rank(
             f"Failed to diagnose {record.chaos_case_full()} with {len(ranks)} ranks"
         )
         return None
+
+    gc.collect()  # https://github.com/joblib/joblib/issues/721#issuecomment-417216395
+
     return G, create_rank_as_dataframe(ranks, dataset_id, record), elapsed
 
 
@@ -155,16 +158,16 @@ def calculate_mean_elapsed_time(
     df = pd.DataFrame(
         [(_[0], _[1], _[2], elapsed) for _, elapsed in elapsed_times.items()],
         columns=["chaos_type", "chaos_comp", "chaos_case_num", "elapsed_time"],
-    )
+    ).set_index(["chaos_type", "chaos_comp", "chaos_case_num"])
     return {
         "mean_by_chaos_type-df": neptune.types.File.as_html(
-            df.groupby(["chaos_type"]).mean()
+            df.groupby(level="chaos_type").mean()
         ),
         "mean_by_chaos_comp-df": neptune.types.File.as_html(
-            df.groupby(["chaos_comp"]).mean()
+            df.groupby(level="chaos_comp").mean()
         ),
         "mean_by_chaos_type_and_chaos_comp": neptune.types.File.as_html(
-            df.groupby(["chaos_type", "chaos_comp"]).mean()
+            df.groupby(level=["chaos_type", "chaos_comp"]).mean()
         ),
         "mean": df.mean().to_dict(),
         "elapsed-df": neptune.types.File.as_html(df),

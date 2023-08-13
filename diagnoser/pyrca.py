@@ -17,7 +17,6 @@ from pyrca.graphs.causal.ges import GES, GESConfig
 from pyrca.graphs.causal.lingam import LiNGAM, LiNGAMConfig
 from pyrca.graphs.causal.pc import PC, PCConfig
 
-import diagnoser.causalgraph.causallearn_cit_fisherz_patch  # noqa: F401  for only patching
 import diagnoser.metric_node as mn
 from diagnoser import call_graph
 from meltria.priorknowledge.priorknowledge import PriorKnowledge

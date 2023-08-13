@@ -109,6 +109,7 @@ def diagnose_and_rank_multi_datasets(
     diag_options: dict[str, float | bool | int],
     metric_types: dict[str, bool],
     diag_target_phase_option: DiagTargetPhaseOption = DEFAULT_DIAG_TARGET_PHASE_OPTION,
+    timeout_sec: int = DEFAULT_TIMEOUT_SEC,
     n_workers: int = -1,
 ) -> tuple[list, dict[tuple[str, str, int], float]]:
     assert len(datasets) != 0
@@ -133,7 +134,7 @@ def diagnose_and_rank_multi_datasets(
             records.append((record, reduced_df))
 
     results = joblib.Parallel(n_jobs=n_workers)(
-        joblib.delayed(diagnose_and_rank)(dataset_id, reduced_df, record, diag_options)
+        joblib.delayed(diagnose_and_rank)(dataset_id, reduced_df, record, diag_options, timeout_sec)
         for record, reduced_df in records
     )
     results = [result for result in results if result is not None]
@@ -181,6 +182,7 @@ def load_tsdr_and_localize(
     time_range: tuple[int, int] = (0, 0),
     target_chaos_types: set[str] = DEFAULT_CHAOS_TYPES,
     from_orig: tuple[bool, int] = (False, 0),  # from_orig flag, from_orig_num_datapoints
+    timeout_sec: int = DEFAULT_TIMEOUT_SEC,
     experiment_n_workers: int = -1,
 ) -> None:
     datasets = load_tsdr_by_chaos(
@@ -217,6 +219,7 @@ def load_tsdr_and_localize(
         datasets,
         diag_options,
         metric_types,
+        timeout_sec=timeout_sec,
         n_workers=experiment_n_workers,
     )
 
@@ -283,6 +286,7 @@ def sweep_localization(
     experiment_n_workers: int = -1,
     progress: bool = False,
     resuming_no: int = 0,
+    timeout_sec: int = DEFAULT_TIMEOUT_SEC,
 ) -> None:
     if experiment_id == "":
         experiment_id = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
@@ -344,4 +348,5 @@ def sweep_localization(
             time_range=time_range,
             target_chaos_types=target_chaos_types,
             from_orig=from_orig,
+            timeout_sec=timeout_sec,
         )

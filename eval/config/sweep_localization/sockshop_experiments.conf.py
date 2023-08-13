@@ -113,10 +113,18 @@ CONFIG = dict(
         #     sli_anomaly_start_time_index=sli_anomaly_start_time_index,
         #     pyrca_boundary_index=pyrca_boundary_index,
         # ),
-        dict(  # GES+RW-2
+        # dict(  # GES+RW-2
+        #     use_pyrca=True,
+        #     enable_prior_knowledge=True,
+        #     method="ges",
+        #     walk_method="rw-2",
+        #     sli_anomaly_start_time_index=sli_anomaly_start_time_index,
+        #     pyrca_boundary_index=pyrca_boundary_index,
+        # ),
+        dict(  # CG+RW-2
             use_pyrca=True,
             enable_prior_knowledge=True,
-            method="ges",
+            method="call_graph",
             walk_method="rw-2",
             sli_anomaly_start_time_index=sli_anomaly_start_time_index,
             pyrca_boundary_index=pyrca_boundary_index,
@@ -124,7 +132,6 @@ CONFIG = dict(
         dict(  # LiNGAM+RW-2
             use_pyrca=True,
             enable_prior_knowledge=True,
-            root_metric_type="latency",
             method="lingam",
             walk_method="rw-2",
             sli_anomaly_start_time_index=sli_anomaly_start_time_index,
@@ -137,11 +144,18 @@ CONFIG = dict(
         #     walk_method="pagerank",
         #     pyrca_boundary_index=pyrca_boundary_index,
         # ),
-        dict(  # GES+PageRank
+        # dict(  # GES+PageRank
+        #     use_pyrca=True,
+        #     method="ges",
+        #     walk_method="pagerank",
+        #     pyrca_boundary_index=pyrca_boundary_index,
+        # ),
+        dict(  # CG+PageRank
             use_pyrca=True,
-            root_metric_type="latency",
-            method="ges",
+            enable_prior_knowledge=True,
+            method="call_graph",
             walk_method="pagerank",
+            sli_anomaly_start_time_index=sli_anomaly_start_time_index,
             pyrca_boundary_index=pyrca_boundary_index,
         ),
         dict(  # LiNGAM+PageRank
@@ -159,10 +173,18 @@ CONFIG = dict(
         #     sli_anomaly_start_time_index=sli_anomaly_start_time_index,
         #     pyrca_boundary_index=pyrca_boundary_index,
         # ),
-        dict(  # GES+HT
+        # dict(  # GES+HT
+        #     use_pyrca=True,
+        #     enable_prior_knowledge=True,
+        #     method="ges",
+        #     walk_method="ht",
+        #     sli_anomaly_start_time_index=sli_anomaly_start_time_index,
+        #     pyrca_boundary_index=pyrca_boundary_index,
+        # ),
+        dict(  # CG+HT
             use_pyrca=True,
             enable_prior_knowledge=True,
-            method="ges",
+            method="lingam",
             walk_method="ht",
             sli_anomaly_start_time_index=sli_anomaly_start_time_index,
             pyrca_boundary_index=pyrca_boundary_index,
@@ -182,4 +204,5 @@ CONFIG = dict(
     # from_orig=(True, 180),
     pair_of_use_manually_selected_metrics=[False],
     progress=True,
+    timeout_sec=60 * 60 * 5,
 )

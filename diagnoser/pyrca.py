@@ -12,6 +12,7 @@ from pyrca.analyzers.epsilon_diagnosis import (EpsilonDiagnosis,
 from pyrca.analyzers.ht import HT, HTConfig
 from pyrca.analyzers.random_walk import RandomWalk, RandomWalkConfig
 from pyrca.analyzers.rcd import RCD, RCDConfig
+from pyrca.graphs.causal.base import CausalModel
 from pyrca.graphs.causal.fges import FGES, FGESConfig
 from pyrca.graphs.causal.ges import GES, GESConfig
 from pyrca.graphs.causal.lingam import LiNGAM, LiNGAMConfig
@@ -28,7 +29,7 @@ def run_localization(
     method: str,
     enable_prior_knowledge: bool = False,
     walk_method: str | None = None,
-    root_cause_top_k: int = 15,
+    root_cause_top_k: int = 25,
     anomalous_metrics: list[str] | None = None,
     **kwargs,
 ) -> list[tuple[str, float]]:
@@ -71,8 +72,9 @@ def run_localization(
                 graph = GES(GESConfig(run_pdag2dag=True)).train(dataset, forbits=forbits)
         case "call_graph":
             nodes: mn.MetricNodes = mn.MetricNodes.from_dataframe(dataset)
-            init_dg = call_graph.prepare_init_graph(nodes, pk, enable_prior_knowledge=enable_prior_knowledge)
-            graph = nx.to_pandas_adjacency(init_dg)
+            init_dg = call_graph.prepare_init_graph(nodes, pk, enable_prior_knowledge=enable_prior_knowledge, enable_orientation=True)
+            init_dg = nx.relabel_nodes(init_dg, {n: n.label for n in init_dg.nodes}, copy=False)
+            graph = nx.to_pandas_adjacency(init_dg.reverse())
         case _:
             raise ValueError(f"Unknown localization method: {method}")
 

@@ -4,6 +4,7 @@ import itertools
 import logging
 import os
 import time
+import traceback
 import warnings
 from enum import IntEnum
 from typing import Any, Final
@@ -89,7 +90,7 @@ def diagnose_and_rank(
                 )
                 return None
     except Exception as e:
-        logger.error(f"Failed to diagnose {record.chaos_case_full()}, {diag_options}: {e}")
+        logger.error(f"Failed to diagnose {record.chaos_case_full()}, {diag_options}: {e}\n{traceback.format_exc()}")
         return None
 
     end: float = time.perf_counter()

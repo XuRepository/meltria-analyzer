@@ -49,6 +49,14 @@ DEFAULT_RESULT_GROUPBY: Final[dict[str, bool]] = dict(
 )
 
 
+class NoResultError(Exception):
+    def __init__(self, arg: str):
+        self.arg = arg
+
+    def __str__(self):
+        return self.arg
+
+
 def revert_true_cause_metrics(
     record: DatasetRecord, data_df: pd.DataFrame
 ) -> pd.DataFrame:
@@ -71,6 +79,8 @@ def diagnose_and_rank(
     diag_options: dict[str, Any],
     timeout_sec: int = DEFAULT_TIMEOUT_SEC,
 ) -> tuple[nx.Graph, pd.DataFrame, float] | None:
+    gc.collect()  # https://github.com/joblib/joblib/issues/721#issuecomment-417216395
+
     if diag_options.get("enable_revert_true_cause_metrics", False):
         reduced_df = revert_true_cause_metrics(record, reduced_df)
 
@@ -101,8 +111,6 @@ def diagnose_and_rank(
             f"Failed to diagnose {record.chaos_case_full()} with {len(ranks)} ranks"
         )
         return None
-
-    gc.collect()  # https://github.com/joblib/joblib/issues/721#issuecomment-417216395
 
     return G, create_rank_as_dataframe(ranks, dataset_id, record), elapsed
 
@@ -143,7 +151,8 @@ def diagnose_and_rank_multi_datasets(
     )
     results = [result for result in results if result is not None]
     assert results is not None
-    assert len(results) != 0
+    if len(results) == 0:
+        raise NoResultError(f"No result found in the dataset: {diag_options}, {metric_types}")
 
     elapsed_times: dict[tuple[str, str, int], float] = {
         (record.chaos_type(), record.chaos_comp(), record.chaos_case_num()): elapsed
@@ -218,14 +227,19 @@ def load_tsdr_and_localize(
     run["parameters/tsdr"] = tsdr_options
     run["parameters"] = diag_options
 
-    data_dfs_by_metric_type, elapsed_times = diagnose_and_rank_multi_datasets(
-        dataset_id,
-        datasets,
-        diag_options,
-        metric_types,
-        timeout_sec=timeout_sec,
-        n_workers=experiment_n_workers,
-    )
+    try:
+        data_dfs_by_metric_type, elapsed_times = diagnose_and_rank_multi_datasets(
+            dataset_id,
+            datasets,
+            diag_options,
+            metric_types,
+            timeout_sec=timeout_sec,
+            n_workers=experiment_n_workers,
+        )
+    except NoResultError as e:
+        logger.error(e)
+        run.stop()
+        return
 
     run["elapsed_time"] = calculate_mean_elapsed_time(elapsed_times)
 

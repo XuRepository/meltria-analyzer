@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.stats import chi2
-from statsmodels.tsa.ar_model import AutoReg, AutoRegResultsWrapper, ar_select_order
+from statsmodels.tsa.ar_model import (AutoReg, AutoRegResultsWrapper,
+                                      ar_select_order)
 from statsmodels.tsa.base.prediction import PredictionResults
 
 
@@ -109,7 +110,7 @@ class AROutlierDetector:
         #     m_mo = 1
         # if s_mo < 1:
         #     s_mo = 1
-        abn_th = chi2.interval(alpha=1 - threshold, df=1, scale=1)[1]
+        abn_th = chi2.interval(confidence=1 - threshold, df=1, scale=1)[1]
         anomalies: list[tuple[int, float]] = []
         for i, a in enumerate(scores):
             if a > abn_th:

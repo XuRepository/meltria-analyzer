@@ -75,7 +75,7 @@ def run_localization(
             nodes: mn.MetricNodes = mn.MetricNodes.from_dataframe(dataset)
             init_dg = call_graph.prepare_init_graph(nodes, pk, enable_prior_knowledge=enable_prior_knowledge, enable_orientation=True)
             init_dg = nx.relabel_nodes(init_dg, {n: n.label for n in init_dg.nodes}, copy=False)
-            graph = nx.to_pandas_adjacency(init_dg.reverse())
+            graph = nx.to_pandas_adjacency(init_dg)
         case _:
             raise ValueError(f"Unknown localization method: {method}")
 

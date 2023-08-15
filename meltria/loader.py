@@ -143,6 +143,14 @@ def load_dataset(
     return records
 
 
+def transform_records_to_dict(records: list[DatasetRecord]) -> dict[tuple[str, str], list[DatasetRecord]]:
+    """Transform records to dict"""
+    chaos_cases: dict[tuple[str, str], list[DatasetRecord]] = defaultdict(list)
+    for record in records:
+        chaos_cases[(record.chaos_type(), record.chaos_comp())].append(record)
+    return chaos_cases
+
+
 RANGE_VECTOR_DURATION = 60
 PER_MINUTE_NUM: int = int(RANGE_VECTOR_DURATION / 15) + 1
 

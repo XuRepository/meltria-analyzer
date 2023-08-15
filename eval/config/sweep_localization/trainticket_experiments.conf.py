@@ -115,6 +115,6 @@ CONFIG = dict(
         ),
     ],
     # from_orig=(True, 180),
-    pair_of_use_manually_selected_metrics=[False],
+    pair_of_use_manually_selected_metrics=[True, False],
     progress=True,
 )

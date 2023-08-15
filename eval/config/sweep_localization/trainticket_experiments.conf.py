@@ -121,4 +121,3 @@ CONFIG = dict(
     pair_of_use_manually_selected_metrics=[True, False],
     progress=True,
 )
-)

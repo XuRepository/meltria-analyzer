@@ -320,6 +320,8 @@ def sweep_localization(
         pair_of_use_manually_selected_metrics,
         time_ranges,
     ):
+        if metric_types["middlewares"] and use_manually_selected_metrics:
+            continue
         if not check_cache_suffix(
             dataset_id,
             metric_types,
@@ -331,15 +333,16 @@ def sweep_localization(
                 f"None of cache is available for {metric_types}, use_manually_selected_metric={use_manually_selected_metrics}, {tsdr_options}"
             )
 
-    params = list(
-        itertools.product(
+    params = [
+        items for items in itertools.product(
             list_of_diag_options,
             list_of_tsdr_options,
             metric_types_pairs,
             pair_of_use_manually_selected_metrics,
             time_ranges,
         )
-    )
+        if not (items[2]["middlewares"] and items[3])  # skip middlewares with use_manually_selected_metrics=True
+    ]
     if progress:
         params = tqdm(params, desc="sweeping localization", dynamic_ncols=True)
     for i, (

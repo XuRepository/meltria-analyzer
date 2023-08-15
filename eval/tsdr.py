@@ -93,12 +93,14 @@ def sweep_tsdr_and_save_as_cache(
 ) -> None:
     experiment_id = experiment_id or datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 
-    combinations = list(itertools.product(
-        list_of_tsdr_options,
-        metric_types_pairs,
-        use_manually_selected_metrics,
-        time_ranges,
-    ))
+    combinations = [
+        items for items in itertools.product(
+            list_of_tsdr_options,
+            metric_types_pairs,
+            use_manually_selected_metrics,
+            time_ranges,
+        ) if not (items[1]["middlewares"] and items[2])  # skip middlewares with use_manually_selected_metrics=True
+    ]
     if progress:
         combinations = tqdm(combinations, desc="sweeping tsdr", dynamic_ncols=True)
 
@@ -711,24 +713,24 @@ def filter_metrics_by_metric_type(
 
 
 MANUALLY_SELECTED_METRICS: Final[set[str]] = {
-    "file_descriptors",
-    "processes",
-    "sockets",
-    "threads",
-    "cpu_system_seconds_total",
+    # "file_descriptors",
+    # "processes",
+    # "sockets",
+    # "threads",
+    # "cpu_system_seconds_total",
     "cpu_usage_seconds_total",
-    "cpu_user_seconds_total",
-    "memory_rss",
-    "memory_usage_bytes",
+    # "cpu_user_seconds_total",
+    # "memory_rss",
+    # "memory_usage_bytes",
     "memory_working_set_bytes",
-    "fs_reads_bytes_total",
+    # "fs_reads_bytes_total",
     "fs_reads_total",
-    "fs_writes_bytes_total",
+    # "fs_writes_bytes_total",
     "fs_writes_total",
     "network_receive_bytes_total",
-    "network_receive_packets_total",
+    # "network_receive_packets_total",
     "network_transmit_bytes_total",
-    "network_transmit_packets_total",
+    # "network_transmit_packets_total",
 }
 
 

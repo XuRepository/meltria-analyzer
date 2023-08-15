@@ -26,9 +26,9 @@ CONFIG = dict(
     list_of_diag_options=[
         dict(  # e-Diagnosis
             use_pyrca=True,
-            root_metric_type="latency",
             method="epsilon_diagnosis",
             pyrca_boundary_index=pyrca_boundary_index,
+            sli_anomaly_start_time_index=sli_anomaly_start_time_index,
         ),
         dict(  # RCD
             use_rcd=True,
@@ -40,6 +40,7 @@ CONFIG = dict(
             rcd_topk=5,
             rcd_n_workers=1,
             rcd_n_workers_seed_ensamble=-1,
+            sli_anomaly_start_time_index=sli_anomaly_start_time_index,
         ),
         dict(  # PC+RW-2
             use_pyrca=True,
@@ -78,6 +79,7 @@ CONFIG = dict(
             method="ges",
             walk_method="pagerank",
             pyrca_boundary_index=pyrca_boundary_index,
+            sli_anomaly_start_time_index=sli_anomaly_start_time_index,
         ),
         dict(  # LiNGAM+PageRank
             use_pyrca=True,
@@ -85,14 +87,15 @@ CONFIG = dict(
             method="lingam",
             walk_method="pagerank",
             pyrca_boundary_index=pyrca_boundary_index,
+            sli_anomaly_start_time_index=sli_anomaly_start_time_index,
         ),
         dict(  # PC+HT
             use_pyrca=True,
             enable_prior_knowledge=True,
-            root_metric_type="latency",
             method="pc",
             walk_method="ht",
             pyrca_boundary_index=pyrca_boundary_index,
+            sli_anomaly_start_time_index=sli_anomaly_start_time_index,
         ),
         dict(  # GES+HT
             use_pyrca=True,
@@ -117,4 +120,5 @@ CONFIG = dict(
     # from_orig=(True, 180),
     pair_of_use_manually_selected_metrics=[True, False],
     progress=True,
+)
 )

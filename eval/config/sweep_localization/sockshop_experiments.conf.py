@@ -28,6 +28,7 @@ CONFIG = dict(
             use_pyrca=True,
             method="epsilon_diagnosis",
             pyrca_boundary_index=pyrca_boundary_index,
+            sli_anomaly_start_time_index=sli_anomaly_start_time_index,
         ),
         dict(  # RCD
             use_rcd=True,
@@ -39,6 +40,7 @@ CONFIG = dict(
             rcd_topk=5,
             rcd_n_workers=1,
             rcd_n_workers_seed_ensamble=-1,
+            sli_anomaly_start_time_index=sli_anomaly_start_time_index,
         ),
         # dict(  # PC+RW-2
         #     use_pyrca=True,
@@ -98,6 +100,7 @@ CONFIG = dict(
             enable_prior_knowledge=True,
             method="lingam",
             walk_method="pagerank",
+            sli_anomaly_start_time_index=sli_anomaly_start_time_index,
             pyrca_boundary_index=pyrca_boundary_index,
         ),
         # dict(  # PC+HT

@@ -534,4 +534,3 @@ def filter_out_duplicated_metrics(
             continue
         unique_cols += duplicated(node_metrics_df)
     return data_df.loc[:, unique_cols]
-    return data_df.loc[:, unique_cols]

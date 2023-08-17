@@ -13,6 +13,7 @@ import neptune
 import neptune.internal.utils.logger as npt_logger
 import neptune.types
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from neptune.internal.hardware.gpu.gpu_monitor import GPUMonitor
 from tqdm.auto import tqdm
@@ -564,6 +565,21 @@ def calculate_scores_from_tsdr_result(
     )
 
 
+def get_scores_of_random_selection(num_metrics: npt.ArrayLike, num_found_metrics: npt.ArrayLike, max_k: int = 5):
+    def ac_k(n, g, k: int):
+        prob_single_correct = g / n
+        prob_at_least_one_correct = 1 - (1 - prob_single_correct) ** k
+        return prob_at_least_one_correct.mean()
+
+    def avg_k(ac_k_) -> dict:
+        return {k: sum([ac_k_[j] for j in range(1, k + 1)]) / k for k in range(1, max_k + 1)}
+
+    ac_k_ = {k: ac_k(num_metrics, num_found_metrics, k) for k in range(1, max_k + 1)}
+    avg_k_ = avg_k(ac_k_)
+
+    return dict({f"AC_{k}": v for k, v in ac_k_.items()}, **{f"AVG_{k}": v for k, v in avg_k_.items()})
+
+
 def upload_scores_to_neptune(
     run: neptune.Run, tests_df: pd.DataFrame, target_metric_types: dict[str, bool]
 ) -> None:
@@ -612,6 +628,10 @@ def upload_scores_to_neptune(
             "elapsed_time": x["elapsed_time"].mean(),
             "elapsed_time_max": x["elapsed_time"].max(),
             "elapsed_time_min": x["elapsed_time"].min(),
+            "random_selection_perf": get_scores_of_random_selection(
+                x["num_series/total/reduced"],
+                x["cause_metrics/num_mandatory_found"],
+            ),
         }
         return pd.Series(d)
 

@@ -546,6 +546,7 @@ def calculate_scores_from_tsdr_result(
                     set(reduced_df.columns), set(found_mandatory_metrics)
                 ),
                 "cause_metrics/num_total": len(total_cause_metrics),
+                "cause_metrics/num_mandatory_total": len(total_mandatory_cause_metrics),
                 "cause_metrics/num_found": len(found_metrics),
                 "cause_metrics/num_mandatory_found": len(found_mandatory_metrics),
                 "num_series/total/raw": tsdr_stat[0][1]["count"].sum(),  # raw
@@ -594,7 +595,9 @@ def upload_scores_to_neptune(
                 "cause_metrics/only_mandatory_proportion"
             ].mean(),
             "cause_metrics/num_total_mean": x["cause_metrics/num_total"].mean(),
+            "cause_metrics/num_mandatory_total_mean": x["cause_metrics/num_mandatory_total"].mean(),
             "cause_metrics/num_found_mean": x["cause_metrics/num_found"].mean(),
+            "cause_metrics/num_mandatory_found_mean": x["cause_metrics/num_mandatory_found"].mean(),
             "num_series/total": "/".join(
                 [
                     f"{int(x['num_series/total/reduced'].mean())}",

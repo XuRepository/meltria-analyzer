@@ -151,6 +151,17 @@ def transform_records_to_dict(records: list[DatasetRecord]) -> dict[tuple[str, s
     return chaos_cases
 
 
+def select_records_within_litmit_num(records: list[DatasetRecord], max_chaos_case_num: int) -> list[DatasetRecord]:
+    selected_records_ = []
+    chaos_cases = transform_records_to_dict(records)
+    for _, records_ in chaos_cases:
+        if len(records_) > max_chaos_case_num:
+            selected_records_.extend(records_[:max_chaos_case_num])
+        else:
+            selected_records_.extend(records_)
+    return selected_records_
+
+
 RANGE_VECTOR_DURATION = 60
 PER_MINUTE_NUM: int = int(RANGE_VECTOR_DURATION / 15) + 1
 

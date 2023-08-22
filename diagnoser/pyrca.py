@@ -7,7 +7,6 @@ import pandas as pd
 
 sys.path.append((Path(__file__).parent.parent / "PyRCA").as_posix())
 
-import circa.alg.random_walk as rw
 from pyrca.analyzers.epsilon_diagnosis import (EpsilonDiagnosis,
                                                EpsilonDiagnosisConfig)
 from pyrca.analyzers.ht import HT, HTConfig

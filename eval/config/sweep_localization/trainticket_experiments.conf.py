@@ -117,7 +117,7 @@ CONFIG = dict(
             config.Config().to_prefixed_dict("causalrca"), use_causalrca=True
         ),
     ],
-    # from_orig=(True, 180),
+    # from_orig=(True, 180, 20),
     pair_of_use_manually_selected_metrics=[True, False],
     progress=True,
 )

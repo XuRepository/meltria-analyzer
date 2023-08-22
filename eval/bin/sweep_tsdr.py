@@ -56,22 +56,11 @@ def main() -> None:
             "middlewares": True,
         },
         num_datapoints=args.num_datapoints,
+        validated=True,
+        num_faulty_datapoints=args.num_faulty_datapoints,
+        max_chaos_case_num=config.max_chaos_case_num,
     )
     logger.info(f"Load dataset: {len(records)} records")
-
-    well_injected_records = validation.find_records_detected_anomalies_of_sli(
-        records,
-        faulty_datapoints=args.num_faulty_datapoints,
-    )
-    num_sli_anomalies = len(well_injected_records)
-    well_injected_records = validation.find_records_detected_anomalies_of_cause_metrics(
-        well_injected_records,
-        faulty_datapoints=args.num_faulty_datapoints,
-        optional_cause=False,
-    )
-    num_cause_metrics_anomalies = len(well_injected_records)
-
-    logger.info(f"Filtered records: num_sli_anomalies {num_sli_anomalies}, num_cause_metrics_anomalies: {num_cause_metrics_anomalies}")
 
     tsdr.sweep_tsdr_and_save_as_cache(records=records, experiment_id=args.experiment_id, resuming_no=args.resuming_no, **config)
 

@@ -4,7 +4,7 @@ from typing import Any
 import pandas as pd
 
 from eval.groundtruth import check_route, select_ground_truth_metrics_in_routes
-from meltria.loader import DatasetRecord
+from meltria.dataset import DatasetRecord
 from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
 from tsdr.tsdr import filter_out_no_change_metrics
 

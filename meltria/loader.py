@@ -1,9 +1,7 @@
 import json
-import os
 import warnings
 from collections import defaultdict
 from collections.abc import Iterator
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Final
 
@@ -11,82 +9,12 @@ import joblib
 import numpy as np
 import pandas as pd
 
-from eval import groundtruth
+from eval import validation
 from eval.util.logger import logger
+from meltria.dataset import DatasetRecord
 from meltria.metric_types import (METRIC_TYPE_MAP, METRIC_TYPE_MIDDLEWARES,
                                   METRIC_TYPE_NODES, METRIC_TYPE_SERVICES)
 from meltria.priorknowledge.priorknowledge import PriorKnowledge, new_knowledge
-
-
-@dataclass
-class DatasetRecord:
-    """A record of dataset"""
-
-    data_df: pd.DataFrame
-    pk: PriorKnowledge
-    meta: dict[str, str]
-    metrics_file: str  # path of metrics file eg. '2021-12-09-argowf-chaos-hg68n-carts-db_pod-cpu-hog_4.json'
-
-    def __hash__(self) -> int:
-        return hash(self.target_app() + self.chaos_case_full())
-
-    def target_app(self) -> str:
-        """target-application eg. 'train-ticket'"""
-        return self.meta["target_app"]
-
-    def chaos_comp(self) -> str:
-        """chaos-injected component eg. 'carts-db'"""
-        return self.meta["chaos_injected_component"]
-
-    def chaos_type(self) -> str:
-        """injected chaos type eg. 'pod-cpu-hog'"""
-        return self.meta["injected_chaos_type"]
-
-    def grafana_dashboard_url(self) -> str:
-        return self.meta["grafana_dashboard_url"]
-
-    def chaos_case(self) -> str:
-        return f"{self.chaos_comp()}/{self.chaos_type()}"
-
-    def chaos_case_full(self) -> str:
-        return f"{self.chaos_case()}/{self.chaos_case_num()}"
-
-    def chaos_case_file(self) -> str:
-        return f"{self.basename_of_metrics_file()} of {self.chaos_case()}"
-
-    def chaos_case_num(self) -> str:
-        # eg. '2021-12-09-argowf-chaos-hg68n-carts-db_pod-cpu-hog_4.json'
-        return (
-            self.local_dataset_id()
-            + "-"
-            + (
-                self.basename_of_metrics_file()
-                .rsplit("_", maxsplit=1)[1]
-                .removesuffix(".json")
-            )
-        )
-
-    def metrics_names(self) -> list[str]:
-        return self.data_df.columns.tolist()  # type: ignore
-
-    def basename_of_metrics_file(self) -> str:
-        return os.path.basename(self.metrics_file)
-
-    def local_dataset_id(self) -> str:
-        # eg. '2021-12-09-argowf-chaos-hg68n-carts-db_pod-cpu-hog_4.json'
-        return self.basename_of_metrics_file().split("-")[5]
-
-    def ground_truth_metrics_frame(self) -> pd.DataFrame | None:
-        _, ground_truth_metrics = groundtruth.check_tsdr_ground_truth_by_route(
-            pk=self.pk,
-            metrics=self.metrics_names(),  # pre-reduced data frame
-            chaos_type=self.chaos_type(),
-            chaos_comp=self.chaos_comp(),
-        )
-        if len(ground_truth_metrics) < 1:
-            return None
-        ground_truth_metrics.sort()
-        return self.data_df[ground_truth_metrics]
 
 
 def find_metrics_files(root_path: str, dataset_id: str) -> list[str]:
@@ -125,6 +53,9 @@ def load_dataset(
     target_metric_types: dict[str, bool],
     num_datapoints: int,
     interpolate: bool = True,
+    validated: bool = False,
+    max_chaos_case_num: int = -1,
+    num_faulty_datapoints: int = 0,
     n_jobs: int = -1,
 ) -> list[DatasetRecord]:
     """Load metrics dataset"""
@@ -140,7 +71,19 @@ def load_dataset(
         raise ValueError("No metrics data loaded")
     records = [r for r in records if r is not None]
 
-    return records
+    if not validated:
+        return select_records_within_litmit_num(records, max_chaos_case_num=max_chaos_case_num)
+
+    well_injected_records = validation.find_records_detected_anomalies_of_sli(
+        records,
+        faulty_datapoints=num_faulty_datapoints,
+    )
+    well_injected_records = validation.find_records_detected_anomalies_of_cause_metrics(
+        well_injected_records,
+        faulty_datapoints=num_faulty_datapoints,
+        optional_cause=False,
+    )
+    return balance_records_by_removing(well_injected_records, lower_limit_num=max_chaos_case_num)
 
 
 def transform_records_to_dict(records: list[DatasetRecord]) -> dict[tuple[str, str], list[DatasetRecord]]:
@@ -152,13 +95,39 @@ def transform_records_to_dict(records: list[DatasetRecord]) -> dict[tuple[str, s
 
 
 def select_records_within_litmit_num(records: list[DatasetRecord], max_chaos_case_num: int) -> list[DatasetRecord]:
+    if max_chaos_case_num < 0:
+        return records
     selected_records_ = []
     chaos_cases = transform_records_to_dict(records)
-    for _, records_ in chaos_cases:
+    for _, records_ in chaos_cases.items():
         if len(records_) > max_chaos_case_num:
             selected_records_.extend(records_[:max_chaos_case_num])
         else:
             selected_records_.extend(records_)
+    return selected_records_
+
+
+def balance_records_by_removing(records: list[DatasetRecord], lower_limit_num: int) -> list[DatasetRecord]:
+    if lower_limit_num < -1:
+        return records
+
+    chaos_cases: dict[tuple[str, str], list[DatasetRecord]] = defaultdict(list)
+    chaos_types: set[str] = set()
+    chaos_comps: set[str] = set()
+    for record in records:
+        chaos_cases[(record.chaos_type(), record.chaos_comp())].append(record)
+        chaos_types.add(record.chaos_type())
+        chaos_comps.add(record.chaos_comp())
+
+    selected_records_ = []
+    for chaos_comp in chaos_comps:
+        chaos_type_to_num = defaultdict(int)
+        for chaos_type in chaos_types:
+            chaos_type_to_num[chaos_type] = len(chaos_cases[(chaos_type, chaos_comp)])
+        if min(chaos_type_to_num.values()) < lower_limit_num:
+            continue
+        for chaos_type in chaos_types:
+            selected_records_.extend(chaos_cases[(chaos_type, chaos_comp)][:lower_limit_num])
     return selected_records_
 
 

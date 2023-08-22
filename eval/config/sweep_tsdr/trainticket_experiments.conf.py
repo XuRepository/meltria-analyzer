@@ -5,4 +5,5 @@ CONFIG = dict(
     list_of_tsdr_options=TSDR_OPTIONS,
     use_manually_selected_metrics=[True, False],
     progress=True,
+    max_chaos_case_num=3,
 )

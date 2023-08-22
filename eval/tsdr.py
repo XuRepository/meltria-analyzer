@@ -5,6 +5,7 @@ import logging
 import os
 import pathlib
 from collections import defaultdict
+from io import StringIO
 from multiprocessing import cpu_count
 from typing import Any, Final
 
@@ -297,7 +298,8 @@ def run_tsdr_and_save_as_cache_from_orig_data(
     metric_types: dict[str, bool] = ALL_METRIC_TYPES,
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
-    validation_filtering: tuple[bool, int] = (False, 0),
+    max_chaos_case_num: int = 0,
+    num_faulty_datapoints: int = 0,
     data_dir: pathlib.Path = DATA_DIR,
 ) -> None:
     metrics_files = loader.find_metrics_files(RAW_DATA_DIR, dataset_id=dataset_id)
@@ -305,13 +307,10 @@ def run_tsdr_and_save_as_cache_from_orig_data(
         metrics_files,
         target_metric_types=metric_types,
         num_datapoints=num_datapoints,
+        max_chaos_case_num=max_chaos_case_num,
+        validated=True,
+        num_faulty_datapoints=num_faulty_datapoints,
     )
-    valid, faulty_pos = validation_filtering
-    if valid:
-        records = validation.find_records_detected_anomalies_of_sli(records, faulty_pos)
-        records = validation.find_records_detected_anomalies_of_cause_metrics(
-            records, faulty_pos
-        )
     run_tsdr_and_save_as_cache(
         records=records,
         dataset_id=dataset_id,
@@ -580,6 +579,13 @@ def get_scores_of_random_selection(num_metrics: npt.ArrayLike, num_found_metrics
     return dict({f"AC_{k}": v for k, v in ac_k_.items()}, **{f"AVG_{k}": v for k, v in avg_k_.items()})
 
 
+def _upload_dataframe_to_neptune(run: neptune.Run, df: pd.DataFrame, prefix: str) -> None:
+    csv_buffer = StringIO()
+    df.to_csv(csv_buffer, index=False)
+    run[f"{prefix}-csv"].upload(neptune.types.File.from_stream(csv_buffer, extension="csv"))
+    run[f"{prefix}-html"].upload(neptune.types.File.as_html(df))
+
+
 def upload_scores_to_neptune(
     run: neptune.Run, tests_df: pd.DataFrame, target_metric_types: dict[str, bool]
 ) -> None:
@@ -635,7 +641,6 @@ def upload_scores_to_neptune(
         }
         return pd.Series(d)
 
-    run["scores/summary"].upload(neptune.types.File.as_html(tests_df))
     scores_by_phase = (
         tests_df.groupby("phase").apply(agg_score).reset_index().set_index("phase")
     )
@@ -672,16 +677,18 @@ def upload_scores_to_neptune(
         total_scores[col] = scores_by_phase[col][-1]
 
     run["scores"] = total_scores.to_dict()
-    run["scores/summary_by_phase"].upload(neptune.types.File.as_html(scores_by_phase))
-    run["scores/summary_by_chaos_type"].upload(
-        neptune.types.File.as_html(scores_by_chaos_type)
-    )
-    run["scores/summary_by_chaos_comp"].upload(
-        neptune.types.File.as_html(scores_by_chaos_comp)
-    )
-    run["scores/summary_by_chaos_type_and_chaos_comp"].upload(
-        neptune.types.File.as_html(scores_by_chaos_type_and_comp)
-    )
+
+    for _df, prefix in zip(
+        [tests_df, scores_by_phase, scores_by_chaos_type, scores_by_chaos_comp, scores_by_chaos_type_and_comp],
+        [
+            "scores/summary",
+            "scores/summary_by_phase",
+            "scores/summary_by_chaos_type",
+            "scores/summary_by_chaos_comp",
+            "scores/summary_by_chaos_type_and_chaos_comp",
+        ],
+    ):
+        _upload_dataframe_to_neptune(run, _df, prefix)
 
 
 def upload_clusters_to_neptune(run: neptune.Run, clusters_stats: pd.DataFrame) -> None:
@@ -791,7 +798,7 @@ def load_tsdr_by_chaos(
     time_range: tuple[int, int] = (0, 0),
     target_chaos_types: set[str] = DEFAULT_CHAOS_TYPES,
     validation_filtering: tuple[bool, int] = (False, 0),
-    from_orig: tuple[bool, int] = (False, 0),  # from_orig flag, from_orig_num_datapoints
+    from_orig: tuple[bool, int, int] = (False, 0, 0),  # from_orig flag, from_orig_num_datapoints, from_orig_num_faulty_datapoints
     n_jobs: int = -1,
 ) -> dict[
     tuple[str, str],
@@ -828,12 +835,12 @@ def load_tsdr_grouped_by_metric_type(
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
     validation_filtering: tuple[bool, int] = (False, 0),
-    from_orig: tuple[bool, int] = (False, 0),  # from_orig flag, from_orig_num_datapoints
+    from_orig: tuple[bool, int, int] = (False, 0, 0),  # from_orig flag, from_orig_num_datapoints, from_orig_num_faulty_datapoints
     n_jobs: int = -1,
 ) -> list[
     tuple[loader.DatasetRecord, dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]]
 ]:
-    from_orig_ok, from_orig_num_datapoints = from_orig
+    from_orig_ok, from_orig_num_datapoints, from_orig_num_faulty_datapoints = from_orig
     if from_orig_ok:
         run_tsdr_and_save_as_cache_from_orig_data(
             dataset_id=dataset_id,
@@ -842,7 +849,7 @@ def load_tsdr_grouped_by_metric_type(
             metric_types=metric_types,
             use_manually_selected_metrics=use_manually_selected_metrics,
             time_range=time_range,
-            validation_filtering=validation_filtering,
+            num_faulty_datapoints=from_orig_num_faulty_datapoints,
         )
 
     ok, parent_path = check_cache_suffix(
@@ -1054,4 +1061,5 @@ def validate_tsdr_results(
         )
         .set_index(["target_app", "chaos_type", "chaos_comp", "chaos_case_num"])
         .sort_index()
+    ), dataset_by_chaos_case
     ), dataset_by_chaos_case

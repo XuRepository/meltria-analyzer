@@ -8,7 +8,7 @@ from ads_evt import biSPOT
 
 from eval.groundtruth import (check_cause_metrics, check_route,
                               select_ground_truth_metrics_in_routes)
-from meltria.loader import DatasetRecord
+from meltria.dataset import DatasetRecord
 from tsdr.outlierdetection.n_sigma_rule import detect_with_n_sigma_rule
 from tsdr.outlierdetection.spot import detect_anomalies_with_spot
 

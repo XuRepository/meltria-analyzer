@@ -58,9 +58,10 @@ def main() -> None:
         num_datapoints=args.num_datapoints,
         validated=True,
         num_faulty_datapoints=args.num_faulty_datapoints,
-        max_chaos_case_num=config.max_chaos_case_num,
+        max_chaos_case_num=config.pop("max_chaos_case_num"),
     )
     logger.info(f"Load dataset: {len(records)} records")
+    assert len(records) > 0, "No records"
 
     tsdr.sweep_tsdr_and_save_as_cache(records=records, experiment_id=args.experiment_id, resuming_no=args.resuming_no, **config)
 

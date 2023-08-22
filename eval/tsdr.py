@@ -1062,4 +1062,3 @@ def validate_tsdr_results(
         .set_index(["target_app", "chaos_type", "chaos_comp", "chaos_case_num"])
         .sort_index()
     ), dataset_by_chaos_case
-    ), dataset_by_chaos_case

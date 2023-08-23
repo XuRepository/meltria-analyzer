@@ -110,7 +110,7 @@ def sweep_tsdr_and_save_as_cache(
         if resuming_no > i:
             continue
         tqdm.write(
-            f"{i}/{len(combinations)}: Starting experiment {experiment_id} with {metric_types}, {tsdr_options}, {time_range}"
+            f"{i}/{len(combinations)}: Starting experiment {experiment_id} with {metric_types}, {tsdr_options}, {time_range}, use_manually_selected_metrics={_use_manually_selected_metrics}"
         )
         run_tsdr_and_save_as_cache_with_tracking(
             experiment_id=experiment_id,

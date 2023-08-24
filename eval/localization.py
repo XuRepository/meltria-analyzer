@@ -194,7 +194,7 @@ def load_tsdr_and_localize(
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
     target_chaos_types: set[str] = DEFAULT_CHAOS_TYPES,
-    from_orig: tuple[bool, int, int] = (False, 0, 0),  # from_orig flag, from_orig_num_datapoints
+    from_orig: tuple[bool, int, int, int] = (False, 0, 0, 0),  # from_orig flag, from_orig_num_datapoints, max_chaos_case_num
     timeout_sec: int = DEFAULT_TIMEOUT_SEC,
     experiment_n_workers: int = -1,
 ) -> None:
@@ -299,7 +299,7 @@ def sweep_localization(
     metric_types_pairs: list[dict[str, bool]] = METRIC_TYPES_PAIRS,
     time_ranges: list[tuple[int, int]] = [(0, 0)],
     target_chaos_types: set[str] = DEFAULT_CHAOS_TYPES,
-    from_orig: tuple[bool, int, int] = (False, 0, 0),  # from_orig flag, from_orig_num_datapoints
+    from_orig: tuple[bool, int, int, int] = (False, 0, 0, 0),  # from_orig flag, from_orig_num_datapoints, max_chaos_case_num
     experiment_id: str = "",
     experiment_n_workers: int = -1,
     progress: bool = False,

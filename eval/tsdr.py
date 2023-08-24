@@ -232,6 +232,7 @@ def run_tsdr_and_save_as_cache(
             anomalous_df,
             reduced_df,
         )  # for memory efficiency
+
     return pd.concat(score_dfs, axis=0), pd.concat(clusters_stats, axis=0)
 
 
@@ -800,7 +801,7 @@ def load_tsdr_by_chaos(
     time_range: tuple[int, int] = (0, 0),
     target_chaos_types: set[str] = DEFAULT_CHAOS_TYPES,
     validation_filtering: tuple[bool, int] = (False, 0),
-    from_orig: tuple[bool, int, int] = (False, 0, 0),  # from_orig flag, from_orig_num_datapoints, from_orig_num_faulty_datapoints
+    from_orig: tuple[bool, int, int, int] = (False, 0, 0, 0),  # from_orig flag, from_orig_num_datapoints, max_chaos_case_num
     n_jobs: int = -1,
 ) -> dict[
     tuple[str, str],
@@ -838,13 +839,13 @@ def load_tsdr_grouped_by_metric_type(
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
     validation_filtering: tuple[bool, int] = (False, 0),
-    from_orig: tuple[bool, int, int] = (False, 0, 0),  # from_orig flag, from_orig_num_datapoints, from_orig_num_faulty_datapoints
+    from_orig: tuple[bool, int, int, int] = (False, 0, 0, 0),  # from_orig flag, from_orig_num_datapoints, max_chaos_case_num
     target_chaos_types: set[str] = DEFAULT_CHAOS_TYPES,
     n_jobs: int = -1,
 ) -> list[
     tuple[loader.DatasetRecord, dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]]
 ]:
-    from_orig_ok, from_orig_num_datapoints, from_orig_num_faulty_datapoints = from_orig
+    from_orig_ok, from_orig_num_datapoints, from_orig_num_faulty_datapoints, max_chaos_case_num = from_orig
     if from_orig_ok:
         run_tsdr_and_save_as_cache_from_orig_data(
             dataset_id=dataset_id,
@@ -855,6 +856,7 @@ def load_tsdr_grouped_by_metric_type(
             time_range=time_range,
             num_faulty_datapoints=from_orig_num_faulty_datapoints,
             target_chaos_types=target_chaos_types,
+            max_chaos_case_num=max_chaos_case_num,
         )
 
     ok, parent_path = check_cache_suffix(

@@ -54,7 +54,7 @@ CONFIG = dict(
             pyrca_boundary_index=pyrca_boundary_index,
         ),
     ],
-    # from_orig=(True, 180, 20),
+    # from_orig=(True, 180, 20, 3),
     pair_of_use_manually_selected_metrics=[False],
     progress=True,
     timeout_sec=60 * 60 * 5,

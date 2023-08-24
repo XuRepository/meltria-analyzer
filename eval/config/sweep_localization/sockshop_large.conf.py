@@ -45,14 +45,15 @@ CONFIG = dict(
             sli_anomaly_start_time_index=sli_anomaly_start_time_index,
             pyrca_boundary_index=pyrca_boundary_index,
         ),
-        dict(  # CG+HT
-            use_pyrca=True,
-            enable_prior_knowledge=True,
-            method="lingam",
-            walk_method="ht",
-            sli_anomaly_start_time_index=sli_anomaly_start_time_index,
-            pyrca_boundary_index=pyrca_boundary_index,
-        ),
+        # comment out the following becuase of error of cyclic graph
+        # dict(  # CG+HT
+        #     use_pyrca=True,
+        #     enable_prior_knowledge=True,
+        #     method="call_graph",
+        #     walk_method="ht",
+        #     sli_anomaly_start_time_index=sli_anomaly_start_time_index,
+        #     pyrca_boundary_index=pyrca_boundary_index,
+        # ),
     ],
     # from_orig=(True, 180, 20),
     pair_of_use_manually_selected_metrics=[False],

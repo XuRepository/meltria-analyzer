@@ -83,7 +83,7 @@ CONFIG = dict(
             sli_anomaly_start_time_index=sli_anomaly_start_time_index,
         ),
     ],
-    # from_orig=(True, 180, 20),
+    # from_orig=(True, 180, 20, 3),
     pair_of_use_manually_selected_metrics=[True],
     progress=True,
     timeout_sec=60 * 60 * 5,

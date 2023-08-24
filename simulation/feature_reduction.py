@@ -166,7 +166,11 @@ def sweep_feature_reduction_with_generation(
         for fl_method in REDUCTION_METHODS:
             _normal_df, _abnormal_df, _, stat = reduce_features(
                 fl_method, normal_data_df.copy(), abnormal_data_df.copy(), true_root_causes, adjacency_df.copy(), anomaly_propagated_nodes)
-            stats.append(stat | data_params)
+            stats.append(
+                stat | data_params | {
+                    "trial_no": trial_no, "anomaly_type": anomaly_type, "func_type": func_type, "noise_type": noise_type, "weight_generator": weight_generator,
+                },
+            )
             del _normal_df, _abnormal_df
             gc.collect()
 

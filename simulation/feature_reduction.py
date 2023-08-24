@@ -139,14 +139,13 @@ def sweep_feature_reduction(dataset) -> list[dict]:
     return results
 
 
-
 def sweep_feature_reduction_with_generation(
     anomaly_types: list[int],
     data_scale_params: list[dict[str, int]],
     func_types: list[str],
     noise_types: list[str],
     weight_generators: list[str],
-    num_trials: int,
+    trial_nos: list[int],
     n_jobs: int = -1,
 ):
     def _load_and_reduce(anomaly_type, data_params, func_type, noise_type, weight_generator, trial_no):
@@ -165,9 +164,11 @@ def sweep_feature_reduction_with_generation(
 
         stats = []
         for fl_method in REDUCTION_METHODS:
-            _, _, _, stat = reduce_features(
-                fl_method, normal_data_df, abnormal_data_df, true_root_causes, adjacency_df, anomaly_propagated_nodes)
+            _normal_df, _abnormal_df, _, stat = reduce_features(
+                fl_method, normal_data_df.copy(), abnormal_data_df.copy(), true_root_causes, adjacency_df.copy(), anomaly_propagated_nodes)
             stats.append(stat | data_params)
+            del _normal_df, _abnormal_df
+            gc.collect()
 
         del normal_data_df, abnormal_data_df, true_root_causes, adjacency_df, anomaly_propagated_nodes
         gc.collect()
@@ -175,7 +176,7 @@ def sweep_feature_reduction_with_generation(
         return stats
 
     params = list(itertools.product(
-        anomaly_types, data_scale_params, func_types, noise_types, weight_generators, range(1, num_trials + 1),
+        anomaly_types, data_scale_params, func_types, noise_types, weight_generators, trial_nos,
     ))
     results = joblib.Parallel(n_jobs=n_jobs, prefer="processes")(
         joblib.delayed(_load_and_reduce)(*param) for param in params

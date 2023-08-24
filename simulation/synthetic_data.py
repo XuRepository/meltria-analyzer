@@ -63,11 +63,12 @@ def generate_synthetic_data(
         )
     ).gen()
     true_root_causes = [mapping[i] for i in np.where(fault != 0)[0]]
-    propagation_paths = []
+    anomaly_propagated_nodes = set()
     for root_cause in true_root_causes:
         paths = nx.all_simple_paths(G, source=root_cause, target=["X1"])
-        propagation_paths.extend(list(paths))
-    anomaly_propagated_nodes = set([node for path in propagation_paths for node in path])
+        for path in paths:
+            for node in path:
+                anomaly_propagated_nodes.add(node)
 
     normal_data_df = pd.DataFrame(normal_data, columns=node_names)
     abnormal_data_df = pd.DataFrame(anomaly_data, columns=node_names)

@@ -301,6 +301,7 @@ def run_tsdr_and_save_as_cache_from_orig_data(
     max_chaos_case_num: int = 0,
     num_faulty_datapoints: int = 0,
     data_dir: pathlib.Path = DATA_DIR,
+    target_chaos_types: set[str] = DEFAULT_CHAOS_TYPES,
 ) -> None:
     metrics_files = loader.find_metrics_files(RAW_DATA_DIR, dataset_id=dataset_id)
     records = loader.load_dataset(
@@ -310,6 +311,7 @@ def run_tsdr_and_save_as_cache_from_orig_data(
         max_chaos_case_num=max_chaos_case_num,
         validated=True,
         num_faulty_datapoints=num_faulty_datapoints,
+        target_chaos_types=target_chaos_types,
     )
     run_tsdr_and_save_as_cache(
         records=records,
@@ -815,6 +817,7 @@ def load_tsdr_by_chaos(
         time_range,
         validation_filtering,
         from_orig,
+        target_chaos_types,
         n_jobs,
     )
     results = defaultdict(list)
@@ -836,6 +839,7 @@ def load_tsdr_grouped_by_metric_type(
     time_range: tuple[int, int] = (0, 0),
     validation_filtering: tuple[bool, int] = (False, 0),
     from_orig: tuple[bool, int, int] = (False, 0, 0),  # from_orig flag, from_orig_num_datapoints, from_orig_num_faulty_datapoints
+    target_chaos_types: set[str] = DEFAULT_CHAOS_TYPES,
     n_jobs: int = -1,
 ) -> list[
     tuple[loader.DatasetRecord, dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]]
@@ -850,6 +854,7 @@ def load_tsdr_grouped_by_metric_type(
             use_manually_selected_metrics=use_manually_selected_metrics,
             time_range=time_range,
             num_faulty_datapoints=from_orig_num_faulty_datapoints,
+            target_chaos_types=target_chaos_types,
         )
 
     ok, parent_path = check_cache_suffix(

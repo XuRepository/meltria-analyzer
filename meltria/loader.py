@@ -56,6 +56,7 @@ def load_dataset(
     validated: bool = False,
     max_chaos_case_num: int = -1,
     num_faulty_datapoints: int = 0,
+    target_chaos_types: set[str] = set(),  # empty means all
     n_jobs: int = -1,
 ) -> list[DatasetRecord]:
     """Load metrics dataset"""
@@ -70,6 +71,8 @@ def load_dataset(
     if records is None or len(records) < 1:
         raise ValueError("No metrics data loaded")
     records = [r for r in records if r is not None]
+    if len(target_chaos_types):
+        records = [r for r in records if r.chaos_type() in target_chaos_types]
 
     if not validated:
         return select_records_within_litmit_num(records, max_chaos_case_num=max_chaos_case_num)

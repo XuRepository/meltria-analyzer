@@ -62,14 +62,14 @@ CONFIG = dict(
             sli_anomaly_start_time_index=sli_anomaly_start_time_index,
             pyrca_boundary_index=pyrca_boundary_index,
         ),
-        dict(  # CG+HT
-            use_pyrca=True,
-            enable_prior_knowledge=True,
-            method="lingam",
-            walk_method="ht",
-            sli_anomaly_start_time_index=sli_anomaly_start_time_index,
-            pyrca_boundary_index=pyrca_boundary_index,
-        ),
+        # dict(  # CG+HT
+        #     use_pyrca=True,
+        #     enable_prior_knowledge=True,
+        #     method="call_graph",
+        #     walk_method="ht",
+        #     sli_anomaly_start_time_index=sli_anomaly_start_time_index,
+        #     pyrca_boundary_index=pyrca_boundary_index,
+        # ),
         dict(  # LiNGAM+HT
             use_pyrca=True,
             enable_prior_knowledge=True,

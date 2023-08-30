@@ -340,7 +340,7 @@ def get_ranks_by_case(
     return ranks_by_case
 
 
-def ac_k_for_any_cause_metrics(
+def calc_ac_k(
     k: int, cause_ranks_by_case: dict[tuple[str, str, int], list[int]], pk: PriorKnowledge,
     metric_types: dict[str, bool],
 ) -> float:
@@ -349,21 +349,8 @@ def ac_k_for_any_cause_metrics(
     for (chaos_type, chaos_comp, _), cause_ranks in cause_ranks_by_case.items():
         num_cause_metrics = len(get_ground_truth_base_metric_names(pk, chaos_type, chaos_comp, metric_types, mandatory=True))
         num_correct = sum([1 for rank in cause_ranks if rank <= k])
-        sum_ac += (num_correct / num_cause_metrics)
+        sum_ac += (num_correct / min(k, num_cause_metrics))
     return sum_ac / num_anomalies
-
-
-# def ac_k_for_all_cause_metrics(
-#     k: int, cause_ranks_by_case: dict[tuple[str, str, int], list[int]], pk: PriorKnowledge,
-# ) -> float:
-#     sum_ac: float = 0.0
-#     num_anomalies: int = len(cause_ranks_by_case.keys())
-#     for (chaos_type, chaos_comp, _), cause_ranks in cause_ranks_by_case.items():
-#         num_cause_metrics = len(get_ground_truth_base_metric_names(pk, chaos_type, chaos_comp, mandatory=True))
-#         num_correct = sum([1 for rank in cause_ranks if rank <= k])
-#         # "/ k" should be "/ min(k, num_root_cause_metrics)"
-#         sum_ac += num_correct / min(k, num_cause_metrics)
-#     return sum_ac / num_anomalies
 
 
 def evaluate_ac_of_rc(
@@ -378,14 +365,14 @@ def evaluate_ac_of_rc(
     ranks_by_case = get_ranks_by_case(
         sorted_results_df, pk, granularity=granuallity, optional_cause=True
     )
-    ac_k = {k: ac_k_for_any_cause_metrics(k, ranks_by_case, pk=pk, metric_types=metric_types) for k in top_k_set}
+    ac_k = {k: calc_ac_k(k, ranks_by_case, pk=pk, metric_types=metric_types) for k in top_k_set}
     avg_k = {k: sum([ac_k[j] for j in range(1, k + 1)]) / k for k in top_k_set}
 
     ranks_by_case_mand = get_ranks_by_case(
         sorted_results_df, pk, granularity=granuallity, optional_cause=False
     )
     ac_k_mand = {
-        k: ac_k_for_any_cause_metrics(k, ranks_by_case_mand, pk=pk, metric_types=metric_types) for k in top_k_set
+        k: calc_ac_k(k, ranks_by_case_mand, pk=pk, metric_types=metric_types) for k in top_k_set
     }
     avg_k_mand = {
         k: sum([ac_k_mand[j] for j in range(1, k + 1)]) / k for k in top_k_set

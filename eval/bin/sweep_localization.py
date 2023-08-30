@@ -20,8 +20,7 @@ npt_logger.setLevel(logging.ERROR)
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="sweep_localization")
-    parser.print_usage = parser.print_help
-    parser.add_argument('-c', '--config', type=str, required=True, help='config file')
+    parser.add_argument('-c', '--config', nargs="*", type=str, required=True, help='config file')
     parser.add_argument('--neptune-mode', type=str, required=True, help='neptune mode name')
     parser.add_argument('--resuming-no', type=int, required=False, default=0, help='the number of combinations for resuming')
     parser.add_argument('--experiment-id', type=str, required=False, default="", help='experiment id')
@@ -30,11 +29,11 @@ def main() -> None:
     os.environ["NEPTUNE_MODE"] = args.neptune_mode
 
     # Load config python file (.py)
-    config_file = os.path.abspath(args.config)
-    spec = runpy.run_path(config_file)
-    config = spec["CONFIG"]
-
-    localization.sweep_localization(**config, experiment_id=args.experiment_id, resuming_no=args.resuming_no)
+    for config_file in args.config:
+        print(f">> Running {config_file}\n")
+        spec = runpy.run_path(config_file)
+        config = spec["CONFIG"]
+        localization.sweep_localization(**config, experiment_id=args.experiment_id, resuming_no=args.resuming_no)
 
 
 if __name__ == "__main__":

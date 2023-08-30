@@ -24,10 +24,10 @@ CONFIG = dict(
             rcd_localized=True,
             rcd_gamma=5,
             rcd_bins=5,
-            rcd_n_iters=10,
-            rcd_topk=5,
+            rcd_n_iters=100,
+            rcd_topk=30,
             rcd_n_workers=1,
-            rcd_n_workers_seed_ensamble=-1,
+            rcd_n_workers_seed_ensamble=1,
             sli_anomaly_start_time_index=sli_anomaly_start_time_index,
         ),
         dict(  # CG+PageRank
@@ -78,12 +78,12 @@ CONFIG = dict(
             sli_anomaly_start_time_index=sli_anomaly_start_time_index,
             pyrca_boundary_index=pyrca_boundary_index,
         ),
-        dict(  # CausalRCA
-            config.Config().to_prefixed_dict("causalrca"), use_causalrca=True,
-            sli_anomaly_start_time_index=sli_anomaly_start_time_index,
-        ),
+        # dict(  # CausalRCA
+        #     config.Config().to_prefixed_dict("causalrca"), use_causalrca=True,
+        #     sli_anomaly_start_time_index=sli_anomaly_start_time_index,
+        # ),
     ],
     pair_of_use_manually_selected_metrics=[True],
     progress=True,
-    timeout_sec=60 * 60 * 5,
+    timeout_sec=60 * 60 * 1,
 )

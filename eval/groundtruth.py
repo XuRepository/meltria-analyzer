@@ -422,6 +422,32 @@ def get_chaos_to_cause_metric_patterns(
     return patterns["mandatory"]
 
 
+def get_ground_truth_base_metric_names(
+    pk: PriorKnowledge, chaos_type: str, chaos_comp: str, metric_types: dict[str, bool], mandatory: bool = True,
+) -> list[str]:
+    ctnr_patterns = CHAOS_TO_CAUSE_METRIC_PATTERNS[chaos_type].get(("*", "container"))
+    if mandatory:
+        ctnr_metrics = ctnr_patterns["mandatory"]
+    else:
+        ctnr_metrics = ctnr_patterns["mandatory"] + ctnr_patterns["optional"]
+
+    if not metric_types["middlewares"]:
+        return ctnr_metrics
+
+    role, runtime = pk.get_role_and_runtime_by_container(chaos_comp)
+    middle_metrics: list[str] = []
+    for _role in ["*", role]:
+        _patterns = CHAOS_TO_CAUSE_METRIC_PATTERNS[chaos_type].get((_role, runtime), {})
+        if len(_patterns) == 0:
+            continue
+        if mandatory:
+            middle_metrics += _patterns["mandatory"]
+            continue
+        middle_metrics += _patterns["mandatory"] + _patterns["optional"]
+
+    return ctnr_metrics + middle_metrics
+
+
 @cache
 def _get_tsdr_ground_truth(
     pk: PriorKnowledge,

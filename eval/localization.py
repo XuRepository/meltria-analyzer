@@ -98,10 +98,11 @@ def diagnose_and_rank(
                 logger.error(
                     f"TimeoutInterrupt while diagnosing {record.chaos_case_full()}, {diag_options}"
                 )
-                return None
+                G = nx.empty_graph()
+                ranks = []
     except Exception as e:
         logger.error(f"Failed to diagnose {record.chaos_case_full()}, {diag_options}: {e}\n{traceback.format_exc()}")
-        return None
+        return nx.empty_graph(), create_rank_as_dataframe([], dataset_id, record), 0.0
 
     end: float = time.perf_counter()
     elapsed: float = end - sta
@@ -110,7 +111,7 @@ def diagnose_and_rank(
         logger.error(
             f"Failed to diagnose {record.chaos_case_full()} with {len(ranks)} ranks"
         )
-        return None
+        return nx.empty_graph(), create_rank_as_dataframe([], dataset_id, record), elapsed
 
     return G, create_rank_as_dataframe(ranks, dataset_id, record), elapsed
 
@@ -243,7 +244,7 @@ def load_tsdr_and_localize(
 
     run["elapsed_time"] = calculate_mean_elapsed_time(elapsed_times)
 
-    df = create_localization_score_as_dataframe(data_dfs_by_metric_type, pk=pk, k=n)
+    df = create_localization_score_as_dataframe(data_dfs_by_metric_type, pk=pk, k=n, metric_types=metric_types)
     run["scores/metric/num_cases"] = df.at[1, "#cases (metric)"]
     run["scores/container/num_cases"] = df.at[1, "#cases (container)"]
     run["scores/service/num_cases"] = df.at[1, "#cases (service)"]
@@ -267,6 +268,7 @@ def load_tsdr_and_localize(
             k=n,
             group_by_cause_comp=True,
             group_by_cause_type=False,
+            metric_types=metric_types,
         )
     )
     run["eval/score-df-by-cause-type"] = neptune.types.File.as_html(
@@ -276,6 +278,7 @@ def load_tsdr_and_localize(
             k=n,
             group_by_cause_comp=False,
             group_by_cause_type=True,
+            metric_types=metric_types,
         )
     )
     run["eval/score-df-by-cause-comp-and-type"] = neptune.types.File.as_html(
@@ -285,6 +288,7 @@ def load_tsdr_and_localize(
             k=n,
             group_by_cause_comp=True,
             group_by_cause_type=True,
+            metric_types=metric_types,
         )
     )
     run.stop()

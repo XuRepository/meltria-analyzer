@@ -425,7 +425,8 @@ def get_chaos_to_cause_metric_patterns(
 def get_ground_truth_base_metric_names(
     pk: PriorKnowledge, chaos_type: str, chaos_comp: str, metric_types: dict[str, bool], mandatory: bool = True,
 ) -> list[str]:
-    ctnr_patterns = CHAOS_TO_CAUSE_METRIC_PATTERNS[chaos_type].get(("*", "container"))
+    ctnr_patterns = CHAOS_TO_CAUSE_METRIC_PATTERNS[chaos_type].get(("*", "container"), {})
+    assert len(ctnr_patterns) > 0, f"no container patterns for {chaos_type}"
     if mandatory:
         ctnr_metrics = ctnr_patterns["mandatory"]
     else:

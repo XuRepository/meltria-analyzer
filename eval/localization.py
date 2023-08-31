@@ -124,7 +124,7 @@ def diagnose_and_rank_multi_datasets(
     diag_target_phase_option: DiagTargetPhaseOption = DEFAULT_DIAG_TARGET_PHASE_OPTION,
     timeout_sec: int = DEFAULT_TIMEOUT_SEC,
     n_workers: int = -1,
-) -> tuple[list, dict[tuple[str, str, int], float]]:
+) -> tuple[list, dict[tuple[str, str, int], float], pd.DataFrame]:
     assert len(datasets) != 0
 
     records = []
@@ -244,7 +244,9 @@ def load_tsdr_and_localize(
 
     run["elapsed_time"] = calculate_mean_elapsed_time(elapsed_times)
 
-    df = create_localization_score_as_dataframe(data_dfs_by_metric_type, pk=pk, k=n, metric_types=metric_types)
+    df = create_localization_score_as_dataframe(
+        data_dfs_by_metric_type, pk=pk, metric_types=metric_types, k=n,
+    )
     run["scores/metric/num_cases"] = df.at[1, "#cases (metric)"]
     run["scores/container/num_cases"] = df.at[1, "#cases (container)"]
     run["scores/service/num_cases"] = df.at[1, "#cases (service)"]

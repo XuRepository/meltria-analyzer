@@ -148,10 +148,20 @@ def _detech_changepoints_with_missing_values(x: np.ndarray):
     return change_indices
 
 
-def detect_univariate_changepoints(x: np.ndarray, cost_model: str, penalty: str | float) -> list[int]:
+def detect_univariate_changepoints(x: np.ndarray, search_method: str, cost_model: str, penalty: str | float) -> list[int]:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        algo = rpt.Binseg(model=cost_model, jump=1)
+        match search_method:
+            case "binseg":
+                algo = rpt.Binseg(model=cost_model, jump=1)
+            case "pelt":
+                algo = rpt.Pelt(model=cost_model, jump=1)
+            case "dynp":
+                algo = rpt.Dynp(model=cost_model, jump=1)
+            case "bottomup":
+                algo = rpt.BottomUp(model=cost_model, jump=1)
+            case _:
+                assert False, f"search_method={search_method} is not supported."
     n_segs = 2
     sigma = np.std(x)
     match penalty:
@@ -168,6 +178,7 @@ def detect_univariate_changepoints(x: np.ndarray, cost_model: str, penalty: str 
 
 def detect_multi_changepoints(
     X: pd.DataFrame,
+    search_method: str = "binseg",
     cost_model: str = "l2",
     penalty: str | float = "aic",
     n_jobs: int = -1,
@@ -175,7 +186,8 @@ def detect_multi_changepoints(
     metrics: list[str] = X.columns.tolist()
 
     multi_change_points: list[list[int]] | None = Parallel(n_jobs=n_jobs)(
-        delayed(detect_univariate_changepoints)(X[metric].to_numpy(), cost_model, penalty) for metric in metrics
+        delayed(detect_univariate_changepoints)(X[metric].to_numpy(), search_method, cost_model, penalty)
+        for metric in metrics
     )
     assert multi_change_points is not None
 

@@ -465,6 +465,7 @@ class Tsdr:
             case "changepoint-kde":
                 return partial(
                     multireducer.change_point_clustering_with_kde,
+                    search_method=kwargs["step2_changepoint_search_method"],
                     cost_model=kwargs["step2_changepoint_cost_model"],
                     penalty=kwargs.get("step2_changepoint_penalty", "aic"),
                     n_bkps=kwargs.get("step2_changepoint_n_bkps", 2),

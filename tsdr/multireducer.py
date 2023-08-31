@@ -257,6 +257,7 @@ def change_point_clustering(
 
 def change_point_clustering_with_kde(
     data: pd.DataFrame,
+    search_method: str,
     cost_model: str,
     penalty: str | float,  # penalty is not used if step2_changepoint_multi_change_points is false.
     kde_bandwidth: float | str,
@@ -291,11 +292,11 @@ def change_point_clustering_with_kde(
                 n_jobs=n_jobs,
             )
         else:
-            multi_change_points = changepoint.detect_multi_changepoints(
-                X=data, cost_model=cost_model, penalty=penalty, n_jobs=n_jobs
+            changepoints = changepoint.detect_multi_changepoints(
+                X=data, search_method=search_method, cost_model=cost_model, penalty=penalty, n_jobs=n_jobs
             )
             cluster_label_to_metrics, _ = changepoint.cluster_multi_changepoints(
-                multi_change_points=multi_change_points,
+                multi_change_points=changepoints,
                 metrics=metrics,
                 time_series_length=data.shape[0],
                 kde_bandwidth=kde_bandwidth,

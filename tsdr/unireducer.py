@@ -405,6 +405,7 @@ def spot_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeriesReductionRe
 def changepoint_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeriesReductionResult:
     change_points = detect_univariate_changepoints(
         series,
+        search_method=kwargs["step1_changepoint_search_method"],
         cost_model=kwargs["step1_changepoint_cost_model"],
         penalty=kwargs["step1_changepoint_penalty"],
     )

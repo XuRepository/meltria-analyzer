@@ -377,7 +377,6 @@ def evaluate_ac_of_rc(
     avg_k_mand = {
         k: sum([ac_k_mand[j] for j in range(1, k + 1)]) / k for k in top_k_set
     }
-    print(num_faults)
     return pd.concat(
         [
             pd.DataFrame(

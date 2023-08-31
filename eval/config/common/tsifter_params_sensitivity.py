@@ -4,7 +4,7 @@ from typing import Any
 SEARCH_METHODS = ["binseg", "pelt", "dynp", "bottomup"]
 CHANGE_POINTS_PENALTIES = ["bic", "aic"]
 KDE_BANDWIDTHS = ["silverman", "scott", 1.0]
-COST_MODELS = ["l2", "normal"]
+COST_MODELS = ["l2"]
 
 TSDR_OPTIONS: list[dict[str, Any]] = [
     dict(

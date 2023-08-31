@@ -44,6 +44,7 @@ METRIC_TYPES_PAIRS: Final[list[dict[str, bool]]] = [
         "nodes": False,
     },
 ]
+SAMPLING_SCALE_FACTORS: Final[list[int]] = [1, 2, 3, 4]
 
 tsdr_default_options: Final[dict[str, Any]] = {
     "step1_method_name": "residual_integral",
@@ -89,6 +90,7 @@ def sweep_tsdr_and_save_as_cache(
     use_manually_selected_metrics: list[bool] = [True, False],
     metric_types_pairs: list[dict[str, bool]] = METRIC_TYPES_PAIRS,
     time_ranges: list[tuple[int, int]] = [(0, 0)],
+    sampling_scale_factors: list[float] = SAMPLING_SCALE_FACTORS,
     experiment_id: str = "",
     progress: bool = False,
     resuming_no: int = 0,

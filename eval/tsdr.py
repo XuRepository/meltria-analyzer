@@ -567,7 +567,9 @@ def calculate_scores_from_tsdr_result(
     )
 
 
-def get_scores_of_random_selection(num_metrics: npt.ArrayLike, num_found_metrics: npt.ArrayLike, max_k: int = 5):
+def get_scores_of_random_selection(
+    num_metrics: npt.ArrayLike, num_found_metrics: npt.ArrayLike, max_k: int = 5,
+) -> dict[str, float]:
     def ac_k(n, g, k: int):
         prob_single_correct = g / n
         prob_at_least_one_correct = 1 - (1 - prob_single_correct) ** k

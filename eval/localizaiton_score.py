@@ -342,11 +342,11 @@ def get_ranks_by_case(
 
 def calc_ac_k(
     k: int, cause_ranks_by_case: dict[tuple[str, str, int], list[int]], num_faults: int,
-    pk: PriorKnowledge, metric_types: dict[str, bool],
+    pk: PriorKnowledge, metric_types: dict[str, bool], optional_cause: bool,
 ) -> float:
     sum_ac: float = 0.0
     for (chaos_type, chaos_comp, _), cause_ranks in cause_ranks_by_case.items():
-        num_cause_metrics = len(get_ground_truth_base_metric_names(pk, chaos_type, chaos_comp, metric_types, mandatory=True))
+        num_cause_metrics = len(get_ground_truth_base_metric_names(pk, chaos_type, chaos_comp, metric_types, mandatory=not optional_cause))
         num_correct = sum([1 for rank in cause_ranks if rank <= k])
         sum_ac += (num_correct / min(k, num_cause_metrics))
     return sum_ac / num_faults
@@ -363,16 +363,18 @@ def evaluate_ac_of_rc(
 
     num_faults = len(sorted_results_df.groups)
     ranks_by_case = get_ranks_by_case(
-        sorted_results_df, pk, granularity=granuallity, optional_cause=True
+        sorted_results_df, pk, granularity=granuallity, optional_cause=True,
     )
-    ac_k = {k: calc_ac_k(k, ranks_by_case, num_faults=num_faults, pk=pk, metric_types=metric_types) for k in top_k_set}
+    ac_k = {
+        k: calc_ac_k(k, ranks_by_case, num_faults=num_faults, pk=pk, metric_types=metric_types, optional_cause=True) for k in top_k_set
+    }
     avg_k = {k: sum([ac_k[j] for j in range(1, k + 1)]) / k for k in top_k_set}
 
     ranks_by_case_mand = get_ranks_by_case(
-        sorted_results_df, pk, granularity=granuallity, optional_cause=False
+        sorted_results_df, pk, granularity=granuallity, optional_cause=False,
     )
     ac_k_mand = {
-        k: calc_ac_k(k, ranks_by_case_mand, num_faults=num_faults, pk=pk, metric_types=metric_types) for k in top_k_set
+        k: calc_ac_k(k, ranks_by_case_mand, num_faults=num_faults, pk=pk, metric_types=metric_types, optional_cause=False) for k in top_k_set
     }
     avg_k_mand = {
         k: sum([ac_k_mand[j] for j in range(1, k + 1)]) / k for k in top_k_set

@@ -76,3 +76,6 @@ class DatasetRecord:
             return None
         ground_truth_metrics.sort()
         return self.data_df[ground_truth_metrics]
+
+    def resample_by_factor(self, factor: int):
+        self.data_df = self.data_df.iloc[::factor, :]

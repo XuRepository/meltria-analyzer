@@ -66,6 +66,7 @@ npt_logger.logger.setLevel(logging.ERROR)  # Suppress Neptune INFO log messages 
 def generate_file_path_suffix_as_id(
     tsdr_options: dict[str, Any],
     metric_types: dict[str, bool],
+    sampling_scale_factor: int,
     time_range: tuple[int, int],
     **kwargs: Any,
 ) -> str:
@@ -79,6 +80,7 @@ def generate_file_path_suffix_as_id(
                 else [f"time_range{time_range[0]}{time_range[1]}"]
             )
             + [f"{k}{v}" for k, v in sorted(kwargs.items())]
+            + [f"{sampling_scale_factor}"]
         ).encode()
     ).hexdigest()
 
@@ -90,7 +92,7 @@ def sweep_tsdr_and_save_as_cache(
     use_manually_selected_metrics: list[bool] = [True, False],
     metric_types_pairs: list[dict[str, bool]] = METRIC_TYPES_PAIRS,
     time_ranges: list[tuple[int, int]] = [(0, 0)],
-    sampling_scale_factors: list[float] = SAMPLING_SCALE_FACTORS,
+    sampling_scale_factors: list[int] = SAMPLING_SCALE_FACTORS,
     experiment_id: str = "",
     progress: bool = False,
     resuming_no: int = 0,
@@ -102,13 +104,14 @@ def sweep_tsdr_and_save_as_cache(
             list_of_tsdr_options,
             metric_types_pairs,
             use_manually_selected_metrics,
+            sampling_scale_factors,
             time_ranges,
         ) if not (items[1]["middlewares"] and items[2])  # skip middlewares with use_manually_selected_metrics=True
     ]
     if progress:
         combinations = tqdm(combinations, desc="sweeping tsdr", dynamic_ncols=True)
 
-    for i, (tsdr_options, metric_types, _use_manually_selected_metrics, time_range) in enumerate(combinations, 1):
+    for i, (tsdr_options, metric_types, _use_manually_selected_metrics, sampling_scale_factor, time_range) in enumerate(combinations, 1):
         if resuming_no > i:
             continue
         tqdm.write(
@@ -120,6 +123,7 @@ def sweep_tsdr_and_save_as_cache(
             metric_types=metric_types,
             records=records,
             tsdr_options=tsdr_options,
+            sampling_scale_factor=sampling_scale_factor,
             time_range=time_range,
             use_manually_selected_metrics=_use_manually_selected_metrics,
         )
@@ -133,6 +137,7 @@ def run_tsdr_and_save_as_cache_with_tracking(
     tsdr_options: dict[str, Any] = tsdr_default_options,
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
+    sampling_scale_factor: int = 1,
     data_dir: pathlib.Path = DATA_DIR,
 ) -> None:
     run = neptune.init_run(
@@ -146,6 +151,7 @@ def run_tsdr_and_save_as_cache_with_tracking(
     run["dataset/use_manually_selected_metrics"] = use_manually_selected_metrics
     run["dataset/time_range/start"] = time_range[0]
     run["dataset/time_range/end"] = time_range[1]
+    run["dataset/sampling_scale_factor"] = sampling_scale_factor
     run["parameters"] = tsdr_options
 
     scores_df, clusters_stats = run_tsdr_and_save_as_cache(
@@ -154,6 +160,7 @@ def run_tsdr_and_save_as_cache_with_tracking(
         records=records,
         tsdr_options=tsdr_options,
         use_manually_selected_metrics=use_manually_selected_metrics,
+        sampling_scale_factor=sampling_scale_factor,
         time_range=time_range,
         data_dir=data_dir,
     )
@@ -170,6 +177,7 @@ def run_tsdr_and_save_as_cache(
     tsdr_options: dict[str, Any] = tsdr_default_options,
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
+    sampling_scale_factor: int = 1,
     data_dir: pathlib.Path = DATA_DIR,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     # Workaround
@@ -185,6 +193,7 @@ def run_tsdr_and_save_as_cache(
         tsdr_options,
         metric_types,
         time_range=time_range,
+        sampling_scale_factor=sampling_scale_factor,
         use_manually_selected_metrics=use_manually_selected_metrics,
     )
 
@@ -205,6 +214,7 @@ def run_tsdr_and_save_as_cache(
             enable_multireducer=tsdr_options["enable_multireducer"],
             metric_types=metric_types,
             use_manually_selected_metrics=use_manually_selected_metrics,
+            sampling_scale_factor=sampling_scale_factor,
             time_range=time_range,
         )
         score_dfs.append(
@@ -246,6 +256,7 @@ def run_tsdr(
     metric_types: dict[str, bool] = ALL_METRIC_TYPES,
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
+    sampling_scale_factor: int = 1,
     max_workers: int = -1,
 ) -> tuple[
     pd.DataFrame,
@@ -255,6 +266,10 @@ def run_tsdr(
     list[tuple[pd.DataFrame, pd.DataFrame, float]],
     pd.DataFrame,
 ]:
+    # resampling based on sampling_scale_factor
+    if sampling_scale_factor > 1:
+        record.resample_by_factor(sampling_scale_factor)
+
     tsdr_options = dict(tsdr_default_options, **tsdr_options)
 
     prefiltered_df = record.data_df

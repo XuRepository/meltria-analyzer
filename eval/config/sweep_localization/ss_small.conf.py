@@ -1,6 +1,6 @@
 from eval.config.common.tsdr_options import TSDR_OPTIONS
 from eval.config.sweep_localization.common.all_localizations import \
-    LIST_OF_DIAG_OPTIONS
+    get_list_of_diag_options
 
 CONFIG = dict(
     dataset_id="9n6mf",
@@ -8,7 +8,7 @@ CONFIG = dict(
     experiment_n_workers=-1,
     target_chaos_types={"pod-cpu-hog", "pod-memory-hog"},  # "pod-network-latency"},
     list_of_tsdr_options=TSDR_OPTIONS,
-    list_of_diag_options=LIST_OF_DIAG_OPTIONS,
+    list_of_diag_options=get_list_of_diag_options(),
     pair_of_use_manually_selected_metrics=[True],
     metric_types_pairs=[{
         "services": True,

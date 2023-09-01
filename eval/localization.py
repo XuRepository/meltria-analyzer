@@ -25,7 +25,8 @@ from eval.localizaiton_score import (
     create_localization_score_as_dataframe, create_rank_as_dataframe,
     create_rank_as_dataframe_for_multiple_cases_from_frames)
 from eval.tsdr import (DEFAULT_CHAOS_TYPES, METRIC_TYPES_PAIRS,
-                       check_cache_suffix, load_tsdr_by_chaos)
+                       SAMPLING_SCALE_FACTORS, check_cache_suffix,
+                       load_tsdr_by_chaos)
 from eval.util.logger import logger
 from meltria.loader import DatasetRecord
 
@@ -194,6 +195,7 @@ def load_tsdr_and_localize(
     diag_options: dict[str, Any],
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
+    sampling_scale_factor: int = 1,
     target_chaos_types: set[str] = DEFAULT_CHAOS_TYPES,
     from_orig: tuple[bool, int, int, int] = (False, 0, 0, 0),  # from_orig flag, from_orig_num_datapoints, max_chaos_case_num
     timeout_sec: int = DEFAULT_TIMEOUT_SEC,
@@ -206,6 +208,7 @@ def load_tsdr_and_localize(
         tsdr_options=tsdr_options,
         use_manually_selected_metrics=use_manually_selected_metrics,
         time_range=time_range,
+        sampling_scale_factor=sampling_scale_factor,
         target_chaos_types=target_chaos_types,
         from_orig=from_orig,
     )
@@ -224,6 +227,7 @@ def load_tsdr_and_localize(
         "target_app": first_record.target_app(),
         "metric_types": metric_types,
         "use_manually_selected_metrics": use_manually_selected_metrics,
+        "sampling_scale_factor": sampling_scale_factor,
     }
     run["parameters/tsdr"] = tsdr_options
     run["parameters"] = diag_options
@@ -304,6 +308,7 @@ def sweep_localization(
     pair_of_use_manually_selected_metrics: list[bool],
     metric_types_pairs: list[dict[str, bool]] = METRIC_TYPES_PAIRS,
     time_ranges: list[tuple[int, int]] = [(0, 0)],
+    sampling_scale_factors: list[int] = SAMPLING_SCALE_FACTORS[0:1],
     target_chaos_types: set[str] = DEFAULT_CHAOS_TYPES,
     from_orig: tuple[bool, int, int, int] = (False, 0, 0, 0),  # from_orig flag, from_orig_num_datapoints, max_chaos_case_num
     experiment_id: str = "",
@@ -320,11 +325,13 @@ def sweep_localization(
         metric_types,
         use_manually_selected_metrics,
         time_range,
+        sampling_scale_factor,
     ) in itertools.product(
         list_of_tsdr_options,
         metric_types_pairs,
         pair_of_use_manually_selected_metrics,
         time_ranges,
+        sampling_scale_factors,
     ):
         if metric_types["middlewares"] and use_manually_selected_metrics:
             continue
@@ -334,9 +341,10 @@ def sweep_localization(
             tsdr_options,
             use_manually_selected_metrics,
             time_range,
+            sampling_scale_factor,
         ):
             raise ValueError(
-                f"None of cache is available for {metric_types}, use_manually_selected_metric={use_manually_selected_metrics}, {tsdr_options}"
+                f"None of cache is available for {metric_types}, use_manually_selected_metric={use_manually_selected_metrics}, sampling_scale_factor:{sampling_scale_factor}, {tsdr_options}"
             )
 
     params = [
@@ -346,6 +354,7 @@ def sweep_localization(
             metric_types_pairs,
             pair_of_use_manually_selected_metrics,
             time_ranges,
+            sampling_scale_factors,
         )
         if not (items[2]["middlewares"] and items[3])  # skip middlewares with use_manually_selected_metrics=True
     ]
@@ -357,6 +366,7 @@ def sweep_localization(
         metric_types,
         use_manually_selected_metrics,
         time_range,
+        sampling_scale_factor,
     ) in enumerate(params, 1):
         if resuming_no > i:
             continue
@@ -373,6 +383,7 @@ def sweep_localization(
             diag_options=diag_options,
             use_manually_selected_metrics=use_manually_selected_metrics,
             time_range=time_range,
+            sampling_scale_factor=sampling_scale_factor,
             target_chaos_types=target_chaos_types,
             from_orig=from_orig,
             timeout_sec=timeout_sec,

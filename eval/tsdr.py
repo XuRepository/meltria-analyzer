@@ -92,7 +92,7 @@ def sweep_tsdr_and_save_as_cache(
     use_manually_selected_metrics: list[bool] = [True, False],
     metric_types_pairs: list[dict[str, bool]] = METRIC_TYPES_PAIRS,
     time_ranges: list[tuple[int, int]] = [(0, 0)],
-    sampling_scale_factors: list[int] = SAMPLING_SCALE_FACTORS,
+    sampling_scale_factors: list[int] = SAMPLING_SCALE_FACTORS[0:1],
     experiment_id: str = "",
     progress: bool = False,
     resuming_no: int = 0,
@@ -316,6 +316,7 @@ def run_tsdr_and_save_as_cache_from_orig_data(
     metric_types: dict[str, bool] = ALL_METRIC_TYPES,
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
+    sampling_scale_factor: int = 1,
     max_chaos_case_num: int = 0,
     num_faulty_datapoints: int = 0,
     data_dir: pathlib.Path = DATA_DIR,
@@ -338,6 +339,7 @@ def run_tsdr_and_save_as_cache_from_orig_data(
         tsdr_options=tsdr_options,
         use_manually_selected_metrics=use_manually_selected_metrics,
         time_range=time_range,
+        sampling_scale_factor=sampling_scale_factor,
         data_dir=data_dir,
     )
 
@@ -818,6 +820,7 @@ def load_tsdr_by_chaos(
     tsdr_options: dict[str, Any] = tsdr_default_options,
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
+    sampling_scale_factor: int = 1,
     target_chaos_types: set[str] = DEFAULT_CHAOS_TYPES,
     validation_filtering: tuple[bool, int] = (False, 0),
     from_orig: tuple[bool, int, int, int] = (False, 0, 0, 0),  # from_orig flag, from_orig_num_datapoints, max_chaos_case_num
@@ -835,6 +838,7 @@ def load_tsdr_by_chaos(
         tsdr_options,
         use_manually_selected_metrics,
         time_range,
+        sampling_scale_factor,
         validation_filtering,
         from_orig,
         target_chaos_types,
@@ -857,6 +861,7 @@ def load_tsdr_grouped_by_metric_type(
     tsdr_options: dict[str, Any] = tsdr_default_options,
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
+    sampling_scale_factor: int = 1,
     validation_filtering: tuple[bool, int] = (False, 0),
     from_orig: tuple[bool, int, int, int] = (False, 0, 0, 0),  # from_orig flag, from_orig_num_datapoints, max_chaos_case_num
     target_chaos_types: set[str] = DEFAULT_CHAOS_TYPES,
@@ -873,6 +878,7 @@ def load_tsdr_grouped_by_metric_type(
             metric_types=metric_types,
             use_manually_selected_metrics=use_manually_selected_metrics,
             time_range=time_range,
+            sampling_scale_factor=sampling_scale_factor,
             num_faulty_datapoints=from_orig_num_faulty_datapoints,
             target_chaos_types=target_chaos_types,
             max_chaos_case_num=max_chaos_case_num,
@@ -884,6 +890,7 @@ def load_tsdr_grouped_by_metric_type(
         tsdr_options,
         use_manually_selected_metrics,
         time_range,
+        sampling_scale_factor=sampling_scale_factor,
     )
     if not ok:
         raise ValueError(
@@ -951,11 +958,13 @@ def check_cache_suffix(
     tsdr_options: dict[str, Any] = tsdr_default_options,
     use_manually_selected_metrics: bool = False,
     time_range: tuple[int, int] = (0, 0),
+    sampling_scale_factor: int = 1,
 ) -> tuple[bool, pathlib.Path]:
     file_path_suffix = generate_file_path_suffix_as_id(
         tsdr_options,
         metric_types,
         time_range=time_range,
+        sampling_scale_factor=sampling_scale_factor,
         use_manually_selected_metrics=use_manually_selected_metrics,
     )
     dir_name: str = f"tsdr_{dataset_id}_{file_path_suffix}"

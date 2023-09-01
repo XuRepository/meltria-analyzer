@@ -371,7 +371,7 @@ def sweep_localization(
         if resuming_no > i:
             continue
         tqdm.write(
-            f"{i}/{len(params)}: Starting experiment {experiment_id} with {metric_types}, {diag_options} and {tsdr_options}"
+            f"{i}/{len(params)}: Starting experiment {experiment_id} with {metric_types} and sampling scale factor: {sampling_scale_factor}, {diag_options} and {tsdr_options}"
         )
         load_tsdr_and_localize(
             experiment_id=experiment_id,

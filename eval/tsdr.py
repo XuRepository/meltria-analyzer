@@ -894,7 +894,7 @@ def load_tsdr_grouped_by_metric_type(
     )
     if not ok:
         raise ValueError(
-            f"Dataset {dataset_id} is not cached, {parent_path} does not exist. {metric_types}, {tsdr_options}, use_manually_selected_metrics={use_manually_selected_metrics},time_range={time_range}"
+            f"Dataset {dataset_id} is not cached, {parent_path} does not exist. {metric_types}, {tsdr_options}, use_manually_selected_metrics={use_manually_selected_metrics}, time_range={time_range}, sampling_scale_factor={sampling_scale_factor}"
         )
 
     def load_data(

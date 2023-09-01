@@ -19,5 +19,5 @@ CONFIG = dict(
     sampling_scale_factors=[1, 2, 3, 4],
     progress=True,
     timeout_sec=60 * 60 * 1,
-    from_orig=(True, 180, 20, 3),
+    # from_orig=(True, 180, 20, 3),
 )

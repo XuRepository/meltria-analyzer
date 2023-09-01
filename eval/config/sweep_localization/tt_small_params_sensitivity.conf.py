@@ -1,5 +1,5 @@
 from eval.config.common.tsifter_params_sensitivity import TSDR_OPTIONS
-from eval.config.sweep_localization.common.all_localizations import \
+from eval.config.sweep_localization.common.localizations import \
     get_list_of_diag_options
 
 CONFIG = dict(

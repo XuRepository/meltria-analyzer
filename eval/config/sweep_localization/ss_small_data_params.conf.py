@@ -2,6 +2,8 @@ from eval.config.common.tsifter_best_params import TSIFTER_BEST_PARAM
 from eval.config.sweep_localization.common.localizations import \
     get_list_of_diag_options
 
+TIME_RANGES = [(0, 180), (0, 175), (0, 170), (0, 165), (30, 180), (60, 180), (90, 180), (120, 180)]
+
 CONFIG = dict(
     dataset_id="9n6mf",
     n=10,
@@ -17,6 +19,7 @@ CONFIG = dict(
         "nodes": False,
     }],
     sampling_scale_factors=[1, 2, 3, 4],
+    time_range=[(0, 180), (0, 175), (0, 170), (0, 165), (30, 180), (60, 180), (90, 180), (120, 180)],
     progress=True,
     timeout_sec=60 * 60 * 1,
     # from_orig=(True, 180, 20, 3),

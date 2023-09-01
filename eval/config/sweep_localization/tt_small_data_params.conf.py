@@ -18,8 +18,8 @@ CONFIG = dict(
         "nodes": False,
     }],
     sampling_scale_factors=SAMPLING_SCALE_FACTORS,
+    time_ranges=TIME_RANGES,
     progress=True,
     timeout_sec=60 * 60 * 1,
-    time_ranges=TIME_RANGES,
     # from_orig=(True, 180, 20, 3),
 )

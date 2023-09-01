@@ -267,8 +267,8 @@ def run_tsdr(
     pd.DataFrame,
 ]:
     # resampling based on sampling_scale_factor
-    if sampling_scale_factor > 1:
-        record.resample_by_factor(sampling_scale_factor)
+    record.resample_by_factor(sampling_scale_factor)
+    time_range = (time_range[0] // sampling_scale_factor, time_range[1] // sampling_scale_factor)
 
     tsdr_options = dict(tsdr_default_options, **tsdr_options)
 

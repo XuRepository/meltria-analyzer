@@ -104,14 +104,14 @@ def sweep_tsdr_and_save_as_cache(
             list_of_tsdr_options,
             metric_types_pairs,
             use_manually_selected_metrics,
-            sampling_scale_factors,
             time_ranges,
+            sampling_scale_factors,
         ) if not (items[1]["middlewares"] and items[2])  # skip middlewares with use_manually_selected_metrics=True
     ]
     if progress:
         combinations = tqdm(combinations, desc="sweeping tsdr", dynamic_ncols=True)
 
-    for i, (tsdr_options, metric_types, _use_manually_selected_metrics, sampling_scale_factor, time_range) in enumerate(combinations, 1):
+    for i, (tsdr_options, metric_types, _use_manually_selected_metrics, time_range, sampling_scale_factor) in enumerate(combinations, 1):
         if resuming_no > i:
             continue
         tqdm.write(

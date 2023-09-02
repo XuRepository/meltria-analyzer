@@ -5,6 +5,7 @@ from functools import partial
 from typing import Any, Final
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import scipy.signal
 import scipy.stats
@@ -211,6 +212,7 @@ class Tsdr:
             reduced_series2, clusters_stat = self.reduce_multivariate_series(
                 df_before_clustering,
                 pk,
+                step1_results,
                 max_workers,
             )
 
@@ -309,6 +311,7 @@ class Tsdr:
         self,
         series: pd.DataFrame,
         pk: PriorKnowledge,
+        step1_results: dict[str, UnivariateSeriesReductionResult],
         n_workers: int,
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
         n_workers = self.params.get("step2_clustering_n_workers", n_workers)
@@ -322,7 +325,7 @@ class Tsdr:
             sli_data = series[sli].to_numpy()
 
         clusterinf_fn: Callable = self._prepare_clustering_fn(
-            series.shape[0], sli_data, **self.params
+            series.shape[0], step1_results, sli_data, **self.params
         )
         comp_to_metrics_df: dict[str, pd.DataFrame] = {}
         clusters_stats: list[dict[str, Any]] = []
@@ -387,7 +390,10 @@ class Tsdr:
 
     @staticmethod
     def _prepare_clustering_fn(
-        series_w: int, sli_data: np.ndarray | None, **kwargs: Any
+        series_w: int,
+        step1_results: dict[str, UnivariateSeriesReductionResult],
+        sli_data: np.ndarray | None,
+        **kwargs: Any
     ) -> Callable:
         method_name = kwargs["step2_clustering_method_name"]
         choice_method = kwargs["step2_clustering_choice_method"]
@@ -463,17 +469,25 @@ class Tsdr:
                     n_jobs=kwargs.get("step2_changepoint_n_jobs", -1),
                 )
             case "changepoint-kde":
-                return partial(
-                    multireducer.change_point_clustering_with_kde,
-                    search_method=kwargs["step2_changepoint_search_method"],
-                    cost_model=kwargs["step2_changepoint_cost_model"],
-                    penalty=kwargs.get("step2_changepoint_penalty", "aic"),
-                    n_bkps=kwargs.get("step2_changepoint_n_bkps", 2),
-                    kde_bandwidth=kwargs["step2_changepoint_kde_bandwidth"],
-                    multi_change_points=kwargs["step2_changepoint_multi_change_points"],
-                    representative_method=kwargs.get("step2_changepoint_representative_method", False),
-                    n_jobs=kwargs.get("step2_changepoint_n_jobs", -1),
-                )
+                changepoints: list[npt.ArrayLike] = [res.outliers for res in step1_results.values() if res.has_kept]
+                if len(changepoints) == 0:
+                    return partial(
+                        multireducer.change_point_clustering_with_kde,
+                        search_method=kwargs["step2_changepoint_search_method"],
+                        cost_model=kwargs["step2_changepoint_cost_model"],
+                        penalty=kwargs.get("step2_changepoint_penalty", "aic"),
+                        n_bkps=kwargs.get("step2_changepoint_n_bkps", 2),
+                        kde_bandwidth=kwargs["step2_changepoint_kde_bandwidth"],
+                        multi_change_points=kwargs["step2_changepoint_multi_change_points"],
+                        representative_method=kwargs.get("step2_changepoint_representative_method", False),
+                        n_jobs=kwargs.get("step2_changepoint_n_jobs", -1),
+                    )
+                else:
+                    return partial(
+                        multireducer.change_point_clustering_with_kde_by_changepoints,
+                        changepoints=changepoints,
+                        kde_bandwidth=kwargs["step2_changepoint_kde_bandwidth"],
+                    )
             case _:
                 raise ValueError(
                     'method_name must be "hierarchy" or "dbscan" or "changepoint'

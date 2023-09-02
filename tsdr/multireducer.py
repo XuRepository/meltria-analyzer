@@ -5,6 +5,7 @@ from concurrent import futures
 from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import ruptures as rpt
 import scipy.signal
@@ -250,6 +251,28 @@ def change_point_clustering(
     )
 
     keep_metrics: set[str] = set([m.metric_name for m in choiced_cluster.members])
+    remove_metrics: list[str] = list(set(metrics) - keep_metrics)
+    clustering_info: dict[str, list[str]] = {metric: [] for metric in keep_metrics}
+    return clustering_info, remove_metrics
+
+
+def change_point_clustering_with_kde_by_changepoints(
+    data: pd.DataFrame,
+    changepoints: list[npt.ArrayLike],
+    kde_bandwidth: float | str,
+) -> tuple[dict[str, Any], list[str]]:
+    metrics: list[str] = data.columns.tolist()
+    cluster_label_to_metrics, _ = changepoint.cluster_multi_changepoints(
+        multi_change_points=[[cp[0] for cp in cps] for cps in changepoints],
+        metrics=metrics,
+        time_series_length=data.shape[0],
+        kde_bandwidth=kde_bandwidth,
+    )
+    if cluster_label_to_metrics:
+        choiced_cluster = max(cluster_label_to_metrics.items(), key=lambda x: len(x[1]))
+        keep_metrics: set[str] = set(choiced_cluster[1])
+    else:
+        keep_metrics = set()
     remove_metrics: list[str] = list(set(metrics) - keep_metrics)
     clustering_info: dict[str, list[str]] = {metric: [] for metric in keep_metrics}
     return clustering_info, remove_metrics

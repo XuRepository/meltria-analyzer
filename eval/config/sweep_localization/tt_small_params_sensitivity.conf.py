@@ -8,7 +8,7 @@ CONFIG = dict(
     experiment_n_workers=-1,
     target_chaos_types={"pod-cpu-hog", "pod-memory-hog"},  # "pod-network-latency"},
     list_of_tsdr_options=TSDR_OPTIONS,
-    list_of_diag_options=get_list_of_diag_options(),
+    list_of_diag_options=get_list_of_diag_options(mode="fast-only"),
     pair_of_use_manually_selected_metrics=[True],
     metric_types_pairs=[{
         "services": True,

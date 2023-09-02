@@ -200,6 +200,8 @@ class Tsdr:
                 stat.append(
                     (reduced_series1, count_metrics(reduced_series1), elapsed_time)
                 )
+        else:
+            reduced_series1 = series
 
         # step2
         clusters_stat: pd.DataFrame = pd.DataFrame()
@@ -207,7 +209,7 @@ class Tsdr:
             start = time.time()
 
             df_before_clustering = self.preprocess_for_multireducer(
-                series, step1_results, max_workers
+                reduced_series1, step1_results, max_workers
             )
             reduced_series2, clusters_stat = self.reduce_multivariate_series(
                 df_before_clustering,
@@ -325,7 +327,7 @@ class Tsdr:
             sli_data = series[sli].to_numpy()
 
         clusterinf_fn: Callable = self._prepare_clustering_fn(
-            series.shape[0], step1_results, sli_data, **self.params
+            series, step1_results, sli_data, **self.params
         )
         comp_to_metrics_df: dict[str, pd.DataFrame] = {}
         clusters_stats: list[dict[str, Any]] = []
@@ -390,7 +392,7 @@ class Tsdr:
 
     @staticmethod
     def _prepare_clustering_fn(
-        series_w: int,
+        series: pd.DataFrame,
         step1_results: dict[str, UnivariateSeriesReductionResult],
         sli_data: np.ndarray | None,
         **kwargs: Any
@@ -413,7 +415,7 @@ class Tsdr:
                     case "hamming":
                         if dist_threshold >= 1.0:
                             # make the distance threshold intuitive
-                            dist_threshold /= series_w
+                            dist_threshold /= series.shape[0]
                         dist_func = hamming
                     case _:
                         dist_func = dist_type
@@ -469,8 +471,8 @@ class Tsdr:
                     n_jobs=kwargs.get("step2_changepoint_n_jobs", -1),
                 )
             case "changepoint-kde":
-                changepoints: list[npt.ArrayLike] = [res.outliers for res in step1_results.values() if res.has_kept]
-                if len(changepoints) == 0:
+                metric_to_changepoints: dict[str, npt.ArrayLike] = {metric: res.outliers for metric, res in step1_results.items() if res.has_kept}
+                if len(metric_to_changepoints) == 0:
                     return partial(
                         multireducer.change_point_clustering_with_kde,
                         search_method=kwargs["step2_changepoint_search_method"],
@@ -484,14 +486,22 @@ class Tsdr:
                     )
                 else:
                     return partial(
-                        multireducer.change_point_clustering_with_kde_by_changepoints,
-                        changepoints=changepoints,
+                        _wrap_change_point_clustering_with_kde,
+                        metric_to_changepoints=metric_to_changepoints,
                         kde_bandwidth=kwargs["step2_changepoint_kde_bandwidth"],
                     )
             case _:
                 raise ValueError(
                     'method_name must be "hierarchy" or "dbscan" or "changepoint'
                 )
+
+
+def _wrap_change_point_clustering_with_kde(
+    data: pd.DataFrame, metric_to_changepoints: dict[str, npt.ArrayLike], kde_bandwidth: float
+):
+    changepoints = [metric_to_changepoints[metric] for metric in data.columns]
+    return multireducer.change_point_clustering_with_kde_by_changepoints(
+        data, changepoints=changepoints, kde_bandwidth=kde_bandwidth)
 
 
 def filter_out_no_change_metrics(

@@ -131,7 +131,7 @@ def detect_changepoints(
     return change_points
 
 
-def _detech_changepoints_with_missing_values(x: np.ndarray):
+def _detect_changepoints_with_missing_values(x: np.ndarray):
     """
     Detect changepoints with missing values
     Sample:
@@ -172,7 +172,7 @@ def detect_univariate_changepoints(x: np.ndarray, search_method: str, cost_model
         case _:
             pen = penalty
     cps = algo.fit(x).predict(pen=pen)[:-1]
-    mvs = _detech_changepoints_with_missing_values(x)
+    mvs = _detect_changepoints_with_missing_values(x)
     return sorted(list(set(cps) | set(mvs)))
 
 

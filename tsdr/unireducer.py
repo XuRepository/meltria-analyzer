@@ -409,8 +409,8 @@ def changepoint_model(series: np.ndarray, **kwargs: Any) -> UnivariateSeriesRedu
         cost_model=kwargs["step1_changepoint_cost_model"],
         penalty=kwargs["step1_changepoint_penalty"],
     )
-    cps = [(cp, series[cp]) for cp in change_points]
     if len(change_points) > 0:
+        cps = [(cp, series[cp]) for cp in change_points]
         return UnivariateSeriesReductionResult(series, has_kept=True, outliers=cps)
     return UnivariateSeriesReductionResult(series, has_kept=False)
 

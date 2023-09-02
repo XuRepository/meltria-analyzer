@@ -605,7 +605,7 @@ def get_scores_of_random_selection(
 
 def _upload_dataframe_to_neptune(run: neptune.Run, df: pd.DataFrame, prefix: str) -> None:
     csv_buffer = StringIO()
-    df.to_csv(csv_buffer, index=False)
+    df.reset_index().to_csv(csv_buffer, index=False)
     run[f"{prefix}-csv"].upload(neptune.types.File.from_stream(csv_buffer, extension="csv"))
     run[f"{prefix}-html"].upload(neptune.types.File.as_html(df))
 
@@ -658,11 +658,11 @@ def upload_scores_to_neptune(
             "elapsed_time": x["elapsed_time"].mean(),
             "elapsed_time_max": x["elapsed_time"].max(),
             "elapsed_time_min": x["elapsed_time"].min(),
-            "random_selection_perf": get_scores_of_random_selection(
-                x["num_series/total/reduced"],
-                x["cause_metrics/num_mandatory_found"],
-            ),
         }
+        rs_scores = get_scores_of_random_selection(
+            x["num_series/total/reduced"], x["cause_metrics/num_mandatory_found"],
+        )
+        d |= {f"RS_{name}": val for name, val in rs_scores.items()}
         return pd.Series(d)
 
     scores_by_phase = (

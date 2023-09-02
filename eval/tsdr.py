@@ -526,7 +526,7 @@ def calculate_scores_from_tsdr_result(
             chaos_comp=record.chaos_comp(),
             optional_cause=True,
         )
-        _, found_mandatory_metrics = check_cause_metrics(
+        cause_metrics_mandatory_exist, found_mandatory_metrics = check_cause_metrics(
             pk=record.pk,
             metrics=list(reduced_df.columns),
             chaos_type=record.chaos_type(),
@@ -555,6 +555,7 @@ def calculate_scores_from_tsdr_result(
                 "metrics_file": record.basename_of_metrics_file(),
                 "phase": f"phase{i}",
                 "cause_metrics/exist": cause_metrics_exist,
+                "cause_metrics/mandatory_exist": cause_metrics_mandatory_exist,
                 "cause_metrics/only_mandatory_recall": recall_of_cause_metrics(
                     total_mandatory_cause_metrics, set(found_mandatory_metrics)
                 ),
@@ -616,6 +617,8 @@ def upload_scores_to_neptune(
     def agg_score(x: pd.DataFrame) -> pd.Series:
         tp = int(x["cause_metrics/exist"].sum())
         fn = int((~x["cause_metrics/exist"]).sum())
+        mand_tp = int(x["cause_metrics/mandatory_exist"].sum())
+        mand_fn = int((~x["cause_metrics/mandatory_exist"]).sum())
         rate = 1 - x["num_series/total/reduced"] / x["num_series/total/filtered"]
         num_series_items: dict[str, str] = {}
         for metric_type, ok in target_metric_types.items():
@@ -632,6 +635,9 @@ def upload_scores_to_neptune(
             "tp": tp,
             "fn": fn,
             "accuracy": tp / (tp + fn),
+            "mandatory_tp": mand_tp,
+            "mandatory_fn": mand_fn,
+            "mandatory_accuracy": mand_tp / (mand_tp + mand_fn),
             "cause_metrics/recall_mean": x["cause_metrics/recall"].mean(),
             "cause_metrics/recall_mandatory_mean": x[
                 "cause_metrics/only_mandatory_recall"

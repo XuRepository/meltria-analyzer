@@ -213,9 +213,9 @@ class Tsdr:
             )
             reduced_series2, clusters_stat = self.reduce_multivariate_series(
                 df_before_clustering,
-                pk,
-                step1_results,
-                max_workers,
+                pk=pk,
+                step1_results=step1_results,
+                n_workers=max_workers,
             )
 
             elapsed_time = round(time.time() - start, ELAPSED_TIME_NUM_DECIMAL_PLACES)

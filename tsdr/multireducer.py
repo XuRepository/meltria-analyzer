@@ -7,7 +7,6 @@ from typing import Any
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import ruptures as rpt
 import scipy.signal
 import scipy.stats
 from scipy.cluster.hierarchy import fcluster, linkage

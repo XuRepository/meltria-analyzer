@@ -9,4 +9,5 @@ TSIFTER_BEST_PARAM: dict[str, Any] = dict(
     step1_changepoint_penalty="bic",
     step2_clustering_method_name="changepoint-kde",
     step2_changepoint_kde_bandwidth="scott",
+    step2_clustering_granularity="service",
 )

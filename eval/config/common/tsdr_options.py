@@ -48,6 +48,7 @@ TSDR_OPTIONS: list[dict[str, Any]] = [
         step2_dbscan_algorithm="hdbscan",
         step2_clustering_series_type="raw",
         step2_clustering_choice_method="medoid",
+        # step2_clustering_granularity="container",
     ),
     dict(  # HDBSCAN-PERSON
         enable_unireducer=False,
@@ -57,5 +58,6 @@ TSDR_OPTIONS: list[dict[str, Any]] = [
         step2_dbscan_algorithm="hdbscan",
         step2_clustering_series_type="raw",
         step2_clustering_choice_method="medoid",
+        # step2_clustering_granularity="container",
     ),
 ]

@@ -314,9 +314,11 @@ class Tsdr:
         series: pd.DataFrame,
         pk: PriorKnowledge,
         step1_results: dict[str, UnivariateSeriesReductionResult],
-        n_workers: int,
+        granularity: str = "container",
+        n_workers: int = 1,
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
         n_workers = self.params.get("step2_clustering_n_workers", n_workers)
+        granularity = self.params.get("step2_clustering_granularity", granularity)
 
         sli_data: np.ndarray | None = None
         if self.params["step2_clustering_choice_method"] in [
@@ -331,29 +333,57 @@ class Tsdr:
         )
         comp_to_metrics_df: dict[str, pd.DataFrame] = {}
         clusters_stats: list[dict[str, Any]] = []
-        # Clustering metrics by service including services, containers and middlewares metrics
-        for service, containers in pk.get_containers_of_service().items():
-            # 1. service-level clustering
-            # TODO: retrieve service metrics efficently
-            service_metrics_df = series.loc[
-                :, series.columns.str.startswith(f"s-{service}_")
-            ]
-            if len(service_metrics_df.columns) > 1:
-                comp_to_metrics_df[f"s-{service}"] = service_metrics_df
 
-            # 2. container-level clustering
-            for container in containers:
-                # perform clustering in each type of metric
-                # TODO: retrieve container and middleware metrics efficently
-                container_metrics_df = series.loc[
-                    :,
-                    series.columns.str.startswith(
-                        (f"c-{container}_", f"m-{container}_")
-                    ),
-                ]
-                if len(container_metrics_df.columns) <= 1:
-                    continue
-                comp_to_metrics_df[f"c-{container}"] = container_metrics_df
+        match granularity:
+            case "service":
+                for service, containers in pk.get_containers_of_service().items():
+                    metrics_dfs: list[pd.DataFrame] = []
+
+                    service_metrics_df = series.loc[
+                        :, series.columns.str.startswith(f"s-{service}_")
+                    ]
+                    if len(service_metrics_df.columns) > 0:
+                        metrics_dfs.append(service_metrics_df)
+
+                    for container in containers:
+                        container_metrics_df = series.loc[
+                            :,
+                            series.columns.str.startswith(
+                                (f"c-{container}_", f"m-{container}_")
+                            ),
+                        ]
+                        if len(container_metrics_df.columns) > 0:
+                            metrics_dfs.append(container_metrics_df)
+
+                    if len(metrics_dfs) > 0:
+                        comp_to_metrics_df[service] = pd.concat(metrics_dfs, axis=1)
+
+            case "container":
+                # Clustering metrics by service including services, containers and middlewares metrics
+                for service, containers in pk.get_containers_of_service().items():
+                    # 1. service-level clustering
+                    # TODO: retrieve service metrics efficently
+                    service_metrics_df = series.loc[
+                        :, series.columns.str.startswith(f"s-{service}_")
+                    ]
+                    if len(service_metrics_df.columns) > 1:
+                        comp_to_metrics_df[f"s-{service}"] = service_metrics_df
+
+                    # 2. container-level clustering
+                    for container in containers:
+                        # perform clustering in each type of metric
+                        # TODO: retrieve container and middleware metrics efficently
+                        container_metrics_df = series.loc[
+                            :,
+                            series.columns.str.startswith(
+                                (f"c-{container}_", f"m-{container}_")
+                            ),
+                        ]
+                        if len(container_metrics_df.columns) <= 1:
+                            continue
+                        comp_to_metrics_df[f"c-{container}"] = container_metrics_df
+            case _:
+                assert False, f"Invalid granularity: {granularity}"
 
         # 3. node-level clustering
         for node in pk.get_nodes():

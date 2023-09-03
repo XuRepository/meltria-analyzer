@@ -299,11 +299,11 @@ def change_point_clustering_with_kde(
             time_series_length=data.shape[0],
             kde_bandwidth=kde_bandwidth,
         )
-        cluster_label_to_metrics = defaultdict(list)
+        cluster_label_to_metrics = defaultdict(set)
         for label, metric in zip(cluster_labels, metrics):
             if label == changepoint.NO_CHANGE_POINTS:  # skip no anomaly metrics
                 continue
-            cluster_label_to_metrics[label].append(metric)
+            cluster_label_to_metrics[label].add(metric)
     else:
         if representative_method:
             cluster_label_to_metrics = changepoint.cluster_multi_changepoints_by_repsentative_change_point(

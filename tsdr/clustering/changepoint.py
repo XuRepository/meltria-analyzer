@@ -199,7 +199,7 @@ def cluster_multi_changepoints(
     metrics: list[str],
     time_series_length: int,
     kde_bandwidth: float | str = "silverman",
-) -> tuple[dict[int, list[str]], dict[int, np.ndarray]]:
+) -> tuple[dict[int, set[str]], dict[int, np.ndarray]]:
     cp_to_metrics: dict[int, list[str]] = defaultdict(list)
     for metric, change_points in zip(metrics, multi_change_points):
         if len(change_points) < 1:
@@ -216,13 +216,13 @@ def cluster_multi_changepoints(
         flatten_change_points, time_series_length=time_series_length, kde_bandwidth=kde_bandwidth, unique_values=True,
     )
 
-    label_to_metrics: dict[int, list[str]] = defaultdict(list)
+    label_to_metrics: dict[int, set[str]] = defaultdict(set)
     for label, cps in label_to_change_points.items():
         if label == NO_CHANGE_POINTS:  # skip no anomaly metrics
             continue
         for cp in cps:
             for metric in cp_to_metrics[cp]:
-                label_to_metrics[label].append(metric)
+                label_to_metrics[label].add(metric)
     return label_to_metrics, label_to_change_points
 
 

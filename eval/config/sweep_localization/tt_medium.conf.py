@@ -18,5 +18,5 @@ CONFIG = dict(
     }],
     # from_orig=(True, 180, 20, 3),
     progress=True,
-    timeout_sec=60 * 60 * 1,
+    timeout_sec=60 * 60 * 3,
 )

@@ -18,5 +18,5 @@ CONFIG = dict(
         "nodes": False,
     }],
     progress=True,
-    timeout_sec=60 * 60 * 1,
+    timeout_sec=60 * 60 * 3,
 )

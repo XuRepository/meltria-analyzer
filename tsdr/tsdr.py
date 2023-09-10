@@ -510,6 +510,7 @@ class Tsdr:
                         penalty=kwargs.get("step2_changepoint_penalty", "aic"),
                         n_bkps=kwargs.get("step2_changepoint_n_bkps", 2),
                         kde_bandwidth=kwargs["step2_changepoint_kde_bandwidth"],
+                        kde_bandwidth_adjust=kwargs["step2_changepoint_kde_bandwidth_adjust"],
                         multi_change_points=kwargs["step2_changepoint_multi_change_points"],
                         representative_method=kwargs.get("step2_changepoint_representative_method", False),
                         n_jobs=kwargs.get("step2_changepoint_n_jobs", -1),

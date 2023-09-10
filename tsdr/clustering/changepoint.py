@@ -12,7 +12,7 @@ import ruptures as rpt
 import scipy.stats
 from joblib import Parallel, delayed
 from scipy.signal import argrelextrema
-from sklearn.neighbors import KernelDensity
+from statsmodels.nonparametric.kde import KDEUnivariate
 
 NO_CHANGE_POINTS: Final[int] = -1
 
@@ -198,7 +198,8 @@ def cluster_multi_changepoints(
     multi_change_points: list[list[int]],
     metrics: list[str],
     time_series_length: int,
-    kde_bandwidth: float | str = "silverman",
+    kde_bandwidth: float | str = "scott",
+    kde_bandwidth_adjust: float = 1.,
 ) -> tuple[dict[int, set[str]], dict[int, np.ndarray]]:
     cp_to_metrics: dict[int, list[str]] = defaultdict(list)
     for metric, change_points in zip(metrics, multi_change_points):
@@ -213,7 +214,10 @@ def cluster_multi_changepoints(
         return {}, {}
 
     _, label_to_change_points = cluster_changepoints_with_kde(
-        flatten_change_points, time_series_length=time_series_length, kde_bandwidth=kde_bandwidth, unique_values=True,
+        flatten_change_points, time_series_length=time_series_length,
+        kde_bandwidth=kde_bandwidth,
+        kde_bandwidth_adjust=kde_bandwidth_adjust,
+        unique_values=True,
     )
 
     label_to_metrics: dict[int, set[str]] = defaultdict(set)
@@ -229,8 +233,9 @@ def cluster_multi_changepoints(
 def cluster_multi_changepoints_by_repsentative_change_point(
     X: pd.DataFrame,
     cost_model: str = "l2",
-    penalty: str | float = "aic",
-    kde_bandwidth: float | str = "silverman",
+    penalty: str | float = "bic",
+    kde_bandwidth: float | str = "scott",
+    kde_bandwidth_adjust: float = 1.,
     n_jobs: int = -1,
 ) -> dict[int, list[str]]:
     multi_change_points = detect_multi_changepoints(
@@ -242,6 +247,7 @@ def cluster_multi_changepoints_by_repsentative_change_point(
         metrics=metrics,
         time_series_length=X.shape[0],
         kde_bandwidth=kde_bandwidth,
+        kde_bandwidth_adjust=kde_bandwidth_adjust,
     )
     max_cluster = max(label_to_metrics.items(), key=lambda _: len(_[1]))
     rep_change_point = label_to_change_points[max_cluster[0]][0]  # choose first change point as representative in max cluster
@@ -257,7 +263,9 @@ def cluster_multi_changepoints_by_repsentative_change_point(
         cp_to_metrics[choiced_cp].append(metric)
 
     _, label_to_change_points = cluster_changepoints_with_kde(
-        choiced_change_points, time_series_length=X.shape[0], kde_bandwidth=kde_bandwidth, unique_values=True,
+        choiced_change_points, time_series_length=X.shape[0], kde_bandwidth=kde_bandwidth,
+        kde_bandwidth_adjust=kde_bandwidth_adjust,
+        unique_values=True,
     )
 
     label_to_metrics: dict[int, list[str]] = defaultdict(list)
@@ -293,15 +301,18 @@ def cluster_changepoints(
 def cluster_changepoints_with_kde(
     change_points: list[int],
     time_series_length: int,
-    kde_bandwidth: float | str,
+    kde_bandwidth: str | float,
+    kde_bandwidth_adjust: float = 1.,
     unique_values: bool = False,
 ) -> tuple[np.ndarray, dict[int, np.ndarray]]:
     assert len(change_points) > 0, "change_points should not be empty"
 
     x = np.array(change_points, dtype=int)
-    kde = KernelDensity(kernel='gaussian', bandwidth=kde_bandwidth).fit(x.reshape(-1, 1))
-    s = np.linspace(start=0, stop=time_series_length - 1, num=time_series_length // 2)  # If 'num' are larger, cluster size will be smaller.
-    e = kde.score_samples(s.reshape(-1, 1))
+
+    dens = KDEUnivariate(x)
+    dens.fit(kernel="gau", bw=kde_bandwidth, fft=True, adjust=kde_bandwidth_adjust)
+    s = np.linspace(start=0, stop=time_series_length - 1, num=time_series_length)
+    e = dens.evaluate(s)
 
     mi = argrelextrema(e, np.less)[0]
     clusters = []

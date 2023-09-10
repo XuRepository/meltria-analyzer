@@ -283,6 +283,7 @@ def change_point_clustering_with_kde(
     cost_model: str,
     penalty: str | float,  # penalty is not used if step2_changepoint_multi_change_points is false.
     kde_bandwidth: float | str,
+    kde_bandwidth_adjust: float,
     n_bkps: int = 1,  # n_bkps is not used if multi_change_points is true.
     multi_change_points: bool = False,
     representative_method: bool = False,
@@ -298,6 +299,7 @@ def change_point_clustering_with_kde(
             change_points=change_points,
             time_series_length=data.shape[0],
             kde_bandwidth=kde_bandwidth,
+            kde_bandwidth_adjust=kde_bandwidth_adjust,
         )
         cluster_label_to_metrics = defaultdict(set)
         for label, metric in zip(cluster_labels, metrics):
@@ -311,6 +313,7 @@ def change_point_clustering_with_kde(
                 cost_model=cost_model,
                 penalty=penalty,
                 kde_bandwidth=kde_bandwidth,
+                kde_bandwidth_adjust=kde_bandwidth_adjust,
                 n_jobs=n_jobs,
             )
         else:
@@ -322,6 +325,7 @@ def change_point_clustering_with_kde(
                 metrics=metrics,
                 time_series_length=data.shape[0],
                 kde_bandwidth=kde_bandwidth,
+                kde_bandwidth_adjust=kde_bandwidth_adjust,
             )
 
     if cluster_label_to_metrics:

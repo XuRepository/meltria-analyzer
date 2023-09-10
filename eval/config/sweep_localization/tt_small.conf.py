@@ -3,7 +3,7 @@ from eval.config.sweep_localization.common.localizations import \
     get_list_of_diag_options
 
 CONFIG = dict(
-    dataset_id="9n6mf",
+    dataset_id="m9dgg",
     n=10,
     experiment_n_workers=-1,
     target_chaos_types={"pod-cpu-hog", "pod-memory-hog"},  # "pod-network-latency"},

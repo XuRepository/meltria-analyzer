@@ -47,7 +47,7 @@ def _get_diag_options(
                     rcd_n_iters=100,
                     rcd_topk=30,
                     rcd_n_workers=1,
-                    rcd_n_workers_seed_ensamble=1,
+                    rcd_n_workers_seed_ensamble=-1,
                     sli_anomaly_start_time_index=sli_anomaly_start_time_index,
                 ),
                 dict(  # CG+PageRank
@@ -122,6 +122,21 @@ def _get_diag_options(
                     walk_method="pagerank",
                     sli_anomaly_start_time_index=sli_anomaly_start_time_index,
                     pyrca_boundary_index=pyrca_boundary_index,
+                ),
+            ]
+        case "rcd-parallel":
+            return [
+                dict(  # RCD
+                    use_rcd=True,
+                    rcd_boundary_index=pyrca_boundary_index,
+                    rcd_localized=True,
+                    rcd_gamma=5,
+                    rcd_bins=5,
+                    rcd_n_iters=100,
+                    rcd_topk=30,
+                    rcd_n_workers=1,
+                    rcd_n_workers_seed_ensamble=-1,
+                    sli_anomaly_start_time_index=sli_anomaly_start_time_index,
                 ),
             ]
         case _:

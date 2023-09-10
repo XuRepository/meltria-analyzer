@@ -308,6 +308,8 @@ def cluster_changepoints_with_kde(
     assert len(change_points) > 0, "change_points should not be empty"
 
     x = np.array(change_points, dtype=int)
+    if x.std() == .0:  # Handling the case where there is bandwidth 0.
+        return np.zeros(len(x), dtype=int), {0: np.unique(x) if unique_values else x}  # the all change points belongs to cluster 0.
 
     dens = KDEUnivariate(x)
     dens.fit(kernel="gau", bw=kde_bandwidth, fft=True, adjust=kde_bandwidth_adjust)

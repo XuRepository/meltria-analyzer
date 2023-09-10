@@ -520,6 +520,7 @@ class Tsdr:
                         _wrap_change_point_clustering_with_kde,
                         metric_to_changepoints=metric_to_changepoints,
                         kde_bandwidth=kwargs["step2_changepoint_kde_bandwidth"],
+                        kde_bandwidth_adjust=kwargs["step2_changepoint_kde_bandwidth_adjust"],
                     )
             case _:
                 raise ValueError(
@@ -528,11 +529,11 @@ class Tsdr:
 
 
 def _wrap_change_point_clustering_with_kde(
-    data: pd.DataFrame, metric_to_changepoints: dict[str, npt.ArrayLike], kde_bandwidth: float
+    data: pd.DataFrame, metric_to_changepoints: dict[str, npt.ArrayLike], kde_bandwidth: float | str, kde_bandwidth_adjust: float,
 ):
     changepoints = [metric_to_changepoints[metric] for metric in data.columns]
     return multireducer.change_point_clustering_with_kde_by_changepoints(
-        data, changepoints=changepoints, kde_bandwidth=kde_bandwidth)
+        data, changepoints=changepoints, kde_bandwidth=kde_bandwidth, kde_bandwidth_adjust=kde_bandwidth_adjust)
 
 
 def filter_out_no_change_metrics(

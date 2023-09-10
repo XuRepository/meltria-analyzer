@@ -259,6 +259,7 @@ def change_point_clustering_with_kde_by_changepoints(
     data: pd.DataFrame,
     changepoints: list[npt.ArrayLike],
     kde_bandwidth: float | str,
+    kde_bandwidth_adjust: float,
 ) -> tuple[dict[str, Any], list[str]]:
     metrics: list[str] = data.columns.tolist()
     cluster_label_to_metrics, _ = changepoint.cluster_multi_changepoints(
@@ -266,6 +267,7 @@ def change_point_clustering_with_kde_by_changepoints(
         metrics=metrics,
         time_series_length=data.shape[0],
         kde_bandwidth=kde_bandwidth,
+        kde_bandwidth_adjust=kde_bandwidth_adjust,
     )
     if cluster_label_to_metrics:
         choiced_cluster = max(cluster_label_to_metrics.items(), key=lambda x: len(x[1]))

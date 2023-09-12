@@ -65,6 +65,9 @@ numba = "^0.57.1"
 torch = {version = "^2.0.1+cpu", source = "torch-cpu"}
 lingam = "^1.8.0"
 memory-profiler = "^0.61.0"
+lxml = "^4.9.3"
+html5lib = "^1.1"
+beautifulsoup4 = "^4.12.2"
 
 [tool.poetry.group.dev.dependencies]
 flake8 = "^5.0.4"

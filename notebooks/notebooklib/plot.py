@@ -80,7 +80,9 @@ def plot_sli_and_causal_metrics(
     n_metrics_per_graph: int = 3,
     grid: bool = False,
     logging: bool = False,
-) -> None:
+    change_points: dict[str, int] = {},
+    title_label_only: bool = False,
+):
     root_metrics = [m for m in list(record.pk.get_root_metrics()) if m in data_df.columns.tolist()]
     ok, cause_metrics = check_cause_metrics(
         record.pk,
@@ -105,19 +107,28 @@ def plot_sli_and_causal_metrics(
             ax.xaxis.set_ticks(np.arange(int(math.ceil(start)), int(math.ceil(end)), 1))
             ax.grid(grid)
         fig.tight_layout()
+        return fig
     else:
         nrows = math.ceil(data_df.shape[1] / ncols)
         fig, axs = plt.subplots(figsize=(fig_width, graph_height * nrows), nrows=nrows, ncols=ncols)
         for (label, data), ax in zip(data_df.items(), axs.flatten()):  # type: ignore
-            ax.plot(data.to_numpy(), label=label)
-            ax.set_title(f"{record.chaos_case_full()}: {label}", fontsize=12)
+            y = data.to_numpy()
+            ax.plot(y, label=label, color="black", linewidth=2)
+            if (cp := change_points.get(label, {})):
+                ax.plot(cp, y[cp], "X", color="red", markersize=16)
+            if title_label_only:
+                ax.set_title(label, fontsize=16)
+            else:
+                ax.set_title(f"{record.chaos_case_full()}: {label}", fontsize=16)
             if logging:
                 print(f"{record.chaos_case_full()}: {label}", file=sys.stderr)
             start, end = ax.get_xlim()
-            ax.xaxis.set_ticks(np.arange(int(math.ceil(start)), int(math.ceil(end)), 1))
+            ax.xaxis.set_ticks(np.arange(int(math.ceil(start)), int(math.ceil(end)), 2))
+            ax.xaxis.set_tick_params(labelsize=14)
             ax.grid(grid)
         fig.tight_layout()
-    plt.show()
+        return fig
+    # plt.show()
 
 
 # def plot_distribution_corr_sli_and_metrics(

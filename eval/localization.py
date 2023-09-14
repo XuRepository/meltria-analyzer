@@ -85,6 +85,9 @@ def diagnose_and_rank(
     if diag_options.get("enable_revert_true_cause_metrics", False):
         reduced_df = revert_true_cause_metrics(record, reduced_df)
 
+    # Workaround: when calculating the rank accurately, rank as dataframe dataframe must have ranks for each chaos case.
+    empty_ranks = [(record.pk.get_root_metrics()[0], 0.)]
+
     sta: float = time.perf_counter()
 
     try:
@@ -100,10 +103,10 @@ def diagnose_and_rank(
                     f"TimeoutInterrupt while diagnosing {record.chaos_case_full()}, {diag_options}"
                 )
                 G = nx.empty_graph()
-                ranks = []
+                ranks = empty_ranks
     except Exception as e:
         logger.error(f"Failed to diagnose {record.chaos_case_full()}, {diag_options}: {e}\n{traceback.format_exc()}")
-        return nx.empty_graph(), create_rank_as_dataframe([], dataset_id, record), 0.0
+        return nx.empty_graph(), create_rank_as_dataframe(empty_ranks, dataset_id, record), 0.0
 
     end: float = time.perf_counter()
     elapsed: float = end - sta
@@ -112,9 +115,9 @@ def diagnose_and_rank(
         logger.error(
             f"Failed to diagnose {record.chaos_case_full()} with {len(ranks)} ranks"
         )
-        return nx.empty_graph(), create_rank_as_dataframe([], dataset_id, record), elapsed
+        return nx.empty_graph(), create_rank_as_dataframe(empty_ranks, dataset_id, record), elapsed
 
-    return G, create_rank_as_dataframe(ranks, dataset_id, record), elapsed
+    return G, create_rank_as_dataframe(empty_ranks, dataset_id, record), elapsed
 
 
 def diagnose_and_rank_multi_datasets(

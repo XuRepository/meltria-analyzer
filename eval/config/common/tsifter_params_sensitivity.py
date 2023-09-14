@@ -1,9 +1,9 @@
 from itertools import product
 from typing import Any
 
-COST_MODELS = ["l2", "l1", "normal"]
+COST_MODELS = ["l2"]  #, "l1", "normal"]
 SEARCH_METHODS = ["binseg", "pelt", "bottomup"]
-CHANGE_POINTS_PENALTIES = ["bic", "aic"]
+CHANGE_POINTS_PENALTIES = ["bic"]  #, "aic"]
 KDE_BANDWIDTHS = ["scott"]
 KDE_BANDWIDTH_ADJUSTS = [0.01, 0.02, 0.04, 0.06, 0.08, 0.1, 0.5, 1.0]
 

@@ -117,7 +117,7 @@ def diagnose_and_rank(
         )
         return nx.empty_graph(), create_rank_as_dataframe(empty_ranks, dataset_id, record), elapsed
 
-    return G, create_rank_as_dataframe(empty_ranks, dataset_id, record), elapsed
+    return G, create_rank_as_dataframe(ranks, dataset_id, record), elapsed
 
 
 def diagnose_and_rank_multi_datasets(

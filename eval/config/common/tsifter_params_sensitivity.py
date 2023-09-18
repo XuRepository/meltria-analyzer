@@ -18,6 +18,7 @@ TSDR_OPTIONS: list[dict[str, Any]] = [
         step2_clustering_method_name="changepoint-kde",
         step2_changepoint_kde_bandwidth=kde_bandwidth,
         step2_changepoint_kde_bandwidth_adjust=kde_bandwidth_adjust,
+        step2_changepoint_segment_selection_method="weighted_max",
         step2_clustering_granularity="service",
     )
     for cost_model, search_method, penalty, kde_bandwidth, kde_bandwidth_adjust

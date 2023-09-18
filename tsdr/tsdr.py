@@ -513,6 +513,7 @@ class Tsdr:
                         kde_bandwidth_adjust=kwargs["step2_changepoint_kde_bandwidth_adjust"],
                         multi_change_points=kwargs["step2_changepoint_multi_change_points"],
                         representative_method=kwargs.get("step2_changepoint_representative_method", False),
+                        segment_selection_method=kwargs.get("step2_changepoint_segment_selection_method", "max"),
                         n_jobs=kwargs.get("step2_changepoint_n_jobs", -1),
                     )
                 else:
@@ -521,6 +522,7 @@ class Tsdr:
                         metric_to_changepoints=metric_to_changepoints,
                         kde_bandwidth=kwargs["step2_changepoint_kde_bandwidth"],
                         kde_bandwidth_adjust=kwargs["step2_changepoint_kde_bandwidth_adjust"],
+                        segment_selection_method=kwargs.get("step2_changepoint_segment_selection_method", "max"),
                     )
             case _:
                 raise ValueError(
@@ -529,11 +531,11 @@ class Tsdr:
 
 
 def _wrap_change_point_clustering_with_kde(
-    data: pd.DataFrame, metric_to_changepoints: dict[str, npt.ArrayLike], kde_bandwidth: float | str, kde_bandwidth_adjust: float,
+    data: pd.DataFrame, metric_to_changepoints: dict[str, npt.ArrayLike], kde_bandwidth: float | str, kde_bandwidth_adjust: float, segment_selection_method: str,
 ):
     changepoints = [metric_to_changepoints[metric] for metric in data.columns]
     return multireducer.change_point_clustering_with_kde_by_changepoints(
-        data, changepoints=changepoints, kde_bandwidth=kde_bandwidth, kde_bandwidth_adjust=kde_bandwidth_adjust)
+        data, changepoints=changepoints, kde_bandwidth=kde_bandwidth, kde_bandwidth_adjust=kde_bandwidth_adjust, segment_selection_method=segment_selection_method)
 
 
 def filter_out_no_change_metrics(

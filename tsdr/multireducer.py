@@ -255,28 +255,53 @@ def change_point_clustering(
     return clustering_info, remove_metrics
 
 
-def change_point_clustering_with_kde_by_changepoints(
-    data: pd.DataFrame,
-    changepoints: list[npt.ArrayLike],
-    kde_bandwidth: float | str,
-    kde_bandwidth_adjust: float,
+def select_segment(
+    segment_selection_method: str,
+    cluster_label_to_metrics: dict,
+    metrics: list[str],
+    metric_to_cps: dict | None,
 ) -> tuple[dict[str, Any], list[str]]:
-    metrics: list[str] = data.columns.tolist()
-    cluster_label_to_metrics, _ = changepoint.cluster_multi_changepoints(
-        multi_change_points=[[cp[0] for cp in cps] for cps in changepoints],
-        metrics=metrics,
-        time_series_length=data.shape[0],
-        kde_bandwidth=kde_bandwidth,
-        kde_bandwidth_adjust=kde_bandwidth_adjust,
-    )
     if cluster_label_to_metrics:
-        choiced_cluster = max(cluster_label_to_metrics.items(), key=lambda x: len(x[1]))
+        match segment_selection_method:
+            case "max" | "":
+                choiced_cluster = max(cluster_label_to_metrics.items(), key=lambda x: len(x[1]))
+            case "weighted_max":
+                assert metric_to_cps is not None
+                # for label, metrics in cluster_label_to_metrics.items():
+                #     print(label, len(metrics))
+                #     for metric in metrics:
+                #         print("\t", label, metric, 1 / len(metric_to_cps[metric]))
+                choiced_cluster = max(
+                    cluster_label_to_metrics.items(), key=lambda x: sum(1 / len(metric_to_cps[m]) for m in x[1])
+                )
+            case _:
+                raise ValueError(f"Unknown segment_selection_method: {segment_selection_method}")
         keep_metrics: set[str] = set(choiced_cluster[1])
     else:
         keep_metrics = set()
     remove_metrics: list[str] = list(set(metrics) - keep_metrics)
     clustering_info: dict[str, list[str]] = {metric: [] for metric in keep_metrics}
     return clustering_info, remove_metrics
+
+
+def change_point_clustering_with_kde_by_changepoints(
+    data: pd.DataFrame,
+    changepoints: list[npt.ArrayLike],
+    kde_bandwidth: float | str,
+    kde_bandwidth_adjust: float,
+    segment_selection_method: str = "",
+) -> tuple[dict[str, Any], list[str]]:
+    metrics: list[str] = data.columns.tolist()
+    change_point_indices = [[cp[0] for cp in cps] for cps in changepoints]
+    metric_to_cps = {metric: cps for metric, cps in zip(metrics, change_point_indices)}
+    cluster_label_to_metrics, _ = changepoint.cluster_multi_changepoints(
+        multi_change_points=change_point_indices,
+        metrics=metrics,
+        time_series_length=data.shape[0],
+        kde_bandwidth=kde_bandwidth,
+        kde_bandwidth_adjust=kde_bandwidth_adjust,
+    )
+    return select_segment(segment_selection_method, cluster_label_to_metrics, metrics, metric_to_cps)
 
 
 def change_point_clustering_with_kde(
@@ -289,6 +314,7 @@ def change_point_clustering_with_kde(
     n_bkps: int = 1,  # n_bkps is not used if multi_change_points is true.
     multi_change_points: bool = False,
     representative_method: bool = False,
+    segment_selection_method: str = "",
     n_jobs: int = -1,
 ) -> tuple[dict[str, Any], list[str]]:
     if representative_method:
@@ -325,19 +351,14 @@ def change_point_clustering_with_kde(
             cluster_label_to_metrics, _ = changepoint.cluster_multi_changepoints(
                 multi_change_points=changepoints,
                 metrics=metrics,
-                time_series_length=data.shape[0],
                 kde_bandwidth=kde_bandwidth,
                 kde_bandwidth_adjust=kde_bandwidth_adjust,
+                time_series_length=data.shape[0],
             )
+            metric_to_cps = {metric: cps for metric, cps in zip(metrics, changepoints)}
+            return select_segment(segment_selection_method, cluster_label_to_metrics, metrics, metric_to_cps)
 
-    if cluster_label_to_metrics:
-        choiced_cluster = max(cluster_label_to_metrics.items(), key=lambda x: len(x[1]))
-        keep_metrics: set[str] = set(choiced_cluster[1])
-    else:
-        keep_metrics = set()
-    remove_metrics: list[str] = list(set(metrics) - keep_metrics)
-    clustering_info: dict[str, list[str]] = {metric: [] for metric in keep_metrics}
-    return clustering_info, remove_metrics
+    return select_segment(segment_selection_method, cluster_label_to_metrics, metrics)
 
 
 def create_clusters(data: pd.DataFrame, columns: list[str], service_name: str, n: int):

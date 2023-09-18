@@ -32,8 +32,11 @@ def main() -> None:
     for config_file in args.config:
         print(f">> Running {config_file}\n")
         spec = runpy.run_path(config_file)
-        config = spec["CONFIG"]
-        localization.sweep_localization(**config, experiment_id=args.experiment_id, resuming_no=args.resuming_no)
+        configs = spec.get("CONFIGS", None)
+        if configs is None:
+            configs = [spec["CONFIG"]]
+        for config in configs:
+            localization.sweep_localization(**config, experiment_id=args.experiment_id, resuming_no=args.resuming_no)
 
 
 if __name__ == "__main__":

@@ -61,3 +61,7 @@ TSDR_OPTIONS: list[dict[str, Any]] = [
         # step2_clustering_granularity="container",
     ),
 ]
+
+
+def get_tsifter_options() -> list[dict[str, Any]]:
+    return [TSIFTER_BEST_PARAM]

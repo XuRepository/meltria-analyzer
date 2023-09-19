@@ -548,6 +548,27 @@ def calculate_scores_from_tsdr_result(
             num_series_by_type[f"num_series/{metric_type}/reduced"] = (
                 stat_df.loc[metric_type]["count"].sum() if metric_type in stat_df else 0
             )
+
+        num_filtered_metrics: int = tsdr_stat[1][1]["count"].sum()
+        num_reduced_metrics: int = stat_df["count"].sum()
+        num_negative_preds: int = num_filtered_metrics - num_reduced_metrics
+        num_positive_trues: int = len(total_mandatory_cause_metrics)
+        tp = len(found_mandatory_metrics)
+        num_negative_trues = num_filtered_metrics - num_positive_trues
+        fn = num_positive_trues - tp
+        tn = num_negative_preds - fn
+        fp = num_negative_trues - tn
+        recall = tp / (tp + fn)
+        precision = tp / (tp + fp)
+        f1_score = 2 * tp / (2 * tp + fp + fn)
+        specificity = tn / (tn + fp)
+        bacc = (recall + specificity) / 2
+
+        if fn == 0 and tn == 0:  # filter phase
+            mcc = float("NaN")
+        else:
+            mcc = (tp * tn - fp * fn) / np.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
+
         tests.append(
             {
                 "chaos_type": record.chaos_type(),
@@ -559,9 +580,6 @@ def calculate_scores_from_tsdr_result(
                 "cause_metrics/only_mandatory_recall": recall_of_cause_metrics(
                     total_mandatory_cause_metrics, set(found_mandatory_metrics)
                 ),
-                "cause_metrics/recall": recall_of_cause_metrics(
-                    total_cause_metrics, set(found_metrics)
-                ),
                 "cause_metrics/proportion": proportion_of_cause_metrics(
                     set(reduced_df.columns), set(found_metrics)
                 ),
@@ -572,10 +590,16 @@ def calculate_scores_from_tsdr_result(
                 "cause_metrics/num_mandatory_total": len(total_mandatory_cause_metrics),
                 "cause_metrics/num_found": len(found_metrics),
                 "cause_metrics/num_mandatory_found": len(found_mandatory_metrics),
+                "cause_metrics/tp": tp, "cause_metrics/fn": fn,
+                "cause_metrics/tn": tn, "cause_metrics/fp": fp,
+                "cause_metrics/recall": recall,
+                "cause_metrics/precision": precision,
+                "cause_metrics/specificity": specificity,
+                "cause_metrics/f1_score": f1_score,
+                "cause_metrics/bacc": bacc,
+                "cause_metrics/mcc": mcc,
                 "num_series/total/raw": tsdr_stat[0][1]["count"].sum(),  # raw
-                "num_series/total/filtered": tsdr_stat[1][1][
-                    "count"
-                ].sum(),  # after step0
+                "num_series/total/filtered": num_filtered_metrics,  # after step0
                 "num_series/total/reduced": stat_df["count"].sum(),  # after step{i}
                 **num_series_by_type,
                 "elapsed_time": elapsed_time,
@@ -650,6 +674,16 @@ def upload_scores_to_neptune(
             "cause_metrics/num_mandatory_total_mean": x["cause_metrics/num_mandatory_total"].mean(),
             "cause_metrics/num_found_mean": x["cause_metrics/num_found"].mean(),
             "cause_metrics/num_mandatory_found_mean": x["cause_metrics/num_mandatory_found"].mean(),
+            "cause_metrics/tp_mean": x["cause_metrics/tp"].mean(),
+            "cause_metrics/fn_mean": x["cause_metrics/fn"].mean(),
+            "cause_metrics/tn_mean": x["cause_metrics/tn"].mean(),
+            "cause_metrics/fp_mean": x["cause_metrics/fp"].mean(),
+            "cause_metrics/recall_mean": x["cause_metrics/recall"].mean(),
+            "cause_metrics/precision_mean": x["cause_metrics/precision"].mean(),
+            "cause_metrics/specificity_mean": x["cause_metrics/specificity"].mean(),
+            "cause_metrics/f1_score_mean": x["cause_metrics/f1_score"].mean(),
+            "cause_metrics/bacc_mean": x["cause_metrics/bacc"].mean(),
+            "cause_metrics/mcc_mean": x["cause_metrics/mcc"].mean(),
             "num_series/total": "/".join(
                 [
                     f"{int(x['num_series/total/reduced'].mean())}",
@@ -703,6 +737,16 @@ def upload_scores_to_neptune(
         "cause_metrics/proportion_mean",
         "cause_metrics/num_total_mean",
         "cause_metrics/num_found_mean",
+        "cause_metrics/tp_mean",
+        "cause_metrics/fn_mean",
+        "cause_metrics/tn_mean",
+        "cause_metrics/fp_mean",
+        "cause_metrics/recall_mean",
+        "cause_metrics/precision_mean",
+        "cause_metrics/specificity_mean",
+        "cause_metrics/f1_score_mean",
+        "cause_metrics/bacc_mean",
+        "cause_metrics/mcc_mean",
     ]:
         total_scores[col] = scores_by_phase[col][-1]
 

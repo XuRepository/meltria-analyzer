@@ -565,7 +565,7 @@ def calculate_scores_from_tsdr_result(
         bacc = (recall + specificity) / 2
 
         if (d := (tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)) == 0:
-            mcc = float("NaN")
+            mcc = -10  # see https://github.com/neptune-ai/neptune-client/issues/1351
         else:
             mcc = (tp * tn - fp * fn) / np.sqrt(d)
 

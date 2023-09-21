@@ -564,10 +564,10 @@ def calculate_scores_from_tsdr_result(
         specificity = tn / (tn + fp)
         bacc = (recall + specificity) / 2
 
-        if fn == 0 and tn == 0:  # filter phase
+        if (d := (tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)) == 0:
             mcc = float("NaN")
         else:
-            mcc = (tp * tn - fp * fn) / np.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
+            mcc = (tp * tn - fp * fn) / np.sqrt(d)
 
         tests.append(
             {

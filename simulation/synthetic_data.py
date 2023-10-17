@@ -1,4 +1,6 @@
 import itertools
+import logging
+import pathlib
 from typing import Generator
 
 import joblib
@@ -6,6 +8,13 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 from pyrca.simulation import data_gen
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+st_handler = logging.StreamHandler()
+logger.addHandler(st_handler)
+
+DATA_DIR = pathlib.Path(__file__).parent.parent / "data" / "synthetic"
 
 
 def generate_synthetic_data(
@@ -117,3 +126,58 @@ def generate_datasets_from_param_sets(
             return
         case _:
             raise ValueError(f"Invalid return_as: {return_as}")
+
+
+def sweep_and_save_generated_data(
+    anomaly_types: list[int],
+    data_scale_params: list[dict[str, int]],
+    func_types: list[str],
+    noise_types: list[str],
+    weight_generators: list[str],
+    trial_nos: list[int],
+    n_jobs: int = -1,
+):
+    def gen(anomaly_type, data_params, func_type, noise_type, weight_generator, trial_no):
+        logger.info(f"Running anomaly type {anomaly_type} with data scale {data_params}, func_type: {func_type}, noise_type: {noise_type}, weight_generator:{weight_generator}, trian_no {trial_no}...")
+
+        normal_data_df, abnormal_data_df, true_root_causes, adjacency_df, anomaly_propagated_nodes = generate_synthetic_data(
+            num_node=data_params["num_node"],
+            num_edge=data_params["num_edge"],
+            num_normal_samples=data_params["num_normal_samples"],
+            num_abnormal_samples=data_params["num_abnormal_samples"],
+            anomaly_type=anomaly_type,
+            func_type=func_type,
+            noise_type=noise_type,
+            weight_generator=weight_generator,
+        )
+        # save
+        data_id = joblib.hash([anomaly_type, data_params, func_type, noise_type, weight_generator, trial_no], hash_name="sha1")
+        assert data_id is not None
+        (DATA_DIR / data_id).mkdir(parents=True, exist_ok=True)
+
+        for obj, name in (
+            (normal_data_df, "normal_data_df"),
+            (abnormal_data_df, "abnormal_data_df"),
+            (true_root_causes, "true_root_causes"),
+            (adjacency_df, "adjacency_df"),
+            (anomaly_propagated_nodes, "anomaly_propagated_nodes"),
+        ):
+            joblib.dump(obj, DATA_DIR / data_id / f"{name}.pkl.bz2", compress=("bz2", 3))
+
+    params = list(itertools.product(
+        anomaly_types, data_scale_params, func_types, noise_types, weight_generators, trial_nos,
+    ))
+    joblib.Parallel(n_jobs=n_jobs, prefer="processes")(
+        joblib.delayed(gen)(*param) for param in params
+    )
+
+
+def load_data(anomaly_type, data_params, func_type, noise_type, weight_generator, trial_no):
+    data_id = joblib.hash([anomaly_type, data_params, func_type, noise_type, weight_generator, trial_no], hash_name="sha1")
+    assert data_id is not None
+    normal_data_df = joblib.load(DATA_DIR / data_id / "normal_data_df.pkl.bz2")
+    abnormal_data_df = joblib.load(DATA_DIR / data_id / "abnormal_data_df.pkl.bz2")
+    true_root_causes = joblib.load(DATA_DIR / data_id / "true_root_causes.pkl.bz2")
+    adjacency_df = joblib.load(DATA_DIR / data_id / "adjacency_df.pkl.bz2")
+    anomaly_propagated_nodes = joblib.load(DATA_DIR / data_id / "anomaly_propagated_nodes.pkl.bz2")
+    return normal_data_df, abnormal_data_df, true_root_causes, adjacency_df, anomaly_propagated_nodes

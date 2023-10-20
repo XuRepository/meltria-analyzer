@@ -5,7 +5,8 @@ import logging
 import joblib
 import pandas as pd
 
-from simulation.synthetic_data import generate_synthetic_data
+from simulation.synthetic_data import (DATA_DIR, generate_synthetic_data,
+                                       load_data)
 from tsdr.birch import detect_anomalies_with_birch
 from tsdr.clustering.pearsonr import pearsonr_as_dist
 from tsdr.clustering.sbd import sbd
@@ -14,7 +15,7 @@ from tsdr.multireducer import (change_point_clustering_with_kde,
 from tsdr.unireducer import (fluxinfer_model, two_samp_test_model,
                              zscore_nsigma_model)
 
-REDUCTION_METHODS = ["TSifter", "NSigma", "BIRCH", "K-S test", "FluxInfer-AD", "HDBSCAN-SBD", "HDBSCAN-PEARSON"]
+REDUCTION_METHODS = ["MetricSifter", "NSigma", "BIRCH", "K-S test", "FluxInfer-AD", "HDBS-SBD", "HDBS-R", "None"]
 
 
 logger = logging.getLogger(__name__)
@@ -26,22 +27,26 @@ logger.addHandler(st_handler)
 def reduce_features(
     method: str,
     normal_data_df: pd.DataFrame, abnormal_data_df: pd.DataFrame, true_root_causes: list[str], graph: pd.DataFrame, anomaly_propagated_nodes: set[str],
-):
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict]:
     concated_data_df = pd.concat([normal_data_df, abnormal_data_df], axis=0, ignore_index=True)
 
     remained_metrics = []
     lookback_window_size = 4 * 20  # 20min
     match method:
-        case "TSifter":
+        case "None":
+            remained_metrics = concated_data_df.columns.tolist()
+        case "MetricSifter":
             cinfo, remove_metrics = change_point_clustering_with_kde(
                 concated_data_df,
-                search_method="binseg",
+                search_method="pelt",
                 cost_model="l2",
                 penalty="bic",
                 n_bkps=1,
-                kde_bandwidth="silverman",
+                kde_bandwidth=1.0,
+                kde_bandwidth_adjust=1.0,
                 multi_change_points=True,
                 representative_method=False,
+                segment_selection_method="weighted_max",
                 n_jobs=1,
             )
             remained_metrics = list(cinfo.keys())
@@ -83,16 +88,19 @@ def reduce_features(
                 )
                 if result.has_kept:
                     remained_metrics.append(col)
-        case "HDBSCAN-SBD":
+        case "HDBS-SBD":
             cinfo, remove_metrics = dbscan_clustering(
                 concated_data_df, dist_func=sbd, eps=0, min_pts=1, algorithm="hdbscan")
             remained_metrics = list(cinfo.keys())
-        case "HDBSCAN-PEARSON":
+        case "HDBS-R":
             cinfo, remove_metrics = dbscan_clustering(
                 concated_data_df, dist_func=pearsonr_as_dist, eps=0, min_pts=1, algorithm="hdbscan")
             remained_metrics = list(cinfo.keys())
 
-    remove_metrics = list(set(concated_data_df.columns) - set(remained_metrics))
+    total_metrics = concated_data_df.columns.tolist()
+    true_removed_metrics = list(set(total_metrics) - anomaly_propagated_nodes)
+
+    remove_metrics = list(set(total_metrics) - set(remained_metrics))
     normal_data_df.drop(columns=remove_metrics, inplace=True)
     abnormal_data_df.drop(columns=remove_metrics, inplace=True)
     graph.drop(columns=remove_metrics, index=remove_metrics, inplace=True)
@@ -105,15 +113,19 @@ def reduce_features(
         f1_score = 0.0
     else:
         f1_score = 2 * recall * precision / (recall + precision)
+    specificity = len(set(remove_metrics) & set(true_removed_metrics)) / len(true_removed_metrics) if len(remained_metrics) > 0 else 0.0
+    bacc = (recall + specificity) / 2
     stats = {
-        "method": method,
+        "reduction_method": method,
         "num_remained": len(remained_metrics),
         "num_total": len(concated_data_df.columns),
         "reduction_rate": len(remove_metrics) / len(concated_data_df.columns),
         "root_cause_recall": root_cause_recall,
         "recall": recall,
         "precision": precision,
+        "specificity": specificity,
         "f1_score": f1_score,
+        "bacc": bacc,
     }
     return normal_data_df, abnormal_data_df, graph, stats
 
@@ -166,13 +178,80 @@ def sweep_feature_reduction_with_generation(
         stats = []
         for fl_method in REDUCTION_METHODS:
             _normal_df, _abnormal_df, _, stat = reduce_features(
-                fl_method, normal_data_df.copy(), abnormal_data_df.copy(), true_root_causes, adjacency_df.copy(), anomaly_propagated_nodes)
+                fl_method, normal_data_df.copy(), abnormal_data_df.copy(), true_root_causes, adjacency_df.copy(), anomaly_propagated_nodes,
+            )
             stats.append(
                 stat | data_params | {
                     "trial_no": trial_no, "anomaly_type": anomaly_type, "func_type": func_type, "noise_type": noise_type, "weight_generator": weight_generator,
                 },
             )
             del _normal_df, _abnormal_df
+            gc.collect()
+
+        del normal_data_df, abnormal_data_df, true_root_causes, adjacency_df, anomaly_propagated_nodes
+        gc.collect()
+
+        return stats
+
+    params = list(itertools.product(
+        anomaly_types, data_scale_params, func_types, noise_types, weight_generators, trial_nos,
+    ))
+    results = joblib.Parallel(n_jobs=n_jobs, prefer="processes")(
+        joblib.delayed(_load_and_reduce)(*param) for param in params
+    )
+    assert results is not None
+    return sum(results, [])
+
+
+def sweep_load_and_reduction(
+    anomaly_types: list[int],
+    data_scale_params: list[dict[str, int]],
+    func_types: list[str],
+    noise_types: list[str],
+    weight_generators: list[str],
+    trial_nos: list[int],
+    n_jobs: int = -1,
+):
+    def _load_and_reduce(anomaly_type, data_params, func_type, noise_type, weight_generator, trial_no):
+        logger.info(f"Running anomaly type {anomaly_type} with data scale {data_params}, func_type: {func_type}, noise_type: {noise_type}, weight_generator:{weight_generator}, trian_no {trial_no}...")
+
+        normal_data_df, abnormal_data_df, true_root_causes, adjacency_df, anomaly_propagated_nodes = load_data(
+            anomaly_type=anomaly_type,
+            data_params=dict(
+                num_node=data_params["num_node"],
+                num_edge=data_params["num_edge"],
+                num_normal_samples=data_params["num_normal_samples"],
+                num_abnormal_samples=data_params["num_abnormal_samples"],
+            ),
+            func_type=func_type,
+            noise_type=noise_type,
+            weight_generator=weight_generator,
+            trial_no=trial_no,
+        )
+
+        stats = []
+        for fl_method in REDUCTION_METHODS:
+            _normal_df, _abnormal_df, graph, stat = reduce_features(
+                fl_method, normal_data_df.copy(), abnormal_data_df.copy(), true_root_causes, adjacency_df.copy(), anomaly_propagated_nodes)
+            stats.append(
+                stat | data_params | {
+                    "trial_no": trial_no, "anomaly_type": anomaly_type, "func_type": func_type, "noise_type": noise_type, "weight_generator": weight_generator,
+                },
+            )
+
+            # save
+            data_id = joblib.hash([anomaly_type, data_params, func_type, noise_type, weight_generator, trial_no], hash_name="sha1")
+            assert data_id is not None
+            (DATA_DIR / data_id / fl_method).mkdir(parents=True, exist_ok=True)
+
+            for obj, name in (
+                (_normal_df, "normal_df"),
+                (_abnormal_df, "abnormal_df"),
+                (stat, "stat"),
+            ):
+                joblib.dump(obj, DATA_DIR / data_id / fl_method / f"{name}.pkl.bz2", compress=("bz2", 3))
+
+            del _normal_df, _abnormal_df, graph
             gc.collect()
 
         del normal_data_df, abnormal_data_df, true_root_causes, adjacency_df, anomaly_propagated_nodes

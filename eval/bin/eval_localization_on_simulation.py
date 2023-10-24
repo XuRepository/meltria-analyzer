@@ -26,22 +26,49 @@ data_scale_params = [
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="eval_localization_on_simulation")
+    parser.add_argument("--resuming-trial-no", type=int, required=False, default=1, help="number of trials for resuming")
+    parser.add_argument("--trial-no", type=int, required=False, default=-1, help="target trial number")
+    parser.add_argument("--rcd-seed-ensemble", type=int, required=False, default=-1, help="number of RCD seed")
     args = parser.parse_args()
 
     if not result_path.is_dir():
         raise FileNotFoundError(f"{result_path} does not exist.")
 
-    localization_dfs = []
-    for trial_no in range(1, num_trials + 1):
-        ldf = sweep_reduction_and_localization(
-            anomaly_types, data_scale_params, func_types, noise_types, weight_generators, [trial_no], n_jobs=-1,
-        )
-        ldf.to_pickle(
-            result_path / f"pyrca_feature_reduction_simulation_localization_results_{trial_no}.pkl.gz", compression="gzip",
-        )
-
-    localization_df = pd.concat(localization_dfs, ignore_index=True)
-    localization_df.to_pickle(result_path / "pyrca_feature_reduction_simulation_localization_results.pkl.gz", compression="gzip")
+    if args.trial_no > 0:
+        if args.rcd_seed_ensemble > 0:
+            ldf = sweep_reduction_and_localization(
+                anomaly_types, data_scale_params, func_types, noise_types, weight_generators, [args.trial_no], localization_methods=["RCD"],
+                localization_kwargs={"rcd_n_iters": args.rcd_seed_ensemble},
+                n_jobs=1,
+            )
+            ldf.to_pickle(
+                result_path / f"pyrca_feature_reduction_simulation_localization_results_{args.trial_no}_rcd.pkl.gz", compression="gzip",
+            )
+        else:
+            ldf = sweep_reduction_and_localization(
+                anomaly_types, data_scale_params, func_types, noise_types, weight_generators, [args.trial_no], n_jobs=-1,
+            )
+            ldf.to_pickle(
+                result_path / f"pyrca_feature_reduction_simulation_localization_results_{args.trial_no}.pkl.gz", compression="gzip",
+            )
+    else:
+        for trial_no in range(args.resuming_trial_no, num_trials + 1):
+            if args.rcd_seed_ensemble > 0:
+                ldf = sweep_reduction_and_localization(
+                    anomaly_types, data_scale_params, func_types, noise_types, weight_generators, [trial_no], localization_methods=["RCD"],
+                    n_jobs=1,
+                    rcd_n_iters=args.rcd_seed_ensemble,
+                )
+                ldf.to_pickle(
+                    result_path / f"pyrca_feature_reduction_simulation_localization_results_{trial_no}_rcd.pkl.gz", compression="gzip",
+                )
+            else:
+                ldf = sweep_reduction_and_localization(
+                    anomaly_types, data_scale_params, func_types, noise_types, weight_generators, [trial_no], n_jobs=-1,
+                )
+                ldf.to_pickle(
+                    result_path / f"pyrca_feature_reduction_simulation_localization_results_{trial_no}.pkl.gz", compression="gzip",
+                )
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 import gc
 import itertools
 import logging
+import time
 
 import joblib
 import pandas as pd
@@ -29,6 +30,8 @@ def reduce_features(
     normal_data_df: pd.DataFrame, abnormal_data_df: pd.DataFrame, true_root_causes: list[str], graph: pd.DataFrame, anomaly_propagated_nodes: set[str],
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict]:
     concated_data_df = pd.concat([normal_data_df, abnormal_data_df], axis=0, ignore_index=True)
+
+    sta: float = time.perf_counter()
 
     remained_metrics = []
     lookback_window_size = 4 * 20  # 20min
@@ -97,6 +100,9 @@ def reduce_features(
                 concated_data_df, dist_func=pearsonr_as_dist, eps=0, min_pts=1, algorithm="hdbscan")
             remained_metrics = list(cinfo.keys())
 
+    end: float = time.perf_counter()
+    elapsed: float = end - sta
+
     total_metrics = concated_data_df.columns.tolist()
     true_removed_metrics = list(set(total_metrics) - anomaly_propagated_nodes)
 
@@ -126,6 +132,7 @@ def reduce_features(
         "specificity": specificity,
         "f1_score": f1_score,
         "bacc": bacc,
+        "elapsed_time_tsdr": elapsed,
     }
     return normal_data_df, abnormal_data_df, graph, stats
 

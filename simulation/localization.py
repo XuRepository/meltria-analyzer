@@ -1,8 +1,10 @@
 import gc
 import itertools
 import logging
+import time
 import warnings
-from typing import Final
+from collections import defaultdict
+from typing import Any, Final
 
 import joblib
 import networkx as nx
@@ -16,6 +18,7 @@ from pyrca.analyzers.rcd import RCD, RCDConfig
 from pyrca.graphs.causal.ges import GES, GESConfig
 from pyrca.graphs.causal.lingam import LiNGAM, LiNGAMConfig
 from pyrca.graphs.causal.pc import PC, PCConfig
+from pyrca.thirdparty.causallearn.utils.cit import gsq
 from threadpoolctl import threadpool_limits
 
 from simulation import feature_reduction
@@ -105,6 +108,29 @@ def avg_k(
     return avg_at_k
 
 
+def run_rcd(normal_data_df: pd.DataFrame, abnormal_data_df: pd.DataFrame, top_k: int, n_iters: int) -> list[tuple[str, float]]:
+    model = RCD(config=RCDConfig(k=top_k, localized=True, ci_test=gsq))
+
+    def _run_rcd() -> list[dict]:
+        with threadpool_limits(limits=1):
+            with warnings.catch_warnings(action='ignore', category=FutureWarning):
+                return model.find_root_causes(normal_data_df, abnormal_data_df).to_list()
+
+    if n_iters <= 1:
+        return [(r["root_cause"], r["score"]) for r in _run_rcd()]
+    # seed ensamble
+    results = joblib.Parallel(n_jobs=-1)(joblib.delayed(_run_rcd)() for _ in range(n_iters))
+    assert results is not None, "The results of rcd.rca_with_rcd are not empty"
+
+    scores: dict[str, int] = defaultdict(int)
+    for result in results:
+        if result is None:
+            continue
+        for m in result[:top_k]:
+            scores[m["root_cause"]] += 1
+    return sorted([(metric, n / n_iters) for (metric, n) in scores.items()], key=lambda x: x[1], reverse=True)
+
+
 def run_rca(
     data_df: pd.DataFrame,
     graph: pd.DataFrame,
@@ -113,22 +139,22 @@ def run_rca(
     top_k: int,
     boundary_index: int,
     abnormal_metrics: list[str] = ["X1"],
+    **kwargs,
 ) -> list[tuple[str, float]]:
+    if len(data_df.columns) == 0:
+        return []
     normal_data_df = data_df[data_df.index < boundary_index]
     abnormal_data_df = data_df[data_df.index >= boundary_index]
     match method:
         case "epsilon_diagnosis":
             normal_df = normal_data_df.iloc[-len(abnormal_data_df):, :]
             model = EpsilonDiagnosis(config=EpsilonDiagnosisConfig(root_cause_top_k=top_k))
-            model.train(normal_df)
-            results = model.find_root_causes(abnormal_data_df).to_list()
+            with threadpool_limits(limits=1):
+                model.train(normal_df)
+                results = model.find_root_causes(abnormal_data_df).to_list()
             return [(r["root_cause"], r["score"]) for i, r in enumerate(results)]
         case "rcd":
-            if len(normal_data_df.columns) == 0 or len(abnormal_data_df.columns) == 0:
-                return []
-            model = RCD(config=RCDConfig(k=top_k, localized=True))
-            results = model.find_root_causes(normal_data_df, abnormal_data_df).to_list()
-            return [(r["root_cause"], r["score"]) for i, r in enumerate(results)]
+            return run_rcd(normal_data_df, abnormal_data_df, top_k, kwargs.get("rcd_n_iters", 1))
         # case "BayesianNetwork":
         #     if "X1" not in normal_data_df.columns:
         #         return hits
@@ -139,19 +165,22 @@ def run_rca(
         #     results = model.find_root_causes(anomalous_metrics=["X1"]).to_list()
         case "pc":
             with warnings.catch_warnings(action='ignore', category=UserWarning):
-                graph = PC(PCConfig(run_pdag2dag=True)).train(
-                    pd.concat([normal_data_df, abnormal_data_df], axis=0, ignore_index=True),
-                )
+                with threadpool_limits(limits=1):
+                    graph = PC(PCConfig(run_pdag2dag=True)).train(
+                        pd.concat([normal_data_df, abnormal_data_df], axis=0, ignore_index=True),
+                    )
         case "lingam":
             with warnings.catch_warnings(action='ignore', category=UserWarning):
-                graph = LiNGAM(LiNGAMConfig(run_pdag2dag=True)).train(
-                    pd.concat([normal_data_df, abnormal_data_df], axis=0, ignore_index=True),
-                )
+                with threadpool_limits(limits=1):
+                    graph = LiNGAM(LiNGAMConfig(run_pdag2dag=True)).train(
+                        pd.concat([normal_data_df, abnormal_data_df], axis=0, ignore_index=True),
+                    )
         case "ges":
             with warnings.catch_warnings(action='ignore', category=UserWarning):
-                graph = GES(GESConfig(run_pdag2dag=True)).train(
-                    pd.concat([normal_data_df, abnormal_data_df], axis=0, ignore_index=True),
-                )
+                with threadpool_limits(limits=1):
+                    graph = GES(GESConfig(run_pdag2dag=True)).train(
+                        pd.concat([normal_data_df, abnormal_data_df], axis=0, ignore_index=True),
+                    )
         case _:
             raise ValueError(f"Model {method} is not supported.")
 
@@ -165,24 +194,27 @@ def run_rca(
     match walk_method:
         case "ht":
             model = HT(config=HTConfig(graph=graph, root_cause_top_k=top_k))
-            model.train(normal_data_df)
-            try:
-                results = model.find_root_causes(
-                    abnormal_data_df,
-                    abnormal_metrics_for_walk[0] if abnormal_metrics_for_walk is not None else None,
-                    adjustment=True,
-                ).to_list()
-            except nx.exception.NetworkXUnfeasible:
-                logger.warning("skip to run 'ht' because the graph has a cycle")
-                return []
+            with threadpool_limits(limits=1):
+                model.train(normal_data_df)
+                try:
+                    results = model.find_root_causes(
+                        abnormal_data_df,
+                        abnormal_metrics_for_walk[0] if abnormal_metrics_for_walk is not None else None,
+                        adjustment=True,
+                    ).to_list()
+                except nx.exception.NetworkXUnfeasible:
+                    logger.warning("skip to run 'ht' because the graph has a cycle")
+                    return []
         case "pagerank":
-            rank = nx.pagerank(nx.DiGraph(graph).reverse())
-            results = [{"root_cause": k, "score": v} for k, v in sorted(rank.items(), key=lambda item: item[1], reverse=True)][:top_k]
+            with threadpool_limits(limits=1):
+                rank = nx.pagerank(nx.DiGraph(graph).reverse())
+                results = [{"root_cause": k, "score": v} for k, v in sorted(rank.items(), key=lambda item: item[1], reverse=True)][:top_k]
         case "rw-2":
             if abnormal_data_df is None or not abnormal_metrics_for_walk:
                 return []
             model = RandomWalk(config=RandomWalkConfig(graph=graph, root_cause_top_k=top_k, use_partial_corr=False))
-            results = model.find_root_causes(abnormal_metrics_for_walk, abnormal_data_df).to_list()
+            with threadpool_limits(limits=1):
+                results = model.find_root_causes(abnormal_metrics_for_walk, abnormal_data_df).to_list()
         case _:
             raise ValueError(f"Unknown walk method: {walk_method}")
 
@@ -194,16 +226,23 @@ def run_rca_with_params(
     data_scale_param: dict[str, int], func_type: str, noise_type: str, weight_generator: str,
     data_df, true_root_causes, graph,
     reduction_stats,
+    **kwargs,
 ) -> list[dict[str, int]]:
     logger.info(f"Running {method} on anomaly type {anomaly_type} with data scale {data_scale_param}, func_type: {func_type}, noise_type: {noise_type}, weight_generator:{weight_generator}, trial_no {trial_no}...")
 
     causal_method, walk_method = method_to_method_pair(method)
-    with threadpool_limits(limits=1):
-        ranks = run_rca(
-            data_df, graph,
-            method=causal_method, walk_method=walk_method,
-            top_k=top_k, boundary_index=data_scale_param["num_normal_samples"],
-        )
+
+    sta: float = time.perf_counter()
+
+    ranks = run_rca(
+        data_df, graph,
+        method=causal_method, walk_method=walk_method,
+        top_k=top_k, boundary_index=data_scale_param["num_normal_samples"],
+        **kwargs,
+    )
+
+    end: float = time.perf_counter()
+    elapsed: float = end - sta
 
     items = []
     for k, (metric, score) in enumerate(ranks, 1):
@@ -215,6 +254,7 @@ def run_rca_with_params(
                     "hit": hit,
                     "num_root_causes": len(true_root_causes),
                     "localization_method": method,
+                    "elapsed_time_loc": elapsed,
                 },
                 **data_scale_param,
                 **{"anomaly_type": anomaly_type, "func_type": func_type, "noise_type": noise_type, "weight_generator": weight_generator},
@@ -231,7 +271,9 @@ def sweep_reduction_and_localization(
     noise_types: list[str],
     weight_generators: list[str],
     trial_nos: list[int],
+    localization_methods: list[str] = LOCALIZATUON_METHODS,
     n_jobs: int = -1,
+    **localization_kwargs: dict[str, Any],
 ) -> pd.DataFrame:
     def _load_and_reduce_and_localize(anomaly_type, data_params, func_type, noise_type, weight_generator, trial_no):
         logger.info(f"Running anomaly type {anomaly_type} with data scale {data_params}, func_type: {func_type}, noise_type: {noise_type}, weight_generator:{weight_generator}, trian_no {trial_no}...")
@@ -265,12 +307,13 @@ def sweep_reduction_and_localization(
 
             reduced_df = pd.concat([reduced_normal_df, reduced_abnormal_df], axis=0, ignore_index=True, copy=False)
 
-            for loc_method in LOCALIZATUON_METHODS:
+            for loc_method in localization_methods:
                 results = run_rca_with_params(
                     loc_method, top_k=top_k, trial_no=trial_no, anomaly_type=anomaly_type,
                     data_scale_param=data_params, func_type=func_type, noise_type=noise_type, weight_generator=weight_generator,
                     data_df=reduced_df, true_root_causes=true_root_causes, graph=copied_adjacency_df,
                     reduction_stats=stat,
+                    **localization_kwargs,
                 )
                 loc_results.extend(results)
 

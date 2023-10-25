@@ -19,6 +19,7 @@ from pyrca.graphs.causal.ges import GES, GESConfig
 from pyrca.graphs.causal.lingam import LiNGAM, LiNGAMConfig
 from pyrca.graphs.causal.pc import PC, PCConfig
 from pyrca.thirdparty.causallearn.utils.cit import gsq
+from scipy.stats import zscore
 from threadpoolctl import threadpool_limits
 
 from simulation import feature_reduction
@@ -108,7 +109,11 @@ def avg_k(
     return avg_at_k
 
 
-def run_rcd(normal_data_df: pd.DataFrame, abnormal_data_df: pd.DataFrame, top_k: int, n_iters: int) -> list[tuple[str, float]]:
+def run_rcd(data_df: pd.DataFrame, boundary_index: int, top_k: int, n_iters: int) -> list[tuple[str, float]]:
+    dataset = data_df.apply(zscore).dropna(how="any", axis=1)
+    normal_data_df = dataset[dataset.index < boundary_index]
+    abnormal_data_df = dataset[dataset.index >= boundary_index]
+
     model = RCD(config=RCDConfig(k=top_k, localized=True, ci_test=gsq))
 
     def _run_rcd() -> list[dict]:
@@ -154,7 +159,7 @@ def run_rca(
                 results = model.find_root_causes(abnormal_data_df).to_list()
             return [(r["root_cause"], r["score"]) for i, r in enumerate(results)]
         case "rcd":
-            return run_rcd(normal_data_df, abnormal_data_df, top_k, kwargs.get("rcd_n_iters", 1))
+            return run_rcd(data_df, boundary_index, top_k, kwargs.get("rcd_n_iters", 1))
         # case "BayesianNetwork":
         #     if "X1" not in normal_data_df.columns:
         #         return hits

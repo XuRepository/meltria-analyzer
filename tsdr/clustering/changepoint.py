@@ -155,7 +155,8 @@ def detect_univariate_changepoints(x: np.ndarray, search_method: str, cost_model
             case "binseg":
                 algo = rpt.Binseg(model=cost_model, jump=1)
             case "pelt":
-                algo = rpt.Pelt(model=cost_model, jump=1)
+                # algo = rpt.Pelt(model=cost_model, jump=1)  # written in pure Python
+                algo = rpt.KernelCPD(kernel="linear", min_size=2)  # written in C lang
             case "dynp":
                 algo = rpt.Dynp(model=cost_model, jump=1)
             case "bottomup":

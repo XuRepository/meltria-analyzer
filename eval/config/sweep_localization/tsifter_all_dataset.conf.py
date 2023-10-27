@@ -98,7 +98,7 @@ CONFIGS = [
     ),
     # TT-large
     dict(
-        dataset_id="9n6mf",
+        dataset_id="m9dgg",
         n=10,
         experiment_n_workers=-1,
         target_chaos_types={"pod-cpu-hog", "pod-memory-hog"},  # "pod-network-latency"},

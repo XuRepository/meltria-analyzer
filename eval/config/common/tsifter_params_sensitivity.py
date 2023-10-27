@@ -2,10 +2,11 @@ from itertools import product
 from typing import Any
 
 COST_MODELS = ["l2"]  #, "l1", "normal"]
-SEARCH_METHODS = ["binseg", "pelt", "bottomup"]
+# SEARCH_METHODS = ["binseg", "pelt", "bottomup"]
+SEARCH_METHODS = ["bottomup"]
 CHANGE_POINTS_PENALTIES = ["bic"]  #, "aic"]
-KDE_BANDWIDTHS = ["scott"]
-KDE_BANDWIDTH_ADJUSTS = [0.01, 0.02, 0.04, 0.06, 0.08, 0.1, 0.5, 1.0]
+KDE_BANDWIDTHS = [0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8]
+KDE_BANDWIDTH_ADJUSTS = [1.0]
 
 TSDR_OPTIONS: list[dict[str, Any]] = [
     dict(

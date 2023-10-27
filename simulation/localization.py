@@ -276,6 +276,7 @@ def sweep_reduction_and_localization(
     noise_types: list[str],
     weight_generators: list[str],
     trial_nos: list[int],
+    reduction_methods: list[str] = feature_reduction.REDUCTION_METHODS,
     localization_methods: list[str] = LOCALIZATUON_METHODS,
     n_jobs: int = -1,
     **localization_kwargs: dict[str, Any],
@@ -298,7 +299,7 @@ def sweep_reduction_and_localization(
         )
 
         loc_results = []
-        for fl_method in feature_reduction.REDUCTION_METHODS:
+        for fl_method in reduction_methods:
             logger.info(f"Running feature reduction method {fl_method} on anomaly type {anomaly_type} with data scale {data_params}, func_type: {func_type}, noise_type: {noise_type}, weight_generator:{weight_generator}, trian_no {trial_no}...")
             copied_normal_data_df = normal_data_df.copy()
             copied_abnormal_data_df = abnormal_data_df.copy()

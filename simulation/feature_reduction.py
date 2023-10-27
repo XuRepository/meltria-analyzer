@@ -41,7 +41,7 @@ def reduce_features(
         case "MetricSifter":
             cinfo, remove_metrics = change_point_clustering_with_kde(
                 concated_data_df,
-                search_method="pelt",
+                search_method="bottomup",
                 cost_model="l2",
                 penalty="bic",
                 n_bkps=1,

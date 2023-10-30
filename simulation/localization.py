@@ -114,7 +114,7 @@ def run_rcd(data_df: pd.DataFrame, boundary_index: int, top_k: int, n_iters: int
     normal_data_df = dataset[dataset.index < boundary_index]
     abnormal_data_df = dataset[dataset.index >= boundary_index]
 
-    model = RCD(config=RCDConfig(k=top_k, localized=True, ci_test=gsq))
+    model = RCD(config=RCDConfig(k=top_k, localized=True, start_alpha=0.001, ci_test=gsq))
 
     def _run_rcd() -> list[dict]:
         with threadpool_limits(limits=1):

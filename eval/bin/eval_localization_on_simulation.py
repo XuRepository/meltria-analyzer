@@ -52,7 +52,7 @@ def main() -> None:
             ldf = sweep_reduction_and_localization(
                 anomaly_types, data_scale_params, func_types, noise_types, weight_generators, [args.trial_no],
                 reduction_methods=args.reduction_methods,
-                n_jobs=-1,
+                n_jobs=parser.njobs,
             )
             ldf.to_pickle(
                 result_path / f"pyrca_feature_reduction_simulation_localization_results_{args.trial_no}{method_suffix}.pkl.gz", compression="gzip",

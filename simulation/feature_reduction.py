@@ -4,6 +4,7 @@ import logging
 import time
 
 import joblib
+import numpy.typing as npt
 import pandas as pd
 
 from simulation.synthetic_data import (DATA_DIR, generate_synthetic_data,
@@ -11,10 +12,11 @@ from simulation.synthetic_data import (DATA_DIR, generate_synthetic_data,
 from tsdr.birch import detect_anomalies_with_birch
 from tsdr.clustering.pearsonr import pearsonr_as_dist
 from tsdr.clustering.sbd import sbd
-from tsdr.multireducer import (change_point_clustering_with_kde,
-                               dbscan_clustering)
-from tsdr.unireducer import (fluxinfer_model, two_samp_test_model,
-                             zscore_nsigma_model)
+from tsdr.multireducer import (
+    change_point_clustering_with_kde,
+    change_point_clustering_with_kde_by_changepoints, dbscan_clustering)
+from tsdr.unireducer import (changepoint_model, fluxinfer_model,
+                             two_samp_test_model, zscore_nsigma_model)
 
 REDUCTION_METHODS = ["MetricSifter", "NSigma", "BIRCH", "K-S test", "FluxInfer-AD", "HDBS-SBD", "HDBS-R", "None"]
 
@@ -28,6 +30,7 @@ logger.addHandler(st_handler)
 def reduce_features(
     method: str,
     normal_data_df: pd.DataFrame, abnormal_data_df: pd.DataFrame, true_root_causes: list[str], graph: pd.DataFrame, anomaly_propagated_nodes: set[str],
+    **kwargs,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict]:
     concated_data_df = pd.concat([normal_data_df, abnormal_data_df], axis=0, ignore_index=True)
 
@@ -38,6 +41,17 @@ def reduce_features(
     match method:
         case "None":
             remained_metrics = concated_data_df.columns.tolist()
+        case "MetricSifter w/o segmentation":
+            for col in concated_data_df.columns:
+                result = changepoint_model(
+                    concated_data_df[col].values,
+                    step1_method_name="changepoint",
+                    step1_changepoint_search_method="pelt",
+                    step1_changepoint_cost_model="l2",
+                    step1_changepoint_penalty="bic",
+                )
+                if result.has_kept:
+                    remained_metrics.append(col)
         case "MetricSifter":
             cinfo, remove_metrics = change_point_clustering_with_kde(
                 concated_data_df,
@@ -45,7 +59,7 @@ def reduce_features(
                 cost_model="l2",
                 penalty="bic",
                 n_bkps=1,
-                kde_bandwidth=1.0,
+                kde_bandwidth=kwargs.get("metricsifter_bandwidth", 2.50),
                 kde_bandwidth_adjust=1.0,
                 multi_change_points=True,
                 representative_method=False,
@@ -274,3 +288,49 @@ def sweep_load_and_reduction(
     )
     assert results is not None
     return sum(results, [])
+
+
+def sweep_metricsifter_params(
+    bandwidths: list[float],
+    anomaly_types: list[int],
+    data_scale_params: list[dict[str, int]],
+    func_types: list[str],
+    noise_types: list[str],
+    weight_generators: list[str],
+    trial_nos: list[int],
+    n_jobs: int = -1,
+):
+
+    def _load_and_reduce(metricsifter_bandwidth, anomaly_type, data_params, func_type, noise_type, weight_generator, trial_no):
+        logger.info(f"Running anomaly type {anomaly_type} with data scale {data_params}, func_type: {func_type}, noise_type: {noise_type}, weight_generator:{weight_generator}, trian_no {trial_no}...")
+
+        normal_data_df, abnormal_data_df, true_root_causes, adjacency_df, anomaly_propagated_nodes = load_data(
+            anomaly_type=anomaly_type,
+            data_params=dict(
+                num_node=data_params["num_node"],
+                num_edge=data_params["num_edge"],
+                num_normal_samples=data_params["num_normal_samples"],
+                num_abnormal_samples=data_params["num_abnormal_samples"],
+            ),
+            func_type=func_type,
+            noise_type=noise_type,
+            weight_generator=weight_generator,
+            trial_no=trial_no,
+        )
+
+        _, _, _, stat = reduce_features(
+            "MetricSifter", normal_data_df, abnormal_data_df, true_root_causes, adjacency_df, anomaly_propagated_nodes,
+            metricsifter_bandwidth=metricsifter_bandwidth,
+        )
+        return stat | data_params | {
+            "trial_no": trial_no, "anomaly_type": anomaly_type, "func_type": func_type, "noise_type": noise_type, "weight_generator": weight_generator, "metricsifter_bandwidth": metricsifter_bandwidth,
+        }
+
+    params = list(itertools.product(
+        bandwidths, anomaly_types, data_scale_params, func_types, noise_types, weight_generators, trial_nos,
+    ))
+    results = joblib.Parallel(n_jobs=n_jobs, prefer="processes")(
+        joblib.delayed(_load_and_reduce)(*param) for param in params
+    )
+    assert results is not None
+    return results

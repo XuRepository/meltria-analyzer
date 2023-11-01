@@ -231,6 +231,7 @@ def sweep_load_and_reduction(
     noise_types: list[str],
     weight_generators: list[str],
     trial_nos: list[int],
+    methods: list[str] = REDUCTION_METHODS,
     n_jobs: int = -1,
 ):
     def _load_and_reduce(anomaly_type, data_params, func_type, noise_type, weight_generator, trial_no):
@@ -251,7 +252,7 @@ def sweep_load_and_reduction(
         )
 
         stats = []
-        for fl_method in REDUCTION_METHODS:
+        for fl_method in methods:
             _normal_df, _abnormal_df, graph, stat = reduce_features(
                 fl_method, normal_data_df.copy(), abnormal_data_df.copy(), true_root_causes, adjacency_df.copy(), anomaly_propagated_nodes)
             stats.append(

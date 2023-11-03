@@ -613,6 +613,7 @@ def calculate_scores_from_tsdr_result(
 
 def get_scores_of_random_selection(
     num_metrics: npt.ArrayLike, num_found_metrics: npt.ArrayLike, max_k: int = 5,
+    lower_case: bool = False,
 ) -> dict[str, float]:
     def ac_k(n, g, k: int):
         prob_single_correct = g / n
@@ -625,7 +626,9 @@ def get_scores_of_random_selection(
     ac_k_ = {k: ac_k(num_metrics, num_found_metrics, k) for k in range(1, max_k + 1)}
     avg_k_ = avg_k(ac_k_)
 
-    return dict({f"AC_{k}": v for k, v in ac_k_.items()}, **{f"AVG_{k}": v for k, v in avg_k_.items()})
+    ac_prefix = "ac_" if lower_case else "AC_"
+    avg_prefix = "avg_" if lower_case else "AVG_"
+    return dict({f"{ac_prefix}{k}": v for k, v in ac_k_.items()}, **{f"{avg_prefix}{k}": v for k, v in avg_k_.items()})
 
 
 def _upload_dataframe_to_neptune(run: neptune.Run, df: pd.DataFrame, prefix: str) -> None:

@@ -2,6 +2,7 @@ import gc
 import itertools
 import logging
 import time
+from typing import Any
 
 import joblib
 import numpy.typing as npt
@@ -30,7 +31,7 @@ logger.addHandler(st_handler)
 def reduce_features(
     method: str,
     normal_data_df: pd.DataFrame, abnormal_data_df: pd.DataFrame, true_root_causes: list[str], graph: pd.DataFrame, anomaly_propagated_nodes: set[str],
-    **kwargs,
+    **kwargs: Any,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict]:
     concated_data_df = pd.concat([normal_data_df, abnormal_data_df], axis=0, ignore_index=True)
 
@@ -41,6 +42,8 @@ def reduce_features(
     match method:
         case "None":
             remained_metrics = concated_data_df.columns.tolist()
+        case "Ideal":
+            remained_metrics = list(anomaly_propagated_nodes)
         case "MetricSifter w/o segmentation":
             for col in concated_data_df.columns:
                 result = changepoint_model(

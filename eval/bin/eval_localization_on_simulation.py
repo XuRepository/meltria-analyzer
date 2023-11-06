@@ -28,7 +28,7 @@ def main() -> None:
     parser.add_argument("--resuming-trial-no", type=int, required=False, default=1, help="number of trials for resuming")
     parser.add_argument("--trial-no", type=int, required=False, default=-1, help="target trial number")
     parser.add_argument("--rcd-seed-ensemble", type=int, required=False, default=-1, help="number of RCD seed")
-    parser.add_argument("--reduction-methods", type=str, nargs="*", required=False, default=REDUCTION_METHODS, help="reduction method")
+    parser.add_argument("--reduction-methods", type=str, nargs="*", required=False, default=REDUCTION_METHODS + ["Ideal"], help="reduction method")
     args = parser.parse_args()
 
     if not result_path.is_dir():
